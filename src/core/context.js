@@ -11,6 +11,7 @@ import { jsPDF } from 'jspdf';
  * @param {string} [options.format='a4']
  * @param {string} [options.orientation='portrait']
  * @param {number} [options.margin=10] - 页边距 mm
+ * @param {boolean} [options.compress=true] - 是否启用 PDF 压缩
  * @param {Object} [options.header] - 页眉配置 { height: mm, render: fn }
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render: fn }
  * @returns {Object} ctx
@@ -20,6 +21,7 @@ export function createContext(rootElement, options = {}) {
     format = 'a4',
     orientation = 'portrait',
     margin = 10,
+    compress = true,
     header,
     footer,
   } = options;
@@ -27,7 +29,7 @@ export function createContext(rootElement, options = {}) {
   const headerHeight = header && header.height ? header.height : 0;
   const footerHeight = footer && footer.height ? footer.height : 0;
 
-  const doc = new jsPDF({ unit: 'mm', format, orientation });
+  const doc = new jsPDF({ unit: 'mm', format, orientation, compress });
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

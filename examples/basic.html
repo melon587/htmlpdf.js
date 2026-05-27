@@ -392,6 +392,7 @@
         .addEventListener('click', async () => {
           const blob = await htmlpdf(document.getElementById('content'), {
             margin: 5,
+            compress: false,
             fontConfig: [
               {
                 fontFamily: 'roboto',
