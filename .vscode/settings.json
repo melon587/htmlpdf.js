@@ -1,0 +1,19 @@
+{
+  "eslint.useFlatConfig": false,
+  "eslint.options": {
+    "overrideConfigFile": ".eslintrc.cjs"
+  },
+  "eslint.validate": ["javascript", "javascriptreact"],
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+
+  "editor.formatOnSave": true,
+  "editor.tabSize": 2,
+
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  }
+}
