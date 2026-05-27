@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>htmlpdf - basic example</title>
+    <style>
+      /* @font-face {
+        font-family: 'Roboto';
+        font-style: normal;
+        font-weight: 400;
+        src: url('https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Roboto';
+        font-style: normal;
+        font-weight: 700;
+        src: url('https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Roboto';
+        font-style: italic;
+        font-weight: 400;
+        src: url('https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf') format('truetype');
+      }
+      @font-face {
+        font-family: 'Roboto';
+        font-style: italic;
+        font-weight: 700;
+        src: url('https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf') format('truetype');
+      } */
+
+      body {
+        font-family: 'Roboto', Arial, sans-serif;
+        padding: 20px;
+      }
+      #export-btn {
+        padding: 10px 24px;
+        background: #1677ff;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 15px;
+        margin-bottom: 20px;
+      }
+      #content {
+        width: 800px;
+        padding: 24px;
+        border: 1px solid #ddd;
+        background: #fff;
+      }
+      h1 {
+        color: #222;
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      p {
+        color: #444;
+        font-size: 14px;
+        line-height: 1.8;
+      }
+      .card {
+        margin-top: 16px;
+        padding: 16px;
+        background: #f0f5ff;
+        border-left: 4px solid #1677ff;
+        border-radius: 4px;
+        /* height: 1000px; */
+      }
+      .card strong {
+        color: #1677ff;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 16px;
+      }
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 8px 12px;
+        text-align: left;
+        font-size: 13px;
+      }
+      th {
+        background: #1677ff;
+        color: #fff;
+      }
+      tr:nth-child(even) td {
+        background: #f5f5f5;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="export-btn">Export PDF</button>
+    <div id="content">
+      <h1>htmlpdf Export Test</h1>
+      <p>
+        This is a plain text paragraph for testing text rendering. It includes
+        <strong>bold</strong> and <em>italic</em> text.
+      </p>
+      <div class="card">
+        <strong>Note:</strong> This card has a background color and a left
+        border, testing background and border rendering.
+      </div>
+      <!-- <div style="margin-top:16px;">
+      <p style="font-size:13px;color:#444;margin-bottom:8px;">Image rendering test:</p>
+      <img src="https://picsum.photos/seed/htmlpdf/400/200" alt="test image" crossorigin="anonymous"
+           style="width:400px;height:200px;border:1px solid #ccc;display:block;" />
+    </div> -->
+      <table>
+        <thead repeat-header>
+          <tr>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Title</th>
+            <th>ID</th>
+            <th>Year Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Alice</td>
+            <td>Engineering</td>
+            <td>Frontend Engineer</td>
+            <td>A001</td>
+            <td>2019</td>
+          </tr>
+          <tr page-break="avoid">
+            <td>Bob</td>
+            <td>Product</td>
+            <td>Product Manager</td>
+            <td>A002</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td>Carol</td>
+            <td>Design</td>
+            <td>UI Designer</td>
+            <td>A003</td>
+            <td>2018</td>
+          </tr>
+          <tr>
+            <td>Dave</td>
+            <td>Engineering</td>
+            <td>Backend Engineer</td>
+            <td>A004</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Eve</td>
+            <td>Operations</td>
+            <td>Ops Specialist</td>
+            <td>A005</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td>Frank</td>
+            <td>Marketing</td>
+            <td>Marketing Manager</td>
+            <td>A006</td>
+            <td>2017</td>
+          </tr>
+          <tr>
+            <td>Grace</td>
+            <td>Finance</td>
+            <td>Finance Lead</td>
+            <td>A007</td>
+            <td>2016</td>
+          </tr>
+          <tr>
+            <td>Henry</td>
+            <td>HR</td>
+            <td>HR Specialist</td>
+            <td>A008</td>
+            <td>2023</td>
+          </tr>
+          <tr>
+            <td>Ivy</td>
+            <td>Engineering</td>
+            <td>QA Engineer</td>
+            <td>A009</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Jack</td>
+            <td>Engineering</td>
+            <td>Architect</td>
+            <td>A010</td>
+            <td>2015</td>
+          </tr>
+          <tr>
+            <td>Kate</td>
+            <td>Product</td>
+            <td>Product Director</td>
+            <td>A011</td>
+            <td>2014</td>
+          </tr>
+          <tr>
+            <td>Leo</td>
+            <td>Design</td>
+            <td>Visual Designer</td>
+            <td>A012</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td>Mia</td>
+            <td>Operations</td>
+            <td>Content Ops</td>
+            <td>A013</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td>Nick</td>
+            <td>Marketing</td>
+            <td>Brand Specialist</td>
+            <td>A014</td>
+            <td>2019</td>
+          </tr>
+          <tr>
+            <td>Olivia</td>
+            <td>Finance</td>
+            <td>Accountant</td>
+            <td>A015</td>
+            <td>2018</td>
+          </tr>
+          <tr>
+            <td>Peter</td>
+            <td>HR</td>
+            <td>Recruiter</td>
+            <td>A016</td>
+            <td>2023</td>
+          </tr>
+          <tr>
+            <td>Quinn</td>
+            <td>Engineering</td>
+            <td>DevOps Engineer</td>
+            <td>A017</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr page-break="avoid">
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- page-break="true": force a new page before this element -->
+      <div
+        class="card"
+        page-break="before"
+      >
+        <strong>Page 2 Content:</strong> This card has page-break="true" (same
+        as "before"), so it always starts on a new page.
+      </div>
+
+      <!-- page-break="avoid": keep this element whole on one page -->
+      <div
+        class="card"
+        page-break="avoid"
+      >
+        <strong>No Break:</strong> This card has page-break="avoid", so it will
+        move to the next page if it does not fit.
+      </div>
+    </div>
+    <script type="module">
+      import { htmlpdf } from '../dist/htmlpdf.esm.js';
+      document
+        .getElementById('export-btn')
+        .addEventListener('click', async () => {
+          const blob = await htmlpdf(document.getElementById('content'), {
+            margin: 5,
+            fontConfig: [
+              {
+                fontFamily: 'roboto',
+                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf`,
+                fontWeight: 400,
+                fontStyle: 'normal',
+                isDefault: true,
+              },
+              {
+                fontFamily: 'roboto',
+                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf`,
+                fontWeight: 700,
+                fontStyle: 'normal',
+                isDefault: true,
+              },
+              {
+                fontFamily: 'roboto',
+                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf`,
+                fontWeight: 400,
+                fontStyle: 'italic',
+                isDefault: true,
+              },
+              {
+                fontFamily: 'roboto',
+                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf`,
+                fontWeight: 700,
+                fontStyle: 'italic',
+                isDefault: true,
+              },
+            ],
+            header: {
+              height: 10,
+              render(doc, { pageNumber, totalPages, pageWidth, margin }) {
+                doc.setFontSize(9);
+                doc.setTextColor(100);
+                doc.text('htmlpdf Export Test', margin, margin - 2);
+                doc.text(
+                  `${pageNumber} / ${totalPages}`,
+                  pageWidth - margin,
+                  margin - 2,
+                  { align: 'right' },
+                );
+              },
+            },
+            footer: {
+              height: 8,
+              render(
+                doc,
+                { pageNumber, totalPages, pageWidth, pageHeight, margin },
+              ) {
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(
+                  `${pageNumber}  /  ${totalPages} `,
+                  pageWidth / 2,
+                  pageHeight - margin + 4,
+                  { align: 'center' },
+                );
+              },
+            },
+          });
+
+          console.log(blob, 'blob');
+          const a = Object.assign(document.createElement('a'), {
+            href: URL.createObjectURL(blob),
+            download: 'export.pdf',
+          });
+          a.click();
+          URL.revokeObjectURL(a.href);
+        });
+    </script>
+  </body>
+</html>

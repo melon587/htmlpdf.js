@@ -1,0 +1,10 @@
+.idea/
+.vscode/
+.history/
+.temp/
+.svn/
+.cache/
+.local/
+
+/dist/*
+/node_modules/*

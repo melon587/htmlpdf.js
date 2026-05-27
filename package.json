@@ -1,0 +1,33 @@
+{
+  "name": "htmlpdf.js",
+  "version": "1.0.0",
+  "description": "HTML to PDF",
+  "main": "dist/htmlpdf.js",
+  "module": "dist/htmlpdf.esm.js",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "build:min": "rollup -c --environment MINIFY",
+    "watch": "rollup -c -w",
+    "dev": "rollup -c -w",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "format": "prettier --write src"
+  },
+  "dependencies": {
+    "jspdf": "4.2.1"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "25.0.8",
+    "@rollup/plugin-json": "6.1.0",
+    "@rollup/plugin-node-resolve": "15.3.1",
+    "@rollup/plugin-terser": "0.4.4",
+    "eslint": "8.57.1",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-promise": "7.3.0",
+    "prettier": "3.8.3",
+    "rollup": "3.30.0"
+  }
+}
