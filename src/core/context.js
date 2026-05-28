@@ -4,13 +4,16 @@ import { jsPDF } from 'jspdf';
 // jsPDF 内部使用 pt，但我们统一用 mm 操作
 // 屏幕 px → PDF mm 的转换比例：contentWidth(mm) / rootElement.width(px)
 
+// px 转 mm 的常量（96 DPI 标准）
+const PX_TO_MM = 25.4 / 96;
+
 /**
  * 创建渲染上下文
  * @param {Element} rootElement - 被转换的根元素
  * @param {Object} options
  * @param {string} [options.format='a4']
  * @param {string} [options.orientation='portrait']
- * @param {number} [options.margin=10] - 页边距 mm
+ * @param {number} [options.margin=0] - 页边距 px (默认 0，无边距)
  * @param {boolean} [options.compress=true] - 是否启用 PDF 压缩
  * @param {Object} [options.header] - 页眉配置 { height: mm, render: fn }
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render: fn }
@@ -20,7 +23,7 @@ export function createContext(rootElement, options = {}) {
   const {
     format = 'a4',
     orientation = 'portrait',
-    margin = 10,
+    margin = 0,
     compress = true,
     header,
     footer,
@@ -34,9 +37,12 @@ export function createContext(rootElement, options = {}) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
+  // 将 px 的 margin 转换为 mm
+  const marginMM = margin * PX_TO_MM;
+
   // 内容区宽高（去掉页边距 + header/footer 占用高度）
-  const contentWidth = pageWidth - margin * 2;
-  const contentHeight = pageHeight - margin * 2 - headerHeight - footerHeight;
+  const contentWidth = pageWidth - marginMM * 2;
+  const contentHeight = pageHeight - marginMM * 2 - headerHeight - footerHeight;
 
   // 根元素屏幕宽度 → 计算缩放比例
   const rootRect = rootElement.getBoundingClientRect();
@@ -45,7 +51,7 @@ export function createContext(rootElement, options = {}) {
   return {
     doc,
     scale,
-    margin,
+    margin: marginMM, // 返回 mm 单位的 margin，供内部使用
     headerHeight,
     footerHeight,
     pageWidth,
@@ -60,7 +66,7 @@ export function createContext(rootElement, options = {}) {
 
     /** 节点 x(px) → PDF x(mm)，加上页边距 */
     toPdfX(x) {
-      return margin + x * scale;
+      return marginMM + x * scale;
     },
 
     /**
@@ -70,7 +76,7 @@ export function createContext(rootElement, options = {}) {
      * @param {number} pageOffsetY - 当前页顶部对应的 y（mm）
      */
     toPdfY(y, pageOffsetY = 0) {
-      return margin + headerHeight + y * scale - pageOffsetY;
+      return marginMM + headerHeight + y * scale - pageOffsetY;
     },
 
     /**
@@ -80,7 +86,7 @@ export function createContext(rootElement, options = {}) {
      * @param {number} pageOffsetY - 当前页顶部（mm）
      */
     toPdfYmm(ymm, pageOffsetY = 0) {
-      return margin + headerHeight + ymm - pageOffsetY;
+      return marginMM + headerHeight + ymm - pageOffsetY;
     },
 
     /**

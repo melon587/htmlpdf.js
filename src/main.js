@@ -19,7 +19,7 @@ import { renderNodes } from './render';
  * @param {string} [options.output='blob'] - 输出格式：'blob' | 'dataurl' | 'arraybuffer'
  * @param {string} [options.format='a4'] - 页面格式（jsPDF 支持的任意格式）
  * @param {string} [options.orientation='portrait'] - 页面方向：'portrait' | 'landscape'
- * @param {number} [options.margin] - 页边距（mm）
+ * @param {number} [options.margin=0] - 页边距（px，默认 0 无边距）
  * @param {boolean} [options.compress=true] - 是否启用 PDF 压缩
  * @param {Object} [options.header] - 页眉配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }

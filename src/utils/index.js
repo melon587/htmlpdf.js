@@ -1,3 +1,5 @@
+const AUTO_AVOID_TAGS = new Set(['TR', 'IMG', 'SVG', 'VIDEO', 'CANVAS']);
+
 /**
  * 判断一个元素是否可见
  */
@@ -31,4 +33,18 @@ export function parseColor(colorStr) {
   if (!match) return null;
 
   return [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
+}
+
+/**
+ * 获取元素的 page-break 属性值
+ */
+export function getPageBreak(el) {
+  const v = el.getAttribute('page-break');
+  if (v !== null) {
+    return v === '' || v === true ? 'before' : v;
+  }
+
+  if (AUTO_AVOID_TAGS.has(el.tagName)) return 'avoid';
+
+  return null;
 }

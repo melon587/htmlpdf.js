@@ -1,17 +1,7 @@
-import { isVisible } from '../utils';
-/**
- * 需要跳过的标签（不参与渲染）
- */
+import { isVisible, getPageBreak } from '../utils';
+
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
 
-/**
- * 采集单个元素节点的信息
- * @param {Element} origEl   - 原始 DOM 元素（读 page-break / _el）
- * @param {Element} measEl   - 测量用元素（读 rect / computedStyle，可以是克隆副本）
- * @param {DOMRect} rootRect - 根元素的 BoundingClientRect（用于计算相对坐标）
- * @param {Window}  win      - 测量用的 window（可能是 iframe 的 contentWindow）
- * @returns {Object} nodeInfo
- */
 function parseElement(origEl, measEl, rootRect, win) {
   const rect = measEl.getBoundingClientRect();
   const style = win.getComputedStyle(measEl);
@@ -23,33 +13,13 @@ function parseElement(origEl, measEl, rootRect, win) {
     y: rect.top - rootRect.top,
     width: rect.width,
     height: rect.height,
-    // page-break 从原始元素读取，或自动判断（不可分割元素默认 avoid）
-    pageBreak: (() => {
-      const v = origEl.getAttribute('page-break');
-      if (v !== null) {
-        if (v === '' || v === true) return 'before';
-
-        return v; // "before" | "after" | "avoid"
-      }
-
-      // 自动 avoid：天然不可分割的元素
-      const autoAvoidTags = ['TR', 'IMG', 'SVG', 'VIDEO', 'CANVAS'];
-      if (autoAvoidTags.includes(origEl.tagName)) {
-        return 'avoid';
-      }
-
-      return null;
-    })(),
-    // repeat-header：跨页时重复此节点（表格列标题）
+    pageBreak: getPageBreak(origEl),
     repeatHeader: origEl.hasAttribute('repeat-header'),
-    // IMG 的 _el 指向原始元素（用于 preloadImages 拿到 naturalWidth 等）
     _el: origEl.tagName === 'IMG' ? origEl : null,
     _origEl: origEl,
     style: {
-      // 背景
       backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,
-      // 文字
       color: style.color,
       fontSize: style.fontSize,
       fontFamily: style.fontFamily,
@@ -58,7 +28,6 @@ function parseElement(origEl, measEl, rootRect, win) {
       textAlign: style.textAlign,
       lineHeight: style.lineHeight,
       textDecoration: style.textDecoration,
-      // 边框
       borderTopWidth: style.borderTopWidth,
       borderRightWidth: style.borderRightWidth,
       borderBottomWidth: style.borderBottomWidth,
@@ -69,7 +38,9 @@ function parseElement(origEl, measEl, rootRect, win) {
       borderLeftColor: style.borderLeftColor,
       borderTopStyle: style.borderTopStyle,
       borderTopLeftRadius: style.borderTopLeftRadius,
-      // 布局
+      borderTopRightRadius: style.borderTopRightRadius,
+      borderBottomLeftRadius: style.borderBottomLeftRadius,
+      borderBottomRightRadius: style.borderBottomRightRadius,
       display: style.display,
       overflow: style.overflow,
       paddingTop: style.paddingTop,
@@ -79,58 +50,159 @@ function parseElement(origEl, measEl, rootRect, win) {
 }
 
 /**
- * 采集文本节点（用 Range 精确测量位置）
- * @param {Text}    textNode
- * @param {Element} origParent  - 原始父元素（读样式）
- * @param {Element} measParent  - 克隆父元素（测量用）
- * @param {DOMRect} rootRect
- * @param {Window}  win
- * @returns {Object|null}
+ * 二分法：找到「前 lineCount 行」的字符结束位置
+ *
+ * 原理：
+ *   range(0, mid).getClientRects().length 就是前 mid 个字符占几行。
+ *   我们要找最大的 mid，使得行数 <= lineCount。
+ *   这个 mid 就是第 lineCount 行的最后一个字符位置。
+ *   浏览器已经考虑了 word-break/padding/inline 等所有因素，
+ *   所以这里找到的换行位置天然就是浏览器实际的换行位置。
+ */
+function findLineEnd(textNode, range, lineCount, totalLen) {
+  let left = 0;
+  let right = totalLen;
+  let result = totalLen;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    range.setStart(textNode, 0);
+    range.setEnd(textNode, mid);
+    const count = range.getClientRects().length;
+
+    if (count <= lineCount) {
+      // 前 mid 个字符还在 lineCount 行以内，记录并向右扩大
+      result = mid;
+      left = mid + 1;
+    } else {
+      // 超出了，向左缩小
+      right = mid - 1;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 解析文本节点，按浏览器实际渲染的行拆分，返回节点数组
+ * 核心思路：
+ *   1. range.getClientRects() 返回浏览器已渲染好的每一行矩形
+ *      - 天然包含了 word-break、padding、inline 元素等所有布局
+ *      - 每个 rect 的 left/top/width/height 直接用于 PDF 绘制
+ *   2. 用二分法找出每一行对应的字符范围（charStart ~ charEnd）
+ *      - 二分出的 charEnd 就是浏览器实际换行位置，无需额外处理 word-break
+ *   3. 每行生成一个独立文本节点，坐标用该行的 rect
  */
 function parseTextNode(textNode, measParent, rootRect, win) {
   const raw = textNode.textContent;
-  // 浏览器 white-space:normal：连续空白折叠成单个空格。
-  // 以 \n/\t 开头说明是 HTML 缩进产生的行首空白，浏览器渲染时忽略它（rect.left 已跳过），需 trimStart。
-  // 以普通空格开头（如 " bold "）是真实词间空格，rect.left 包含它，不能 trimStart。
+  // white-space:normal: fold whitespace to single space
+  // \n/\r/\t at start -> HTML indent whitespace, trimStart
+  // plain space at start (e.g. " bold") -> real word-gap, keep it
+  const shouldTrim = /^[\n\r\t]/.test(raw);
   const collapsed = raw.replace(/\s+/g, ' ');
-  const text = /^[\n\r\t]/.test(raw) ? collapsed.trimStart() : collapsed;
-  if (!text.trim()) return null;
+  const text = shouldTrim ? collapsed.trimStart() : collapsed;
+  if (!text.trim()) return [];
 
   const range = win.document.createRange();
   range.selectNodeContents(textNode);
-  const rect = range.getBoundingClientRect();
+  const lineRects = range.getClientRects();
 
-  if (rect.width === 0 && rect.height === 0) return null;
+  if (lineRects.length === 0) return [];
 
   const style = win.getComputedStyle(measParent);
 
-  return {
-    type: 'text',
-    tag: '#text',
-    text,
-    x: rect.left - rootRect.left,
-    y: rect.top - rootRect.top,
-    width: rect.width,
-    height: rect.height,
-    style: {
-      color: style.color,
-      fontSize: style.fontSize,
-      fontFamily: style.fontFamily,
-      fontWeight: style.fontWeight,
-      fontStyle: style.fontStyle,
-      textAlign: style.textAlign,
-      lineHeight: style.lineHeight,
-      textDecoration: style.textDecoration,
-    },
+  // compute once, reuse for all lines
+  const nodeStyle = {
+    color: style.color,
+    fontSize: style.fontSize,
+    fontFamily: style.fontFamily,
+    fontWeight: style.fontWeight,
+    fontStyle: style.fontStyle,
+    textAlign: style.textAlign,
+    lineHeight: style.lineHeight,
+    textDecoration: style.textDecoration,
   };
+
+  // single line: return directly, no binary search needed
+  if (lineRects.length === 1) {
+    const r = lineRects[0];
+
+    return [
+      {
+        type: 'text',
+        tag: '#text',
+        text,
+        x: r.left - rootRect.left,
+        y: r.top - rootRect.top,
+        width: r.width,
+        height: r.height,
+        style: nodeStyle,
+      },
+    ];
+  }
+
+  // multi-line: binary search for char boundary per line
+  const nodes = [];
+  let charStart = 0;
+  const wordBreak = style.wordBreak || 'normal';
+
+  for (let i = 0; i < lineRects.length; i++) {
+    const r = lineRects[i];
+
+    let charEnd;
+    if (i === lineRects.length - 1) {
+      charEnd = text.length;
+    } else {
+      // binary search using raw.length (range.setEnd uses raw offsets)
+      // then map raw offset back to collapsed text offset
+      const rawEnd = findLineEnd(textNode, range, i + 1, raw.length);
+      const collapsedSlice = raw.substring(0, rawEnd).replace(/\s+/g, ' ');
+      charEnd = (shouldTrim ? collapsedSlice.trimStart() : collapsedSlice)
+        .length;
+      charEnd = adjustWordBreak(text, charStart, charEnd, wordBreak);
+    }
+
+    nodes.push({
+      type: 'text',
+      tag: '#text',
+      text: text.substring(charStart, charEnd),
+      x: r.left - rootRect.left,
+      y: r.top - rootRect.top,
+      width: r.width,
+      height: r.height,
+      style: nodeStyle,
+    });
+
+    charStart = charEnd;
+  }
+
+  return nodes;
+}
+
+/**
+ * word-break: normal - if charEnd lands mid-word, walk back to word boundary
+ * @returns adjusted charEnd
+ */
+function adjustWordBreak(text, charStart, charEnd, wordBreak) {
+  if (wordBreak === 'break-all' || wordBreak === 'break-word') return charEnd;
+
+  if (charEnd > charStart && !/[\s-]/.test(text[charEnd - 1])) {
+    let ws = charEnd - 1;
+    while (ws > charStart && !/[\s-]/.test(text[ws - 1])) {
+      ws--;
+    }
+
+    return ws;
+  }
+
+  return charEnd;
 }
 
 /**
  * 递归遍历 DOM 树，返回扁平化的节点列表（按文档顺序）
  *
- * @param {Element} element   - 原始根元素
- * @param {Element} [cloneRoot] - 可选，iframe 内的克隆根元素（已加好 margin-top）
- *                                传入时在 clone 上测量坐标；不传时直接在 element 上测量
+ * @param {Element} element     - 原始根元素
+ * @param {Element} [cloneRoot] - iframe 内的克隆根元素（传入时在 clone 上测量）
  * @returns {Array} nodes
  */
 export function collectNodes(element, cloneRoot) {
@@ -138,6 +210,7 @@ export function collectNodes(element, cloneRoot) {
   const measRoot = useClone ? cloneRoot : element;
   const measWin = useClone ? cloneRoot.ownerDocument.defaultView : window;
   const rootRect = measRoot.getBoundingClientRect();
+
   const nodes = [];
 
   function walk(origEl, measEl) {
@@ -148,13 +221,12 @@ export function collectNodes(element, cloneRoot) {
 
     nodes.push(parseElement(origEl, measEl, rootRect, measWin));
 
-    // 同步遍历两棵树的子节点（结构完全一致）
     const origChildren = origEl.childNodes;
     const measChildren = measEl.childNodes;
 
     for (let i = 0; i < origChildren.length; i++) {
       const origChild = origChildren[i];
-      const measChild = measChildren[i]; // 结构相同，索引对应
+      const measChild = measChildren[i];
 
       if (origChild.nodeType === Node.ELEMENT_NODE) {
         if (measChild && measChild.nodeType === Node.ELEMENT_NODE) {
@@ -162,8 +234,9 @@ export function collectNodes(element, cloneRoot) {
         }
       } else if (origChild.nodeType === Node.TEXT_NODE) {
         if (measChild && measChild.nodeType === Node.TEXT_NODE) {
-          const textNode = parseTextNode(measChild, measEl, rootRect, measWin);
-          if (textNode) nodes.push(textNode);
+          // parseTextNode 返回数组（多行时多个节点），逐个 push
+          const textNodes = parseTextNode(measChild, measEl, rootRect, measWin);
+          for (const n of textNodes) nodes.push(n);
         }
       }
     }
