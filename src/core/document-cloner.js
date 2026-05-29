@@ -17,16 +17,17 @@ function waitForLayout() {
  * 等待 iframe 内的图片全部加载完成
  */
 async function waitForImages(iframeDoc) {
-  const imgs = Array.from(iframeDoc.images);
+  const imgs = Array.from(iframeDoc.images).filter((img) => !img.complete);
 
-  for (const img of imgs) {
-    if (img.complete) continue;
-
-    await new Promise((resolve) => {
-      img.onload = resolve;
-      img.onerror = resolve;
-    });
-  }
+  await Promise.all(
+    imgs.map(
+      (img) =>
+        new Promise((resolve) => {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', resolve, { once: true });
+        }),
+    ),
+  );
 }
 
 /**

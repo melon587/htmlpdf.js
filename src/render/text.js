@@ -25,35 +25,22 @@ function getCombinedFontStyle(fontStyle, fontWeight) {
  * @param {Array} fontConfig - 字体配置数组
  * @returns {Object|null} 匹配的字体配置，找不到返回 null
  */
-function findFontForChar(char, fontConfig) {
-  if (!fontConfig || fontConfig.length === 0) {
-    return null;
-  }
-
+function findFontForChar(char, sortedFontConfig) {
   const code = char.charCodeAt(0);
-  // 按优先级排序（从高到低）
-  const sorted = fontConfig
-    .slice()
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
-  for (const config of sorted) {
-    // 兜底字体
-    if (config.isDefault) {
-      return config;
-    }
+  for (const config of sortedFontConfig) {
+    if (config.isDefault) return config;
 
-    // 检查字符是否在字体的 Unicode 范围内
     if (config.charRanges) {
       for (const [start, end] of config.charRanges) {
-        if (code >= start && code <= end) {
-          return config;
-        }
+        if (code >= start && code <= end) return config;
       }
     }
   }
 
-  // 如果没找到，返回兜底字体或第一个字体
-  return fontConfig.find((f) => f.isDefault) || fontConfig[0] || null;
+  return (
+    sortedFontConfig.find((f) => f.isDefault) || sortedFontConfig[0] || null
+  );
 }
 
 /**
@@ -69,13 +56,18 @@ function segmentTextByFont(text, fontConfig) {
     return [{ text, font: null }];
   }
 
+  // 排序一次，所有字符共用
+  const sortedFontConfig = fontConfig
+    .slice()
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+
   const segments = [];
   let currentFont = null;
   let currentText = '';
 
   // 遍历每个字符，按字体分段
   for (const char of text) {
-    const font = findFontForChar(char, fontConfig);
+    const font = findFontForChar(char, sortedFontConfig);
 
     // 同字体：累积
     if (currentFont && font && currentFont.fontFamily === font.fontFamily) {
