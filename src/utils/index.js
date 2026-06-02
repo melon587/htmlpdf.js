@@ -48,3 +48,38 @@ export function getPageBreak(el) {
 
   return null;
 }
+
+/**
+ * 解析 background-size 的单个分量值（auto / 百分比 / px）
+ * @param {string} val   - 分量字符串，如 'auto' / '50%' / '200px'
+ * @param {number} ref   - 对应方向的元素尺寸（mm）
+ * @param {number} nat   - 图片在该方向的原始尺寸（mm）
+ * @param {number} natRef- 图片在另一方向的原始尺寸（mm），用于 auto 等比
+ * @returns {number} 计算后的尺寸（mm）
+ */
+export function parseBgSizeVal(val, ref, nat, natRef) {
+  if (val === 'auto') return (nat / natRef) * ref;
+
+  if (val.endsWith('%')) return (parseFloat(val) / 100) * ref;
+
+  return parsePx(val);
+}
+
+/**
+ * 解析 background-position 的单个分量值（关键字 / 百分比 / px）
+ * @param {string} val     - 分量字符串，如 'left' / 'center' / '50%' / '10px'
+ * @param {number} elSize  - 对应方向的元素尺寸（mm）
+ * @param {number} imgSize - 对应方向的图片尺寸（mm）
+ * @returns {number} 图片在该方向的偏移量（mm）
+ */
+export function parseBgPosVal(val, elSize, imgSize) {
+  if (val === 'left' || val === 'top') return 0;
+
+  if (val === 'right' || val === 'bottom') return elSize - imgSize;
+
+  if (val === 'center') return (elSize - imgSize) / 2;
+
+  if (val.endsWith('%')) return (parseFloat(val) / 100) * (elSize - imgSize);
+
+  return parsePx(val);
+}

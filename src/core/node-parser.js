@@ -20,6 +20,9 @@ function parseElement(origEl, measEl, rootRect, win) {
     style: {
       backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,
+      backgroundSize: style.backgroundSize,
+      backgroundPosition: style.backgroundPosition,
+      backgroundRepeat: style.backgroundRepeat,
       color: style.color,
       fontSize: style.fontSize,
       fontFamily: style.fontFamily,
@@ -93,7 +96,7 @@ function findLineEnd(textNode, range, lineCount, totalLen) {
  *      - 二分出的 charEnd 就是浏览器实际换行位置，无需额外处理 word-break
  *   3. 每行生成一个独立文本节点，坐标用该行的 rect
  */
-function parseTextNode(textNode, measParent, rootRect, win) {
+function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   const raw = textNode.textContent;
   // white-space:normal: fold whitespace to single space
   // \n/\r/\t at start -> HTML indent whitespace, trimStart
@@ -137,6 +140,7 @@ function parseTextNode(textNode, measParent, rootRect, win) {
         width: r.width,
         height: r.height,
         style: nodeStyle,
+        _origEl: origParent || null,
       },
     ];
   }
@@ -171,6 +175,7 @@ function parseTextNode(textNode, measParent, rootRect, win) {
       width: r.width,
       height: r.height,
       style: nodeStyle,
+      _origEl: origParent || null,
     });
 
     charStart = charEnd;
@@ -235,7 +240,14 @@ export function collectNodes(element, cloneRoot) {
       } else if (origChild.nodeType === Node.TEXT_NODE) {
         if (measChild && measChild.nodeType === Node.TEXT_NODE) {
           // parseTextNode 返回数组（多行时多个节点），逐个 push
-          const textNodes = parseTextNode(measChild, measEl, rootRect, measWin);
+          // 传入 origEl 作为 _origEl，让 text 节点能参与祖先 height 更新
+          const textNodes = parseTextNode({
+            textNode: measChild,
+            measParent: measEl,
+            rootRect,
+            win: measWin,
+            origParent: origEl,
+          });
           for (const n of textNodes) nodes.push(n);
         }
       }

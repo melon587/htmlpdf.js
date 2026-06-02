@@ -53,11 +53,14 @@ function hasTableDataInPage(
 }
 
 /**
- * 推移当前页内表格节点的 y 坐标
+ * 推移当前页内所有节点的 y 坐标（表头自身除外）
+ * 表头重复时，当前页所有内容（不只是表格内节点）都需要整体下移，
+ * 否则表格外的 element 节点不会跟着移动，
+ * 但其 text 子节点（_origEl=null）会被推移，导致 border 和文本错位。
  */
 function shiftNodesInPage(
   nodes,
-  { hdrSubtreeIndices, nodeInTable, pageTopPx, pageEndPx, hdrHeight },
+  { hdrSubtreeIndices, pageTopPx, pageEndPx, hdrHeight },
 ) {
   for (let j = 0; j < nodes.length; j++) {
     if (hdrSubtreeIndices.has(j)) continue;
@@ -65,9 +68,7 @@ function shiftNodesInPage(
     const n = nodes[j];
 
     if (n.y >= pageTopPx && n.y < pageEndPx) {
-      if (!n._origEl || nodeInTable.get(j)) {
-        n.y += hdrHeight;
-      }
+      n.y += hdrHeight;
     }
   }
 }
@@ -143,7 +144,6 @@ export function processRepeatHeaders(nodes, pageHeightPx) {
 
       shiftNodesInPage(nodes, {
         hdrSubtreeIndices,
-        nodeInTable,
         pageTopPx,
         pageEndPx,
         hdrHeight,
@@ -156,12 +156,12 @@ export function processRepeatHeaders(nodes, pageHeightPx) {
 
       extraNodes.push(...copies);
 
-      console.log(
-        '[htmlpdf] Pass0 repeat-header page',
-        p,
-        'hdrHeight=',
-        hdrHeight.toFixed(1),
-      );
+      // console.log(
+      //   '[htmlpdf] Pass0 repeat-header page',
+      //   p,
+      //   'hdrHeight=',
+      //   hdrHeight.toFixed(1),
+      // );
     }
   }
 

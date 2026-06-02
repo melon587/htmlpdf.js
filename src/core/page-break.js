@@ -6,11 +6,19 @@
 export function processPageBreaks(nodes, pageHeightPx) {
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
-    if (!node.pageBreak) continue;
 
     let delta = 0;
 
-    if (node.pageBreak === 'before') {
+    if (node.type === 'text') {
+      // text 节点：底部超出当前页时，整体推到下一页顶部（隐式 avoid）
+      const pageIndex = Math.floor(node.y / pageHeightPx);
+      const pageEnd = (pageIndex + 1) * pageHeightPx;
+      if (node.y + node.height > pageEnd) {
+        delta = pageEnd - node.y;
+      }
+    } else if (!node.pageBreak) {
+      continue;
+    } else if (node.pageBreak === 'before') {
       // 强制从下一页顶部开始：计算到下一页顶部的偏移
       const pageIndex = Math.floor(node.y / pageHeightPx);
       const pageEnd = (pageIndex + 1) * pageHeightPx;
@@ -28,13 +36,6 @@ export function processPageBreaks(nodes, pageHeightPx) {
     }
 
     if (delta <= 0) continue;
-
-    console.log(
-      '[htmlpdf] Pass0',
-      node.pageBreak,
-      node.tag,
-      'delta=' + delta.toFixed(1),
-    );
 
     // 平移本节点及之后所有节点
     for (let j = i; j < nodes.length; j++) {
