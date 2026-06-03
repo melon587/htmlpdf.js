@@ -20,14 +20,23 @@ function renderNode({
   pageOffsetY = 0,
   clipTop = 0,
   clipBottom = Infinity,
-  fontConfig = [],
+  sortedFontConfig = [],
+  fallbackFontFamily = 'helvetica',
 }) {
   if (node.type === 'element') {
     drawBackground({ doc, node, ctx, pageOffsetY, clipTop, clipBottom });
     drawBorder({ doc, node, ctx, pageOffsetY, clipTop, clipBottom });
     if (node.tag === 'IMG') drawImage({ doc, node, ctx, pageOffsetY, clipTop });
   } else if (node.type === 'text') {
-    drawText({ doc, node, ctx, pageOffsetY, clipTop, fontConfig });
+    drawText({
+      doc,
+      node,
+      ctx,
+      pageOffsetY,
+      clipTop,
+      sortedFontConfig,
+      fallbackFontFamily,
+    });
   }
 }
 
@@ -41,6 +50,17 @@ function renderNode({
  */
 function renderNodes({ doc, nodes, ctx, contentHeight, fontConfig = [] }) {
   const { toMM } = ctx;
+
+  // 排序和兜底字体提前计算一次，所有文本节点复用
+  const sortedFontConfig = fontConfig
+    .slice()
+    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
+  const defaultFont = fontConfig.find((f) => f.isDefault);
+  const fallbackFontFamily = defaultFont ? defaultFont.fontFamily : 'helvetica';
+
+  // 记录当前页，避免重复 setPage
+  let currentPage = -1;
+
   for (const node of nodes) {
     const nodeYmm = toMM(node.y);
     const nodeBottomMm = toMM(node.y + node.height);
@@ -51,7 +71,11 @@ function renderNodes({ doc, nodes, ctx, contentHeight, fontConfig = [] }) {
       const clipTop = pageOffsetY;
       const clipBottom = pageOffsetY + contentHeight;
       if (nodeYmm < clipBottom && nodeBottomMm > clipTop) {
-        doc.setPage(p);
+        if (p !== currentPage) {
+          doc.setPage(p);
+          currentPage = p;
+        }
+
         renderNode({
           doc,
           node,
@@ -59,7 +83,8 @@ function renderNodes({ doc, nodes, ctx, contentHeight, fontConfig = [] }) {
           pageOffsetY,
           clipTop,
           clipBottom,
-          fontConfig,
+          sortedFontConfig,
+          fallbackFontFamily,
         });
       }
     }

@@ -27,6 +27,9 @@ import { renderNodes } from './render';
  * @returns {Promise<Blob|string|ArrayBuffer>}
  */
 export async function htmlpdf(element, options = {}) {
+  const startTime = performance.now();
+  console.log('[htmlpdf] Start converting...');
+
   const { output = 'blob', fontConfig = [], header, footer } = options;
 
   // Step 1: 创建上下文
@@ -66,9 +69,14 @@ export async function htmlpdf(element, options = {}) {
   }
 
   // 输出
-  if (output === 'dataurl') return doc.output('datauristring');
+  let result;
+  if (output === 'dataurl') result = doc.output('datauristring');
+  else if (output === 'arraybuffer') result = doc.output('arraybuffer');
+  else result = doc.output('blob');
 
-  if (output === 'arraybuffer') return doc.output('arraybuffer');
+  const endTime = performance.now();
+  const elapsed = (endTime - startTime).toFixed(2);
+  console.log(`[htmlpdf] ✅ Conversion completed in ${elapsed}ms`);
 
-  return doc.output('blob');
+  return result;
 }

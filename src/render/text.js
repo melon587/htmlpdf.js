@@ -49,17 +49,12 @@ function findFontForChar(char, sortedFontConfig) {
  * @param {Array} fontConfig - 字体配置数组
  * @returns {Array} 分段结果，如 [{ text: "Hello ", font: {...} }, { text: "你好", font: {...} }, ...]
  */
-function segmentTextByFont(text, fontConfig) {
+function segmentTextByFont(text, sortedFontConfig) {
   if (!text) return [];
 
-  if (!fontConfig || fontConfig.length === 0) {
+  if (!sortedFontConfig || sortedFontConfig.length === 0) {
     return [{ text, font: null }];
   }
-
-  // 排序一次，所有字符共用
-  const sortedFontConfig = fontConfig
-    .slice()
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
   const segments = [];
   let currentFont = null;
@@ -98,9 +93,18 @@ function segmentTextByFont(text, fontConfig) {
  * @param {Object} ctx - 渲染上下文
  * @param {number} pageOffsetY - 当前页顶部偏移（mm）
  * @param {number} clipTop - 裁剪顶部（mm）
- * @param {Array} fontConfig - 字体配置数组
+ * @param {Array} sortedFontConfig - 已按 priority 排好序的字体配置数组
+ * @param {string} fallbackFontFamily - 兜底字体名（由调用方提前计算）
  */
-function drawText({ doc, node, ctx, pageOffsetY, clipTop, fontConfig = [] }) {
+function drawText({
+  doc,
+  node,
+  ctx,
+  pageOffsetY,
+  clipTop,
+  sortedFontConfig = [],
+  fallbackFontFamily = 'helvetica',
+}) {
   if (!node.text) return;
 
   const nodeTop = ctx.toMM(node.y);
@@ -116,11 +120,10 @@ function drawText({ doc, node, ctx, pageOffsetY, clipTop, fontConfig = [] }) {
 
   doc.setFontSize(ctx.toPt(fontSize));
 
-  // 计算组合的字体样式
   const fontStyle = getCombinedFontStyle(style.fontStyle, style.fontWeight);
 
   // 如果没有字体配置，走老逻辑（单字体）
-  if (!fontConfig || fontConfig.length === 0) {
+  if (!sortedFontConfig || sortedFontConfig.length === 0) {
     doc.setFont('helvetica', fontStyle);
     const x = ctx.toPdfX(node.x);
     const y = ctx.toPdfY(node.y, pageOffsetY) + ctx.toMM(fontSize);
@@ -130,13 +133,9 @@ function drawText({ doc, node, ctx, pageOffsetY, clipTop, fontConfig = [] }) {
   }
 
   // 混合字体渲染
-  const segments = segmentTextByFont(node.text, fontConfig);
+  const segments = segmentTextByFont(node.text, sortedFontConfig);
   let x = ctx.toPdfX(node.x);
   const y = ctx.toPdfY(node.y, pageOffsetY) + ctx.toMM(fontSize);
-
-  // 获取兜底字体
-  const defaultFont = fontConfig.find((f) => f.isDefault);
-  const fallbackFontFamily = defaultFont ? defaultFont.fontFamily : 'helvetica';
 
   for (const segment of segments) {
     if (segment.font && segment.font.fontFamily) {

@@ -162,19 +162,49 @@ Converts an HTML element to PDF.
 
 #### Font Configuration
 
-Each font config object should have:
+Each font config object supports the following fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `fontFamily` | `string` | ✅ | Font family name (e.g., `'Roboto'`, `'NotoSansCJK'`) |
+| `fontUrl` | `string` | * | URL to .ttf font file (required if `fontBase64` not provided) |
+| `fontBase64` | `string` | * | Base64-encoded font data (required if `fontUrl` not provided) |
+| `fontWeight` | `number\|string` | ❌ | Font weight: `400`, `700`, `'bold'`, etc. (default: `400`) |
+| `fontStyle` | `string` | ❌ | Font style: `'normal'` or `'italic'` (default: `'normal'`) |
+| `isDefault` | `boolean` | ❌ | If `true`, this font is used for all characters not matched by `charRanges` |
+| `charRanges` | `Array<[number, number]>` | ❌ | Unicode ranges for this font, e.g., `[[0x4E00, 0x9FFF]]` for CJK |
+| `priority` | `number` | ❌ | Priority when multiple `charRanges` overlap (higher = preferred, default: `0`) |
+
+**Font Selection Rules:**
+
+1. **charRanges first**: Characters are matched against fonts with `charRanges` in array order (or by `priority` if set)
+2. **isDefault fallback**: If no `charRanges` match, use the font marked `isDefault: true`
+3. **First font fallback**: If no `isDefault` exists, use `fontConfig[0]`
+4. **Helvetica fallback**: If no `fontConfig` provided, use built-in `helvetica`
+
+**Example: Mixed Language Support**
 
 ```javascript
-{
-  fontFamily: 'FontName',    // Font family name
-  fontUrl: 'https://...',    // URL to .ttf font file
-  fontWeight: 400,           // Font weight (400, 700, etc.)
-  fontStyle: 'normal',       // Font style ('normal' or 'italic')
-  isDefault: false,          // Whether this is the default font
-  priority: 0,               // Font selection priority (higher = preferred)
-  charRanges: [[0x0000, 0xFFFF]]  // Unicode ranges (optional)
-}
+fontConfig: [
+  {
+    fontFamily: 'NotoSansCJK',
+    fontUrl: 'https://example.com/NotoSansCJK-Regular.ttf',
+    charRanges: [[0x4E00, 0x9FFF]],  // Chinese characters
+    priority: 10
+  },
+  {
+    fontFamily: 'Roboto',
+    fontUrl: 'https://example.com/Roboto-Regular.ttf',
+    isDefault: true  // For all other characters (English, numbers, etc.)
+  }
+]
 ```
+
+**Notes:**
+- `charRanges` and `isDefault` are mutually exclusive (use one or the other per font)
+- When `charRanges` overlap across multiple fonts, array order (or `priority`) determines precedence
+- Fonts are loaded once and cached for the entire rendering session
+
 
 #### Returns
 
