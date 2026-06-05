@@ -155,13 +155,6 @@ export function processRepeatHeaders(nodes, pageHeightPx) {
       const copies = createHeaderCopies(nodes, hdrSubtreeIndices, offsetY);
 
       extraNodes.push(...copies);
-
-      // console.log(
-      //   '[htmlpdf] Pass0 repeat-header page',
-      //   p,
-      //   'hdrHeight=',
-      //   hdrHeight.toFixed(1),
-      // );
     }
   }
 

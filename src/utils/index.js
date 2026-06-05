@@ -83,3 +83,39 @@ export function parseBgPosVal(val, elSize, imgSize) {
 
   return parsePx(val);
 }
+
+/**
+ * 将 charRanges 转换为 CSS unicode-range 声明
+ * @param {Array<[number, number]>} charRanges - 字符范围数组，每项为 [start, end]
+ * @returns {string} 如 'unicode-range: U+0600-06FF;'，无范围时返回空字符串
+ */
+export function buildUnicodeRange(charRanges) {
+  if (!charRanges || charRanges.length === 0) return '';
+
+  const ranges = charRanges
+    .map(
+      ([start, end]) =>
+        `U+${start.toString(16).toUpperCase()}-${end.toString(16).toUpperCase()}`,
+    )
+    .join(', ');
+
+  return `unicode-range: ${ranges};`;
+}
+
+/**
+ * 生成单个 @font-face CSS 规则字符串
+ * @param {Object} config     - 字体配置项
+ * @param {string} fontBase64 - 字体的 Base64 数据
+ * @returns {string} @font-face 规则字符串
+ */
+export function buildFontFaceRule(config, fontBase64) {
+  const unicodeRange = buildUnicodeRange(config.charRanges);
+
+  return `@font-face {
+  font-family: '${config.fontFamily}';
+  font-style: ${config.fontStyle || 'normal'};
+  font-weight: ${config.fontWeight || 400};
+  src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype');
+  ${unicodeRange}
+}`;
+}

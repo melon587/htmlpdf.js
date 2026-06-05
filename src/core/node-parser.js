@@ -53,68 +53,18 @@ function parseElement(origEl, measEl, rootRect, win) {
 }
 
 /**
- * 二分法：找到「前 lineCount 行」的字符结束位置
- *
- * 原理：
- *   range(0, mid).getClientRects().length 就是前 mid 个字符占几行。
- *   我们要找最大的 mid，使得行数 <= lineCount。
- *   这个 mid 就是第 lineCount 行的最后一个字符位置。
- *   浏览器已经考虑了 word-break/padding/inline 等所有因素，
- *   所以这里找到的换行位置天然就是浏览器实际的换行位置。
- */
-function findLineEnd(textNode, range, lineCount, totalLen) {
-  let left = 0;
-  let right = totalLen;
-  let result = totalLen;
-
-  while (left <= right) {
-    const mid = Math.floor((left + right) / 2);
-    range.setStart(textNode, 0);
-    range.setEnd(textNode, mid);
-    const count = range.getClientRects().length;
-
-    if (count <= lineCount) {
-      // 前 mid 个字符还在 lineCount 行以内，记录并向右扩大
-      result = mid;
-      left = mid + 1;
-    } else {
-      // 超出了，向左缩小
-      right = mid - 1;
-    }
-  }
-
-  return result;
-}
-
-/**
- * 解析文本节点，按浏览器实际渲染的行拆分，返回节点数组
- * 核心思路：
- *   1. range.getClientRects() 返回浏览器已渲染好的每一行矩形
- *      - 天然包含了 word-break、padding、inline 元素等所有布局
- *      - 每个 rect 的 left/top/width/height 直接用于 PDF 绘制
- *   2. 用二分法找出每一行对应的字符范围（charStart ~ charEnd）
- *      - 二分出的 charEnd 就是浏览器实际换行位置，无需额外处理 word-break
- *   3. 每行生成一个独立文本节点，坐标用该行的 rect
+ * 解析文本节点，按单词粒度拆分，每个 token 单独用 Range 获取浏览器坐标
+ * 核心思路（参考 dompdf）：
+ *   - 不手动推算换行、不处理 RTL/BiDi，坐标完全来自浏览器
+ *   - 每个 token (word/space) 单独 createRange → getClientRects()
+ *   - 直接用 rect.left 作为渲染 x 坐标，天然支持 RTL/BiDi/换行
  */
 function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   const raw = textNode.textContent;
-  // white-space:normal: fold whitespace to single space
-  // \n/\r/\t at start -> HTML indent whitespace, trimStart
-  // plain space at start (e.g. " bold") -> real word-gap, keep it
-  const shouldTrim = /^[\n\r\t]/.test(raw);
-  const collapsed = raw.replace(/\s+/g, ' ');
-  const text = shouldTrim ? collapsed.trimStart() : collapsed;
-  if (!text.trim()) return [];
-
-  const range = win.document.createRange();
-  range.selectNodeContents(textNode);
-  const lineRects = range.getClientRects();
-
-  if (lineRects.length === 0) return [];
+  if (!raw || !raw.trim()) return [];
 
   const style = win.getComputedStyle(measParent);
 
-  // compute once, reuse for all lines
   const nodeStyle = {
     color: style.color,
     fontSize: style.fontSize,
@@ -124,83 +74,49 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
     textAlign: style.textAlign,
     lineHeight: style.lineHeight,
     textDecoration: style.textDecoration,
+    direction: style.direction,
   };
 
-  // single line: return directly, no binary search needed
-  if (lineRects.length === 1) {
-    const r = lineRects[0];
+  // 按单词和空格分别拆分，空格独立成 token 以获取正确的间距
+  const tokens = [];
+  const tokenRegex = /\S+|\s+/g;
+  let match;
+  while ((match = tokenRegex.exec(raw)) !== null) {
+    tokens.push({ text: match[0], offset: match.index });
+  }
 
-    return [
-      {
+  const nodes = [];
+  const docRange = win.document.createRange();
+
+  for (const token of tokens) {
+    if (!token.text.trim()) continue; // 跳过纯空白 token
+
+    docRange.setStart(textNode, token.offset);
+    docRange.setEnd(textNode, token.offset + token.text.length);
+    const rects = docRange.getClientRects();
+
+    if (!rects || rects.length === 0) continue;
+
+    // 只取第一个rect，避免 BiDi 文本被拆分成多个rect导致重复渲染
+    for (let i = 0; i < Math.min(1, rects.length); i++) {
+      const r = rects[i];
+      if (r.width === 0 || r.height === 0) continue;
+
+      nodes.push({
         type: 'text',
         tag: '#text',
-        text,
+        text: token.text.trim(),
         x: r.left - rootRect.left,
         y: r.top - rootRect.top,
         width: r.width,
         height: r.height,
         style: nodeStyle,
         _origEl: origParent || null,
-      },
-    ];
-  }
-
-  // multi-line: binary search for char boundary per line
-  const nodes = [];
-  let charStart = 0;
-  const wordBreak = style.wordBreak || 'normal';
-
-  for (let i = 0; i < lineRects.length; i++) {
-    const r = lineRects[i];
-
-    let charEnd;
-    if (i === lineRects.length - 1) {
-      charEnd = text.length;
-    } else {
-      // binary search using raw.length (range.setEnd uses raw offsets)
-      // then map raw offset back to collapsed text offset
-      const rawEnd = findLineEnd(textNode, range, i + 1, raw.length);
-      const collapsedSlice = raw.substring(0, rawEnd).replace(/\s+/g, ' ');
-      charEnd = (shouldTrim ? collapsedSlice.trimStart() : collapsedSlice)
-        .length;
-      charEnd = adjustWordBreak(text, charStart, charEnd, wordBreak);
+      });
     }
-
-    nodes.push({
-      type: 'text',
-      tag: '#text',
-      text: text.substring(charStart, charEnd),
-      x: r.left - rootRect.left,
-      y: r.top - rootRect.top,
-      width: r.width,
-      height: r.height,
-      style: nodeStyle,
-      _origEl: origParent || null,
-    });
-
-    charStart = charEnd;
   }
 
   return nodes;
-}
-
-/**
- * word-break: normal - if charEnd lands mid-word, walk back to word boundary
- * @returns adjusted charEnd
- */
-function adjustWordBreak(text, charStart, charEnd, wordBreak) {
-  if (wordBreak === 'break-all' || wordBreak === 'break-word') return charEnd;
-
-  if (charEnd > charStart && !/[\s-]/.test(text[charEnd - 1])) {
-    let ws = charEnd - 1;
-    while (ws > charStart && !/[\s-]/.test(text[ws - 1])) {
-      ws--;
-    }
-
-    return ws;
-  }
-
-  return charEnd;
 }
 
 /**

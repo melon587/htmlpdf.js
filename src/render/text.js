@@ -20,34 +20,29 @@ function getCombinedFontStyle(fontStyle, fontWeight) {
 }
 
 /**
- * 根据字符找到对应的字体配置
- * @param {string} char - 单个字符
- * @param {Array} fontConfig - 字体配置数组
- * @returns {Object|null} 匹配的字体配置，找不到返回 null
+ * 根据字符码点找到对应的字体配置
+ * 优先级：charRanges 精确匹配 > isDefault 字体 > null（由外部 fallbackFontFamily 兜底）
+ * @param {number} code - 字符码点
+ * @param {Array} sortedFontConfig - 已排序的字体配置数组
+ * @returns {Object|null}
  */
-function findFontForChar(char, sortedFontConfig) {
-  const code = char.charCodeAt(0);
-
+function findFontForChar(code, sortedFontConfig) {
   for (const config of sortedFontConfig) {
-    if (config.isDefault) return config;
+    if (!config.charRanges) continue;
 
-    if (config.charRanges) {
-      for (const [start, end] of config.charRanges) {
-        if (code >= start && code <= end) return config;
-      }
+    for (const [start, end] of config.charRanges) {
+      if (code >= start && code <= end) return config;
     }
   }
 
-  return (
-    sortedFontConfig.find((f) => f.isDefault) || sortedFontConfig[0] || null
-  );
+  return sortedFontConfig.find((f) => f.isDefault) || null;
 }
 
 /**
  * 把混合语言文本按字体分段
  * @param {string} text - 原始文本，如 "Hello 你好 World"
- * @param {Array} fontConfig - 字体配置数组
- * @returns {Array} 分段结果，如 [{ text: "Hello ", font: {...} }, { text: "你好", font: {...} }, ...]
+ * @param {Array} sortedFontConfig - 已排序的字体配置数组
+ * @returns {Array} 分段结果，font 为 null 时由外部 fallbackFontFamily 兜底
  */
 function segmentTextByFont(text, sortedFontConfig) {
   if (!text) return [];
@@ -60,15 +55,15 @@ function segmentTextByFont(text, sortedFontConfig) {
   let currentFont = null;
   let currentText = '';
 
-  // 遍历每个字符，按字体分段
   for (const char of text) {
-    const font = findFontForChar(char, sortedFontConfig);
+    const font = findFontForChar(char.charCodeAt(0), sortedFontConfig);
 
-    // 同字体：累积
-    if (currentFont && font && currentFont.fontFamily === font.fontFamily) {
+    if (
+      currentFont === font ||
+      (currentFont && font && currentFont.fontFamily === font.fontFamily)
+    ) {
       currentText += char;
     } else {
-      // 字体切换：保存上一段
       if (currentText) {
         segments.push({ text: currentText, font: currentFont });
       }
@@ -78,7 +73,6 @@ function segmentTextByFont(text, sortedFontConfig) {
     }
   }
 
-  // 保存最后一段
   if (currentText) {
     segments.push({ text: currentText, font: currentFont });
   }
