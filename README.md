@@ -55,7 +55,7 @@ const blob = await htmlpdf(element, {
 
 ```javascript
 const blob = await htmlpdf(element, {
-  fontConfig: [
+  fonts: [
     {
       fontFamily: 'Roboto',
       fontUrl: 'https://example.com/fonts/roboto-regular.ttf',
@@ -121,8 +121,10 @@ const blob = await htmlpdf(element, {
 
 ### Repeat Table Headers
 
+Add `repeat-header` attribute to the `<thead>` element, then pass the table selector via `repeatHeaders`:
+
 ```html
-<table>
+<table id="my-table">
   <thead repeat-header>
     <tr>
       <th>Name</th>
@@ -134,6 +136,16 @@ const blob = await htmlpdf(element, {
     <!-- Table rows... -->
   </tbody>
 </table>
+```
+
+```javascript
+const blob = await htmlpdf(element, {
+  repeatHeaders: [
+    '#my-table',
+    // Or with explicit header selector:
+    // { container: '#my-table', header: 'thead' }
+  ]
+});
 ```
 
 ## 📚 API Reference
@@ -156,9 +168,10 @@ Converts an HTML element to PDF.
 | `orientation` | `string` | `'portrait'` | Page orientation: `'portrait'` or `'landscape'` |
 | `margin` | `number` | `10` | Page margin in mm |
 | `compress` | `boolean` | `true` | Enable PDF compression |
-| `fontConfig` | `Array` | `[]` | Custom font configurations |
+| `fonts` | `Array` | `[]` | Custom font configurations |
 | `header` | `Object` | - | Header configuration `{ height, render }` |
 | `footer` | `Object` | - | Footer configuration `{ height, render }` |
+| `repeatHeaders` | `Array` | `[]` | Tables to repeat headers on each page, e.g. `['#table1', { container: '#table2', header: 'thead' }]` |
 
 #### Font Configuration
 
@@ -179,13 +192,13 @@ Each font config object supports the following fields:
 
 1. **charRanges first**: Characters are matched against fonts with `charRanges` in array order (or by `priority` if set)
 2. **isDefault fallback**: If no `charRanges` match, use the font marked `isDefault: true`
-3. **First font fallback**: If no `isDefault` exists, use `fontConfig[0]`
-4. **Helvetica fallback**: If no `fontConfig` provided, use built-in `helvetica`
+3. **First font fallback**: If no `isDefault` exists, use `fonts[0]`
+4. **Helvetica fallback**: If no `fonts` provided, use built-in `helvetica`
 
 **Example: Mixed Language Support**
 
 ```javascript
-fontConfig: [
+fonts: [
   {
     fontFamily: 'NotoSansCJK',
     fontUrl: 'https://example.com/NotoSansCJK-Regular.ttf',
