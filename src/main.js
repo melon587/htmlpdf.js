@@ -5,8 +5,8 @@ import {
   preloadImages,
   destroyClonedDocument,
   loadFontsToJsPDF,
-  processPageBreaks,
-  processRepeatHeaders,
+  applyPageBreaks,
+  collectRepeatHeaderMeta,
   createPages,
   renderHeaderFooter,
 } from './core';
@@ -23,24 +23,31 @@ import { renderNodes } from './render';
  * @param {boolean} [options.compress=true] - 是否启用 PDF 压缩
  * @param {Object} [options.header] - 页眉配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
- * @param {Array}  [options.fontConfig] - 字体配置数组
+ * @param {Array}  [options.fonts] - 字体配置数组
+ * @param {Array}  [options.repeatHeaders] - 需要重复表头的表格配置，例如: ['#table1', { container: '#table2', header: '.my-header' }]
  * @returns {Promise<Blob|string|ArrayBuffer>}
  */
 export async function htmlpdf(element, options = {}) {
   const startTime = performance.now();
   console.log('[htmlpdf] Start converting...');
 
-  const { output = 'blob', fontConfig = [], header, footer } = options;
+  const {
+    output = 'blob',
+    fonts = [],
+    header,
+    footer,
+    repeatHeaders = [],
+  } = options;
 
-  // Step 1: 创建上下文
+  // 创建上下文 用于调用jsPDF的api
   const ctx = createContext(element, options);
   const { doc, scale, contentHeight, toMM } = ctx;
 
-  // 计算一页内容区高度（px）
+  // 计算内容区高度对应的 px 值，用于 page-break / repeat-header 坐标计算。
   const pageHeightPx = contentHeight / scale;
 
-  // Step 2: 克隆文档（传入 fontConfig，注入字体到克隆文档）
-  const { iframe, cloneRoot } = await createClonedDocument(element, fontConfig);
+  // 克隆目标元素（传入 fonts，注入字体到克隆文档）
+  const { iframe, cloneRoot } = await createClonedDocument(element, fonts);
 
   let nodes;
   try {
@@ -50,20 +57,32 @@ export async function htmlpdf(element, options = {}) {
     destroyClonedDocument(iframe);
   }
 
-  // Step 3: 加载自定义字体到 jsPDF
-  await loadFontsToJsPDF(doc, fontConfig);
+  // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
+  await loadFontsToJsPDF(doc, fonts);
 
-  // Pass0: 坐标修正（page-break + repeat-header）
-  processPageBreaks(nodes, pageHeightPx);
-  const extraNodes = processRepeatHeaders(nodes, pageHeightPx);
-  nodes.push(...extraNodes);
-  console.log('[htmlpdf] Pass0 done, extraNodes:', extraNodes.length);
+  // 处理 page-break 元素 重新定位全部元素（直接修改 nodes[i].y）
+  applyPageBreaks(nodes, pageHeightPx);
 
-  // Pass1 & 2: 创建页 + 渲染内容节点
+  // 收集 repeat-header 元信息 用于渲染节点
+  const repeatHeaderMeta = collectRepeatHeaderMeta(
+    nodes,
+    pageHeightPx,
+    repeatHeaders,
+  );
+
+  // 创建页 + 渲染内容节点（Pass2 会动态渲染表头副本）
   const totalPages = createPages(doc, nodes, toMM, contentHeight);
-  renderNodes({ doc, nodes, ctx, contentHeight, fontConfig });
 
-  // Pass3: 逐页调用 header/footer render 回调
+  renderNodes({
+    doc,
+    nodes,
+    ctx,
+    contentHeight,
+    fonts,
+    repeatHeaderMeta,
+  });
+
+  // 逐页调用 header/footer render 回调
   if (header || footer) {
     renderHeaderFooter(doc, { totalPages, ctx, header, footer });
   }

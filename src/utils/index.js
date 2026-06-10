@@ -12,6 +12,27 @@ export function isVisible(style) {
 }
 
 /**
+ * 匹配 CSS 选择器（支持 id/class 简写）
+ */
+export function matchesSelector(el, selector) {
+  if (el) {
+    if (el.matches?.(selector)) {
+      return true;
+    }
+
+    if (selector.startsWith('#') && el.id === selector.slice(1)) {
+      return true;
+    }
+
+    if (selector.startsWith('.') && el.classList?.contains(selector.slice(1))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * 转换px
  */
 export function parsePx(val) {

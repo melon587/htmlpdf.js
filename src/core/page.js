@@ -8,15 +8,21 @@
  */
 export function createPages(doc, nodes, toMM, contentHeight) {
   let totalPages = 1;
+  let maxNodeBottomMm = 0;
+
   for (const node of nodes) {
     const nodeBottomMm = toMM(node.y + node.height);
     const neededPages = Math.ceil(nodeBottomMm / contentHeight);
+
+    if (nodeBottomMm > maxNodeBottomMm) {
+      maxNodeBottomMm = nodeBottomMm;
+    }
+
     while (totalPages < neededPages) {
       doc.addPage();
       totalPages++;
     }
   }
-  console.log('[htmlpdf] Pass1: totalPages', totalPages);
 
   return totalPages;
 }

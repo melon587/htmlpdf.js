@@ -148,10 +148,10 @@ export async function preloadImages(nodes) {
  *   4. waitForLayout 让浏览器完成一次 layout
  *   5. waitForImages 等待图片加载
  * @param {Element} element      - 原始根元素
- * @param {Array}   fontConfig   - 字体配置数组
+ * @param {Array}   fonts        - 字体配置数组
  * @returns {Promise<{iframe: HTMLIFrameElement, cloneRoot: Element}>}
  */
-export async function createClonedDocument(element, fontConfig = []) {
+export async function createClonedDocument(element, fonts = []) {
   const ownerDoc = element.ownerDocument;
 
   // Step 1: 先打标记再克隆，clone 里会带有该标记
@@ -188,7 +188,7 @@ export async function createClonedDocument(element, fontConfig = []) {
   );
 
   // Step 3.5: 注入字体样式（新增）
-  await injectFontsToDocument(iframeDoc, fontConfig);
+  await injectFontsToDocument(iframeDoc, fonts);
 
   // Step 4: 等待 layout 稳定 + 图片加载
   await waitForLayout();

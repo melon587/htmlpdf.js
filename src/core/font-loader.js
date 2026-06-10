@@ -39,14 +39,14 @@ export async function fetchFontAsBase64(url) {
 /**
  * 加载字体到 jsPDF
  * @param {Object} doc - jsPDF 实例
- * @param {Array} fontConfig - 字体配置数组
+ * @param {Array} fonts - 字体配置数组
  */
-export async function loadFontsToJsPDF(doc, fontConfig) {
-  if (!fontConfig || fontConfig.length === 0) {
+export async function loadFontsToJsPDF(doc, fonts) {
+  if (!fonts || fonts.length === 0) {
     return;
   }
 
-  for (const config of fontConfig) {
+  for (const config of fonts) {
     let fontBase64 = config.fontBase64;
 
     if (!fontBase64 && config.fontUrl) {
@@ -77,17 +77,17 @@ export async function loadFontsToJsPDF(doc, fontConfig) {
 /**
  * 在克隆的 iframe 文档中注入字体样式
  * @param {Document} iframeDoc - iframe 的 document
- * @param {Array} fontConfig - 字体配置数组
+ * @param {Array} fonts - 字体配置数组
  * @returns {Promise<void>}
  */
-export async function injectFontsToDocument(iframeDoc, fontConfig) {
-  if (!fontConfig || fontConfig.length === 0) {
+export async function injectFontsToDocument(iframeDoc, fonts) {
+  if (!fonts || fonts.length === 0) {
     return;
   }
 
   const fontFaceRules = [];
 
-  for (const config of fontConfig) {
+  for (const config of fonts) {
     let fontBase64 = config.fontBase64;
 
     if (!fontBase64 && config.fontUrl) {
@@ -125,7 +125,7 @@ export async function injectFontsToDocument(iframeDoc, fontConfig) {
     }
 
     // 修改 body 的 font-family，让它使用注入的字体（按顺序排列，优先使用注入字体）
-    const fontFamilies = fontConfig.map((c) => `'${c.fontFamily}'`).join(', ');
+    const fontFamilies = fonts.map((c) => `'${c.fontFamily}'`).join(', ');
     if (iframeDoc.body) {
       const currentFontFamily = iframeDoc.defaultView.getComputedStyle(
         iframeDoc.body,
