@@ -77,9 +77,14 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
     direction: style.direction,
   };
 
-  // 按单词和空格分别拆分，空格独立成 token 以获取正确的间距
+  // 按单词、连字符、空格拆分，让长文本可以在连字符后换行
+  // 例如："61212562-IOM11X-English" → ["61212562-", "IOM11X-", "English"]
+  // 匹配逻辑：
+  // 1. [^\s-]+-  匹配非空白、非连字符的字符 + 一个连字符（保留连字符）
+  // 2. [^\s-]+   匹配非空白、非连字符的字符（末尾单词，无连字符）
+  // 3. \s+       匹配空白字符（独立成 token 以保持间距）
   const tokens = [];
-  const tokenRegex = /\S+|\s+/g;
+  const tokenRegex = /[^\s-]+-|[^\s-]+|\s+/g;
   let match;
   while ((match = tokenRegex.exec(raw)) !== null) {
     tokens.push({ text: match[0], offset: match.index });
@@ -97,7 +102,11 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
 
     if (!rects || rects.length === 0) continue;
 
-    // 只取第一个rect，避免 BiDi 文本被拆分成多个rect导致重复渲染
+    // ✅ 只取第一个 rect，避免重复渲染
+    // 问题：当文本换行时，getClientRects() 返回多个 rect（每行一个）
+    // 但我们不知道每个 rect 对应哪部分文字，如果全部渲染会导致重复
+    // 解决方案：只渲染第一个 rect（第一行），后续行会被截断
+    // TODO: 未来需要更细粒度的文本拆分来支持真正的换行
     for (let i = 0; i < Math.min(1, rects.length); i++) {
       const r = rects[i];
       if (r.width === 0 || r.height === 0) continue;

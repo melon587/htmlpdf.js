@@ -5,12 +5,30 @@ import {
   preloadImages,
   destroyClonedDocument,
   loadFontsToJsPDF,
-  applyPageBreaks,
-  collectRepeatHeaderMeta,
-  createPages,
   renderHeaderFooter,
 } from './core';
-import { renderNodes } from './render';
+import { createRepeatHeaderManager } from './core/repeat-header-manager';
+import { streamPaginate } from './core/stream-pagination';
+import { renderNode } from './render/node';
+
+/**
+ * 确保 PDF 文档有指定页，并切换到该页
+ */
+function ensurePage(doc, targetPage, currentPage) {
+  if (targetPage > 1 && currentPage === 0) {
+    // 第一页不需要 addPage
+    doc.setPage(1);
+  } else if (targetPage > currentPage) {
+    // 需要新增页面
+    for (let p = currentPage + 1; p <= targetPage; p++) {
+      if (p > 1) doc.addPage();
+
+      doc.setPage(p);
+    }
+  } else {
+    doc.setPage(targetPage);
+  }
+}
 
 /**
  * 主函数：将 HTML 元素转换为 PDF
@@ -41,7 +59,7 @@ export async function htmlpdf(element, options = {}) {
 
   // 创建上下文 用于调用jsPDF的api
   const ctx = createContext(element, options);
-  const { doc, scale, contentHeight, toMM } = ctx;
+  const { doc, scale, contentHeight } = ctx;
 
   // 计算内容区高度对应的 px 值，用于 page-break / repeat-header 坐标计算。
   const pageHeightPx = contentHeight / scale;
@@ -60,27 +78,68 @@ export async function htmlpdf(element, options = {}) {
   // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
   await loadFontsToJsPDF(doc, fonts);
 
-  // 处理 page-break 元素 重新定位全部元素（直接修改 nodes[i].y）
-  applyPageBreaks(nodes, pageHeightPx);
+  // 🔍 调试：打印 repeatHeaders 配置
+  console.log('[htmlpdf] repeatHeaders config:', repeatHeaders);
 
-  // 收集 repeat-header 元信息 用于渲染节点
-  const repeatHeaderMeta = collectRepeatHeaderMeta(
-    nodes,
-    pageHeightPx,
-    repeatHeaders,
+  // 创建 repeat-header 管理器
+  const repeatHeaderManager =
+    repeatHeaders.length > 0
+      ? createRepeatHeaderManager(nodes, pageHeightPx, repeatHeaders)
+      : null;
+
+  console.log(
+    '[htmlpdf] RepeatHeaderManager initialized:',
+    repeatHeaderManager?.hasHeaders() ? 'Yes' : 'No',
   );
 
-  // 创建页 + 渲染内容节点（Pass2 会动态渲染表头副本）
-  const totalPages = createPages(doc, nodes, toMM, contentHeight);
-
-  renderNodes({
-    doc,
+  // 🆕 使用流式分页计算渲染方案
+  const paginationPlan = streamPaginate({
     nodes,
     ctx,
     contentHeight,
     fonts,
-    repeatHeaderMeta,
+    repeatHeaderManager,
   });
+
+  const {
+    totalPages,
+    nodePlacements,
+    headerPlacements,
+    sortedFontConfig,
+    fallbackFontFamily,
+  } = paginationPlan;
+
+  console.log('[htmlpdf] Pagination plan:', {
+    totalPages,
+    nodePlacements: nodePlacements.length,
+    headerPlacements: headerPlacements.length,
+  });
+
+  // 合并所有渲染计划（header 优先渲染）
+  const allPlacements = [...headerPlacements, ...nodePlacements];
+
+  // 按页码排序
+  allPlacements.sort((a, b) => a.page - b.page);
+
+  // 执行渲染
+  let currentPage = 0;
+  for (const placement of allPlacements) {
+    // 切换到目标页
+    if (placement.page !== currentPage) {
+      ensurePage(doc, placement.page, currentPage);
+      currentPage = placement.page;
+    }
+
+    renderNode({
+      doc,
+      node: placement.node,
+      ctx,
+      offsetYpx: placement.offsetYpx,
+      contentHeight,
+      sortedFontConfig,
+      fallbackFontFamily,
+    });
+  }
 
   // 逐页调用 header/footer render 回调
   if (header || footer) {
@@ -99,3 +158,4 @@ export async function htmlpdf(element, options = {}) {
 
   return result;
 }
+
