@@ -101,19 +101,14 @@ export async function preloadImages(nodes) {
 
       const tasks = [];
 
-      // IMG 标签 src → base64
+      // IMG 标签 src → base64（同步操作，图片在 waitForImages 时已加载完毕）
       if (e.tag === 'IMG' && e._el?.src) {
-        tasks.push(
-          new Promise((resolve) => {
-            const imgEl = e._el;
-            const canvas = document.createElement('canvas');
-            canvas.width = imgEl.naturalWidth || imgEl.width;
-            canvas.height = imgEl.naturalHeight || imgEl.height;
-            canvas.getContext('2d').drawImage(imgEl, 0, 0);
-            e.src = canvas.toDataURL('image/jpeg', 0.92);
-            resolve();
-          }),
-        );
+        const imgEl = e._el;
+        const canvas = document.createElement('canvas');
+        canvas.width = imgEl.naturalWidth || imgEl.width;
+        canvas.height = imgEl.naturalHeight || imgEl.height;
+        canvas.getContext('2d').drawImage(imgEl, 0, 0);
+        e.src = canvas.toDataURL('image/jpeg', 0.92);
       }
 
       // backgroundImage url → base64 + 原始尺寸

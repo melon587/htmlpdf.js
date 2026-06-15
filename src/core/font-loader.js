@@ -46,32 +46,35 @@ export async function loadFontsToJsPDF(doc, fonts) {
     return;
   }
 
-  for (const config of fonts) {
-    let fontBase64 = config.fontBase64;
+  await Promise.all(
+    fonts.map(async (config) => {
+      let fontBase64 = config.fontBase64;
 
-    if (!fontBase64 && config.fontUrl) {
-      try {
-        fontBase64 = await fetchFontAsBase64(config.fontUrl);
-      } catch (error) {
-        console.error(
-          `[htmlpdf] Failed to load font: ${config.fontUrl}`,
-          error,
-        );
-        continue;
+      if (!fontBase64 && config.fontUrl) {
+        try {
+          fontBase64 = await fetchFontAsBase64(config.fontUrl);
+        } catch (error) {
+          console.error(
+            `[htmlpdf] Failed to load font: ${config.fontUrl}`,
+            error,
+          );
+
+          return;
+        }
       }
-    }
 
-    if (fontBase64) {
-      doc.addFileToVFS(`${config.fontFamily}.ttf`, fontBase64);
-      doc.addFont(
-        `${config.fontFamily}.ttf`,
-        config.fontFamily,
-        config.fontStyle,
-        config.fontWeight,
-      );
-      console.log(`[htmlpdf] Font registered: ${config.fontFamily}`);
-    }
-  }
+      if (fontBase64) {
+        doc.addFileToVFS(`${config.fontFamily}.ttf`, fontBase64);
+        doc.addFont(
+          `${config.fontFamily}.ttf`,
+          config.fontFamily,
+          config.fontStyle,
+          config.fontWeight,
+        );
+        console.log(`[htmlpdf] Font registered: ${config.fontFamily}`);
+      }
+    }),
+  );
 }
 
 /**
@@ -85,30 +88,28 @@ export async function injectFontsToDocument(iframeDoc, fonts) {
     return;
   }
 
-  const fontFaceRules = [];
+  const fontFaceRules = (
+    await Promise.all(
+      fonts.map(async (config) => {
+        let fontBase64 = config.fontBase64;
 
-  for (const config of fonts) {
-    let fontBase64 = config.fontBase64;
+        if (!fontBase64 && config.fontUrl) {
+          try {
+            fontBase64 = await fetchFontAsBase64(config.fontUrl);
+          } catch (error) {
+            console.error(
+              `[htmlpdf] Failed to load font for cloned document: ${config.fontUrl}`,
+              error,
+            );
 
-    if (!fontBase64 && config.fontUrl) {
-      try {
-        fontBase64 = await fetchFontAsBase64(config.fontUrl);
-      } catch (error) {
-        console.error(
-          `[htmlpdf] Failed to load font for cloned document: ${config.fontUrl}`,
-          error,
-        );
-        continue;
-      }
-    }
+            return null;
+          }
+        }
 
-    if (fontBase64) {
-      // 生成 unicode-range（如果 config 里有 charRanges）
-      const rule = buildFontFaceRule(config, fontBase64);
-
-      fontFaceRules.push(rule);
-    }
-  }
+        return fontBase64 ? buildFontFaceRule(config, fontBase64) : null;
+      }),
+    )
+  ).filter(Boolean);
 
   if (fontFaceRules.length > 0) {
     const styleEl = iframeDoc.createElement('style');
