@@ -20,7 +20,6 @@ function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
     return { imgW: natW * scale, imgH: natH * scale };
   }
 
-  // 百分比 / 具体 px 值 / auto
   return {
     imgW: parseBgSizeVal(sx, elW, natW, natH),
     imgH: parseBgSizeVal(sy, elH, natH, natW),
@@ -42,11 +41,10 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
 }
 
 /**
- * 绘制背景色
- * clipTop/clipBottom（mm）：当前页的可见范围，用于跨页裁剪
- * 只绘制节点与当前页交叉的那一段高度
+ * 绘制背景色和背景图
+ * clipTop/clipBottom（mm）：当前页可见范围，用于跨页裁剪，只绘制节点与当前页交叉的区域
  */
-function drawBackground({ doc, node, ctx, pageOffsetY, clipTop, clipBottom }) {
+function drawBackground({ doc, node, ctx, clipTop, clipBottom }) {
   const { style } = node;
   const nodeTop = ctx.toMM(node.y);
   const nodeBottom = ctx.toMM(node.y + node.height);
@@ -56,7 +54,7 @@ function drawBackground({ doc, node, ctx, pageOffsetY, clipTop, clipBottom }) {
   if (drawBottom <= drawTop) return;
 
   const x = ctx.toPdfX(node.x);
-  const y = ctx.toPdfYmm(drawTop, pageOffsetY);
+  const y = ctx.toPdfYmm(drawTop);
   const w = ctx.toMM(node.width);
   const h = drawBottom - drawTop;
 
@@ -90,10 +88,8 @@ function drawBackground({ doc, node, ctx, pageOffsetY, clipTop, clipBottom }) {
         imgH,
       });
 
-      // 图片绘制起点（相对页面坐标）
       const imgX = ctx.toPdfX(node.x) + offX;
-      // offY 是相对元素顶部的偏移，需要加上 nodeTop 到 drawTop 的差（跨页裁剪）
-      const imgY = ctx.toPdfYmm(nodeTop + offY, pageOffsetY);
+      const imgY = ctx.toPdfYmm(nodeTop + offY);
 
       try {
         doc.addImage(

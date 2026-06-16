@@ -72,21 +72,19 @@ export function createContext(rootElement, options = {}) {
     /**
      * 节点 y(px) → PDF y(mm)
      * 内容区顶部基准 = margin + headerHeight
-     * @param {number} y - 相对根元素的 y（px）
-     * @param {number} pageOffsetY - 当前页顶部对应的 y（mm）
+     * @param {number} y - 相对当前页顶部的 y（px），流式分页已将 offsetY 算入节点坐标
      */
-    toPdfY(y, pageOffsetY = 0) {
-      return marginMM + headerHeight + y * scale - pageOffsetY;
+    toPdfY(y) {
+      return marginMM + headerHeight + y * scale;
     },
 
     /**
      * mm 值直接转 PDF y（已经是 mm，不需要 *scale）
      * 内容区顶部基准 = margin + headerHeight
-     * @param {number} ymm - mm 坐标
-     * @param {number} pageOffsetY - 当前页顶部（mm）
+     * @param {number} ymm - 相对当前页顶部的 mm 坐标，流式分页已将 offsetY 算入
      */
-    toPdfYmm(ymm, pageOffsetY = 0) {
-      return marginMM + headerHeight + ymm - pageOffsetY;
+    toPdfYmm(ymm) {
+      return marginMM + headerHeight + ymm;
     },
 
     /**

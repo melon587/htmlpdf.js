@@ -72,7 +72,6 @@ export function streamPaginate({
   let currentPage = 1;
   let accumulatedYpx = 0;
   let currentPageContentOffsetPx = 0;
-  let shouldSkipHeaderOnCurrentPage = false;
 
   const nodePlacements = []; // 节点渲染计划
   const headerPlacements = []; // repeat-header 渲染计划
@@ -91,14 +90,13 @@ export function streamPaginate({
 
       // 处理 repeat-header
       if (headerMeta) {
-        if (headerMeta.actualStartPage === null) {
-          // eslint-disable-next-line no-param-reassign
-          headerMeta.actualStartPage = currentPage;
-          // 第一页渲染原始表头，不渲染 repeat-header
+        if (!headerMeta.headerRendered) {
+          // 原始表头尚未渲染，本次换页后继续正常渲染
           currentPageContentOffsetPx = 0;
-          shouldSkipHeaderOnCurrentPage = false;
-        } else if (currentPage > headerMeta.actualStartPage) {
-          // 从第二页开始渲染 repeat-header
+          // eslint-disable-next-line no-param-reassign
+          headerMeta.skipOnCurrentPage = false;
+        } else {
+          // 原始表头已渲染，在新页顶部插入 repeat-header 副本
           const result = generateRepeatHeaderPlacements(
             headerMeta,
             currentPage,
@@ -106,11 +104,11 @@ export function streamPaginate({
           );
           headerPlacements.push(...result.placements);
           currentPageContentOffsetPx = result.headerHeightPx;
-          shouldSkipHeaderOnCurrentPage = true;
+          // eslint-disable-next-line no-param-reassign
+          headerMeta.skipOnCurrentPage = true;
         }
       } else {
         currentPageContentOffsetPx = 0;
-        shouldSkipHeaderOnCurrentPage = false;
       }
 
       // 重新处理当前节点
@@ -118,9 +116,10 @@ export function streamPaginate({
       continue;
     }
 
-    // 跳过原始表头节点（如果当前页已渲染 repeat-header 副本）
+    // 跳过原始表头节点（当前页已有 repeat-header 副本时）
+    // skipOnCurrentPage 存在 headerMeta 上，各表格独立维护，避免多表格时相互干扰
     if (
-      shouldSkipHeaderOnCurrentPage &&
+      headerMeta?.skipOnCurrentPage &&
       shouldSkipOriginalHeader(node, headerMeta)
     ) {
       continue;
@@ -136,6 +135,14 @@ export function streamPaginate({
       offsetYpx: effectiveOffsetYpx,
       type: 'normal',
     });
+
+    // headerNode 放入渲染计划后立即标记，下次该表格换页时开始生成 repeat-header 副本
+    // 注意：headerNode 在 DOM 顺序上先于 tbody，所以它被 skip 时 headerRendered 已经是
+    // true（skip 条件依赖 headerRendered），不存在永远标记不到的情况
+    if (headerMeta && node._origEl === headerMeta.headerNode._origEl) {
+      // eslint-disable-next-line no-param-reassign
+      headerMeta.headerRendered = true;
+    }
   }
 
   // 返回分页方案

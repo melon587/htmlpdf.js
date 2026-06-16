@@ -5,13 +5,6 @@
 import { matchesSelector } from '../utils';
 
 /**
- * 获取 y 坐标所在的页码（从 1 开始）
- */
-function getPageNumber(y, pageHeightPx) {
-  return Math.floor(y / pageHeightPx) + 1;
-}
-
-/**
  * 统一配置格式（支持字符串或对象）
  */
 function normalizeContainerConfig(config) {
@@ -23,7 +16,7 @@ function normalizeContainerConfig(config) {
 /**
  * 收集 repeat-header 元信息
  */
-function collectHeaderMetas(nodes, pageHeightPx, repeatHeaders) {
+function collectHeaderMetas(nodes, repeatHeaders) {
   const headerMetas = [];
 
   for (const config of repeatHeaders) {
@@ -78,26 +71,14 @@ function collectHeaderMetas(nodes, pageHeightPx, repeatHeaders) {
         headerNode._origEl.contains(n._origEl),
     );
 
-    // 4. 计算表格跨越的页数
-    const tableStartPage = getPageNumber(tableNode.y, pageHeightPx);
-    const tableEndPage = Math.ceil(
-      (tableNode.y + tableNode.height) / pageHeightPx,
-    );
-
-    // 5. 计算需要插入表头的页码
-    const pages = [];
-    for (let pg = tableStartPage + 1; pg <= tableEndPage; pg++) {
-      pages.push(pg);
-    }
-
     // 收集元信息
     headerMetas.push({
       tableNode,
       headerNode,
+      // headerChildren 同时包含 element 和 text 子节点，renderNode 会按 type 分别处理
       headerChildren,
-      pages,
-      pageHeightPx,
-      actualStartPage: null, // 动态记录实际开始页码
+      headerRendered: false, // 原始表头是否已渲染，决定换页时是否生成 repeat-header 副本
+      skipOnCurrentPage: false, // 当前页是否跳过原始表头（各表格独立维护，避免多表格竞态）
     });
   }
 
@@ -106,15 +87,27 @@ function collectHeaderMetas(nodes, pageHeightPx, repeatHeaders) {
 
 /**
  * 预标记节点所属的 headerMeta
+ *
+ * 利用 collectNodes 深度优先遍历产生的数组连续性：
+ * 表格容器节点之后的节点，连续属于该容器，直到遇到第一个不属于该容器的节点为止。
+ * 因此无需对每个节点调用 DOM contains()，只需找到容器在数组中的起始位置，
+ * 然后向后线性扫描，大幅减少 DOM 查询次数。
  */
 function markNodeHeaderMeta(nodes, headerMetas) {
   for (const meta of headerMetas) {
-    if (!meta.tableNode._origEl) continue;
+    const containerEl = meta.tableNode._origEl;
+    if (!containerEl) continue;
 
-    for (const node of nodes) {
-      if (node._origEl && meta.tableNode._origEl.contains(node._origEl)) {
-        node._headerMeta = meta;
-      }
+    // 找到表格容器节点在数组中的位置
+    const startIdx = nodes.indexOf(meta.tableNode);
+    if (startIdx === -1) continue;
+
+    // 向后扫描：只要节点的 _origEl 在容器内，就标记；一旦不在则停止
+    for (let j = startIdx + 1; j < nodes.length; j++) {
+      const node = nodes[j];
+      if (!node._origEl || !containerEl.contains(node._origEl)) break;
+
+      node._headerMeta = meta;
     }
   }
 }
@@ -122,17 +115,12 @@ function markNodeHeaderMeta(nodes, headerMetas) {
 /**
  * 工厂函数：创建 repeat-header 管理器
  * @param {Array} nodes - 节点数组
- * @param {number} pageHeightPx - 页面高度（px）
  * @param {Array} repeatHeaders - repeat-header 配置
  * @returns {Object} 管理器对象
  */
-export function createRepeatHeaderManager(
-  nodes,
-  pageHeightPx,
-  repeatHeaders = [],
-) {
+export function createRepeatHeaderManager(nodes, repeatHeaders = []) {
   // 1. 收集元数据
-  const headerMetas = collectHeaderMetas(nodes, pageHeightPx, repeatHeaders);
+  const headerMetas = collectHeaderMetas(nodes, repeatHeaders);
 
   // 2. 预标记节点
   if (headerMetas.length > 0) {
@@ -148,7 +136,8 @@ export function createRepeatHeaderManager(
 }
 
 /**
- * 判断节点是否需要跳过（原始表头节点）
+ * 判断节点是否需要跳过（原始表头节点或其子节点）
+ * 当前页已有 repeat-header 副本时，跳过原始表头避免重复渲染
  */
 export function shouldSkipOriginalHeader(node, headerMeta) {
   if (!headerMeta) return false;
@@ -164,6 +153,7 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
 
 /**
  * 生成 repeat-header 的渲染计划
+ * 将原始表头克隆到新页顶部，子节点坐标相对表头做偏移
  */
 export function generateRepeatHeaderPlacements(
   headerMeta,
@@ -181,7 +171,6 @@ export function generateRepeatHeaderPlacements(
     type: 'repeat-header',
   });
 
-  // 生成子节点渲染计划
   for (const child of headerMeta.headerChildren) {
     const offsetInHeader = child.y - headerMeta.headerNode.y;
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };

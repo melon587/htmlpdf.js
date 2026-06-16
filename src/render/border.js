@@ -2,8 +2,9 @@ import { parsePx, parseColor } from '../utils';
 
 /**
  * 绘制边框（跨页裁剪：左右边全画，上边只在第一页画，下边只在最后一页画）
+ * clipTop/clipBottom（mm）：当前页可见范围
  */
-function drawBorder({ doc, node, ctx, pageOffsetY, clipTop, clipBottom }) {
+function drawBorder({ doc, node, ctx, clipTop, clipBottom }) {
   const { style } = node;
   const nodeTop = ctx.toMM(node.y);
   const nodeBottom = ctx.toMM(node.y + node.height);
@@ -11,13 +12,12 @@ function drawBorder({ doc, node, ctx, pageOffsetY, clipTop, clipBottom }) {
   const x = ctx.toPdfX(node.x);
   const w = ctx.toMM(node.width);
 
-  // 本页实际绘制区域
   const drawTop = Math.max(nodeTop, clipTop);
   const drawBottom = Math.min(nodeBottom, clipBottom);
   if (drawBottom <= drawTop) return;
 
-  const yTop = ctx.toPdfYmm(drawTop, pageOffsetY);
-  const yBottom = ctx.toPdfYmm(drawBottom, pageOffsetY);
+  const yTop = ctx.toPdfYmm(drawTop);
+  const yBottom = ctx.toPdfYmm(drawBottom);
   const isFirstPage = nodeTop >= clipTop;
   const isLastPage = nodeBottom <= clipBottom;
 

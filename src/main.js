@@ -12,6 +12,29 @@ import { streamPaginate } from './core/stream-pagination';
 import { renderNode } from './render/node';
 
 /**
+ * 归并两个已按页码有序的 placement 数组
+ * 同页时左数组（headerPlacements）优先，保证 repeat-header 在普通节点之前渲染
+ */
+function mergePlacements(left, right) {
+  const result = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < left.length && j < right.length) {
+    if (left[i].page <= right[j].page) {
+      result.push(left[i++]);
+    } else {
+      result.push(right[j++]);
+    }
+  }
+
+  while (i < left.length) result.push(left[i++]);
+  while (j < right.length) result.push(right[j++]);
+
+  return result;
+}
+
+/**
  * 确保 PDF 文档有指定页，并切换到该页
  */
 function ensurePage(doc, targetPage, currentPage) {
@@ -47,7 +70,6 @@ function ensurePage(doc, targetPage, currentPage) {
  */
 export async function htmlpdf(element, options = {}) {
   const startTime = performance.now();
-  console.log('[htmlpdf] Start converting...');
 
   const {
     output = 'blob',
@@ -59,10 +81,7 @@ export async function htmlpdf(element, options = {}) {
 
   // 创建上下文 用于调用jsPDF的api
   const ctx = createContext(element, options);
-  const { doc, scale, contentHeight } = ctx;
-
-  // 计算内容区高度对应的 px 值，用于 page-break / repeat-header 坐标计算。
-  const pageHeightPx = contentHeight / scale;
+  const { doc, contentHeight } = ctx;
 
   // 克隆目标元素（传入 fonts，注入字体到克隆文档）
   const { iframe, cloneRoot } = await createClonedDocument(element, fonts);
@@ -78,22 +97,20 @@ export async function htmlpdf(element, options = {}) {
   // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
   await loadFontsToJsPDF(doc, fonts);
 
-  // 🔍 调试：打印 repeatHeaders 配置
-  console.log('[htmlpdf] repeatHeaders config:', repeatHeaders);
-
   // 创建 repeat-header 管理器
   const repeatHeaderManager =
     repeatHeaders.length > 0
-      ? createRepeatHeaderManager(nodes, pageHeightPx, repeatHeaders)
+      ? createRepeatHeaderManager(nodes, repeatHeaders)
       : null;
 
-  console.log(
-    '[htmlpdf] RepeatHeaderManager initialized:',
-    repeatHeaderManager?.hasHeaders() ? 'Yes' : 'No',
-  );
-
-  // 🆕 使用流式分页计算渲染方案
-  const paginationPlan = streamPaginate({
+  // 使用流式分页计算渲染方案
+  const {
+    totalPages,
+    nodePlacements,
+    headerPlacements,
+    sortedFontConfig,
+    fallbackFontFamily,
+  } = streamPaginate({
     nodes,
     ctx,
     contentHeight,
@@ -101,30 +118,13 @@ export async function htmlpdf(element, options = {}) {
     repeatHeaderManager,
   });
 
-  const {
-    totalPages,
-    nodePlacements,
-    headerPlacements,
-    sortedFontConfig,
-    fallbackFontFamily,
-  } = paginationPlan;
-
-  console.log('[htmlpdf] Pagination plan:', {
-    totalPages,
-    nodePlacements: nodePlacements.length,
-    headerPlacements: headerPlacements.length,
-  });
-
-  // 合并所有渲染计划（header 优先渲染）
-  const allPlacements = [...headerPlacements, ...nodePlacements];
-
-  // 按页码排序
-  allPlacements.sort((a, b) => a.page - b.page);
+  // 归并两个已按页码有序的数组（headerPlacements 优先，保证同页 header 先渲染）
+  // O(n) 归并替代 O(n log n) sort，避免临时大数组
+  const allPlacements = mergePlacements(headerPlacements, nodePlacements);
 
   // 执行渲染
   let currentPage = 0;
   for (const placement of allPlacements) {
-    // 切换到目标页
     if (placement.page !== currentPage) {
       ensurePage(doc, placement.page, currentPage);
       currentPage = placement.page;
@@ -152,10 +152,8 @@ export async function htmlpdf(element, options = {}) {
   else if (output === 'arraybuffer') result = doc.output('arraybuffer');
   else result = doc.output('blob');
 
-  const endTime = performance.now();
-  const elapsed = (endTime - startTime).toFixed(2);
-  console.log(`[htmlpdf] ✅ Conversion completed in ${elapsed}ms`);
+  const elapsed = (performance.now() - startTime).toFixed(2);
+  console.log(`[htmlpdf] Conversion completed in ${elapsed}ms`);
 
   return result;
 }
-

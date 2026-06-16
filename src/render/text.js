@@ -22,9 +22,6 @@ function getCombinedFontStyle(fontStyle, fontWeight) {
 /**
  * 根据字符码点找到对应的字体配置
  * 优先级：charRanges 精确匹配 > isDefault 字体 > null（由外部 fallbackFontFamily 兜底）
- * @param {number} code - 字符码点
- * @param {Array} sortedFontConfig - 已排序的字体配置数组
- * @returns {Object|null}
  */
 function findFontForChar(code, sortedFontConfig) {
   for (const config of sortedFontConfig) {
@@ -39,10 +36,27 @@ function findFontForChar(code, sortedFontConfig) {
 }
 
 /**
+ * 判断两个字体配置是否相同（fontFamily + fontStyle + fontWeight 全部一致）
+ * 用于 segmentTextByFont 合并相邻同字体字符
+ */
+function isSameFont(a, b) {
+  if (a === b) return true;
+
+  if (!a || !b) return false;
+
+  return (
+    a.fontFamily === b.fontFamily &&
+    a.fontStyle === b.fontStyle &&
+    a.fontWeight === b.fontWeight
+  );
+}
+
+/**
  * 把混合语言文本按字体分段
+ * 相邻字符若字体配置完全相同（fontFamily + fontStyle + fontWeight），合并为同一段
  * @param {string} text - 原始文本，如 "Hello 你好 World"
  * @param {Array} sortedFontConfig - 已排序的字体配置数组
- * @returns {Array} 分段结果，font 为 null 时由外部 fallbackFontFamily 兜底
+ * @returns {Array<{text: string, font: Object|null}>}
  */
 function segmentTextByFont(text, sortedFontConfig) {
   if (!text) return [];
@@ -58,24 +72,17 @@ function segmentTextByFont(text, sortedFontConfig) {
   for (const char of text) {
     const font = findFontForChar(char.charCodeAt(0), sortedFontConfig);
 
-    if (
-      currentFont === font ||
-      (currentFont && font && currentFont.fontFamily === font.fontFamily)
-    ) {
+    if (isSameFont(currentFont, font)) {
       currentText += char;
     } else {
-      if (currentText) {
-        segments.push({ text: currentText, font: currentFont });
-      }
+      if (currentText) segments.push({ text: currentText, font: currentFont });
 
       currentFont = font;
       currentText = char;
     }
   }
 
-  if (currentText) {
-    segments.push({ text: currentText, font: currentFont });
-  }
+  if (currentText) segments.push({ text: currentText, font: currentFont });
 
   return segments;
 }
@@ -85,16 +92,14 @@ function segmentTextByFont(text, sortedFontConfig) {
  * @param {Object} doc - jsPDF 实例
  * @param {Object} node - 文本节点
  * @param {Object} ctx - 渲染上下文
- * @param {number} pageOffsetY - 当前页顶部偏移（mm）
- * @param {number} clipTop - 裁剪顶部（mm）
+ * @param {number} clipTop - 裁剪顶部（mm），节点顶部低于此值时跳过
  * @param {Array} sortedFontConfig - 已按 priority 排好序的字体配置数组
- * @param {string} fallbackFontFamily - 兜底字体名（由调用方提前计算）
+ * @param {string} fallbackFontFamily - 兜底字体名
  */
 function drawText({
   doc,
   node,
   ctx,
-  pageOffsetY,
   clipTop,
   sortedFontConfig = [],
   fallbackFontFamily = 'helvetica',
@@ -115,35 +120,34 @@ function drawText({
   doc.setFontSize(ctx.toPt(fontSize));
 
   const fontStyle = getCombinedFontStyle(style.fontStyle, style.fontWeight);
+  const x = ctx.toPdfX(node.x);
+  const y = ctx.toPdfY(node.y) + ctx.toMM(fontSize);
 
-  // 如果没有字体配置，走老逻辑（单字体）
+  // 无字体配置，走简单路径
   if (!sortedFontConfig || sortedFontConfig.length === 0) {
     doc.setFont('helvetica', fontStyle);
-    const x = ctx.toPdfX(node.x);
-    const y = ctx.toPdfY(node.y, pageOffsetY) + ctx.toMM(fontSize);
     doc.text(node.text, x, y, { baseline: 'alphabetic' });
 
     return;
   }
 
-  // 混合字体渲染
+  // 混合字体渲染：按字体分段分别绘制
   const segments = segmentTextByFont(node.text, sortedFontConfig);
-  let x = ctx.toPdfX(node.x);
-  const y = ctx.toPdfY(node.y, pageOffsetY) + ctx.toMM(fontSize);
+  let curX = x;
 
   for (const segment of segments) {
-    if (segment.font && segment.font.fontFamily) {
+    if (segment.font?.fontFamily) {
       try {
         doc.setFont(segment.font.fontFamily, fontStyle);
-      } catch (e) {
+      } catch {
         doc.setFont(fallbackFontFamily, fontStyle);
       }
     } else {
       doc.setFont(fallbackFontFamily, fontStyle);
     }
 
-    doc.text(segment.text, x, y, { baseline: 'alphabetic' });
-    x += doc.getTextWidth(segment.text);
+    doc.text(segment.text, curX, y, { baseline: 'alphabetic' });
+    curX += doc.getTextWidth(segment.text);
   }
 }
 
