@@ -70,7 +70,7 @@ function segmentTextByFont(text, sortedFontConfig) {
   let currentText = '';
 
   for (const char of text) {
-    const font = findFontForChar(char.charCodeAt(0), sortedFontConfig);
+    const font = findFontForChar(char.codePointAt(0), sortedFontConfig);
 
     if (isSameFont(currentFont, font)) {
       currentText += char;

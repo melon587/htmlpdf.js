@@ -14,33 +14,15 @@ function parseBorderString(borderStr) {
   const bw = parseFloat(widthMatch[1]);
   if (bw <= 0) return null;
 
-  // 提取颜色：支持 #hex, rgb(...), rgba(...), 命名色
-  // 先尝试 rgb/rgba
+  // 提取颜色：先尝试 rgb/rgba，再尝试 #hex
   const rgbMatch = borderStr.match(/rgba?\([^)]+\)/);
-  if (rgbMatch) {
-    const c = parseColor(rgbMatch[0]);
-    if (c) return { bw, color: c };
-  }
+  const colorStr = rgbMatch
+    ? rgbMatch[0]
+    : (borderStr.match(/#[0-9a-fA-F]{3,8}\b/) || [])[0];
+  const color = parseColor(colorStr);
+  if (!color) return null;
 
-  // 尝试 #hex
-  const hexMatch = borderStr.match(/#([0-9a-fA-F]{3,8})\b/);
-  if (hexMatch) {
-    const hex = hexMatch[1];
-    let r, g, b;
-    if (hex.length === 3) {
-      r = parseInt(hex[0] + hex[0], 16);
-      g = parseInt(hex[1] + hex[1], 16);
-      b = parseInt(hex[2] + hex[2], 16);
-    } else {
-      r = parseInt(hex.slice(0, 2), 16);
-      g = parseInt(hex.slice(2, 4), 16);
-      b = parseInt(hex.slice(4, 6), 16);
-    }
-
-    return { bw, color: [r, g, b] };
-  }
-
-  return null;
+  return { bw, color };
 }
 
 /**

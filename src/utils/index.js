@@ -41,6 +41,7 @@ export function parsePx(val) {
 
 /**
  * 解析 CSS 颜色字符串 → [r, g, b]
+ * 支持：rgb(...) / rgba(...) / #RGB / #RRGGBB / #RRGGBBAA
  */
 export function parseColor(colorStr) {
   if (
@@ -50,10 +51,36 @@ export function parseColor(colorStr) {
   )
     return null;
 
-  const match = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (!match) return null;
+  // rgb / rgba
+  const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (rgbMatch)
+    return [
+      parseInt(rgbMatch[1]),
+      parseInt(rgbMatch[2]),
+      parseInt(rgbMatch[3]),
+    ];
 
-  return [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])];
+  // #hex (#RGB 或 #RRGGBB 或 #RRGGBBAA)
+  const hexMatch = colorStr.match(/^#([0-9a-fA-F]{3,8})$/);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    if (hex.length === 3) {
+      return [
+        parseInt(hex[0] + hex[0], 16),
+        parseInt(hex[1] + hex[1], 16),
+        parseInt(hex[2] + hex[2], 16),
+      ];
+    }
+
+    // 6 or 8 digits — ignore alpha channel
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+    ];
+  }
+
+  return null;
 }
 
 /**

@@ -88,10 +88,16 @@ function drawBackground({ doc, node, ctx, clipTop, clipBottom }) {
         imgH,
       });
 
+      // 背景图左上角：基于节点原始顶部（nodeTop），跨页时可能在当前页之上
       const imgX = ctx.toPdfX(node.x) + offX;
       const imgY = ctx.toPdfYmm(nodeTop + offY);
 
       try {
+        // 用裁剪区域限制背景图只在当前页可见范围内绘制，防止跨页溢出
+        doc.saveGraphicsState();
+        doc.rect(x, y, w, h);
+        doc.clip();
+        doc.discardPath();
         doc.addImage(
           node.bgSrc,
           node.bgFormat || 'JPEG',
@@ -100,6 +106,7 @@ function drawBackground({ doc, node, ctx, clipTop, clipBottom }) {
           imgW,
           imgH,
         );
+        doc.restoreGraphicsState();
       } catch (e) {
         console.warn('[htmlpdf] bgImage addImage failed:', e);
       }
