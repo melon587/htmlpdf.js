@@ -76,6 +76,12 @@ export function streamPaginate({
   const nodePlacements = []; // 节点渲染计划
   const headerPlacements = []; // repeat-header 渲染计划
 
+  // 记录每页内容区的起始偏移，用于跨页展开时计算溢出页的 offsetYpx
+  // key: 页码（1-based）
+  // value: { rawOffset: accumulatedYpx, effectiveOffset: accumulatedYpx - contentOffsetPx }
+  const pageStartOffsets = new Map();
+  pageStartOffsets.set(1, { rawOffset: 0, effectiveOffset: 0 });
+
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
     const headerMeta = repeatHeaderManager?.getHeaderMetaForNode(node);
@@ -88,15 +94,13 @@ export function streamPaginate({
       accumulatedYpx = calcNextPageStart(node, currentPageBottom);
       currentPage++;
 
-      // 处理 repeat-header
+      // 处理 repeat-header（先处理，再记录 effectiveOffset）
       if (headerMeta) {
         if (!headerMeta.headerRendered) {
-          // 原始表头尚未渲染，本次换页后继续正常渲染
           currentPageContentOffsetPx = 0;
           // eslint-disable-next-line no-param-reassign
           headerMeta.skipOnCurrentPage = false;
         } else {
-          // 原始表头已渲染，在新页顶部插入 repeat-header 副本
           const result = generateRepeatHeaderPlacements(
             headerMeta,
             currentPage,
@@ -110,6 +114,12 @@ export function streamPaginate({
       } else {
         currentPageContentOffsetPx = 0;
       }
+
+      // repeat-header 处理完后记录新页偏移（effectiveOffset 已含 header 修正）
+      pageStartOffsets.set(currentPage, {
+        rawOffset: accumulatedYpx,
+        effectiveOffset: accumulatedYpx - currentPageContentOffsetPx,
+      });
 
       // 重新处理当前节点
       i--;
@@ -145,10 +155,52 @@ export function streamPaginate({
     }
   }
 
+  // ── 跨页展开 ──────────────────────────────────────────────────────────────
+  // 对每条 placement，检查节点是否溢出到后续页。
+  // 若溢出，为每个溢出页生成额外的 'spill' placement，
+  // 使 renderNode 能在溢出页继续绘制该节点的 bg/border。
+  //
+  // offsetYpx 使用 pageStartOffsets.get(spillPage)：
+  //   relativeY = node.y - offsetYpx < 0（节点顶部在页面以上，符合预期）
+  //   drawBorder/drawBackground 的 clipTop=0 会正确裁剪
+  const totalPagesCount = currentPage;
+  const spillPlacements = [];
+
+  for (const p of nodePlacements) {
+    const nodeBottomPx = p.node.y + p.node.height;
+    const pageInfo = pageStartOffsets.get(p.page);
+    const pageEffectiveOffset = pageInfo ? pageInfo.effectiveOffset : 0;
+    const pageBottomGlobal = pageEffectiveOffset + contentHeightPx;
+
+    if (nodeBottomPx <= pageBottomGlobal) continue;
+
+    // 只对有边框或背景的 element 节点展开（text 节点不需要跨页 bg/border）
+    if (p.node.type !== 'element') continue;
+
+    for (let sp = p.page + 1; sp <= totalPagesCount; sp++) {
+      const spillPageInfo = pageStartOffsets.get(sp);
+      const spillOffsetYpx = spillPageInfo ? spillPageInfo.effectiveOffset : 0;
+      const spillRawOffset = spillPageInfo ? spillPageInfo.rawOffset : 0;
+      // clipTopPx：该溢出页内容区的起始偏移（rawOffset - effectiveOffset = 表头高度 px）
+      const clipTopPx = spillRawOffset - spillOffsetYpx;
+      const isSpillLastPage = nodeBottomPx <= spillOffsetYpx + contentHeightPx;
+      spillPlacements.push({
+        page: sp,
+        node: p.node,
+        offsetYpx: spillOffsetYpx,
+        clipTopPx,
+        type: 'spill',
+      });
+      if (isSpillLastPage) break;
+    }
+  }
+
   // 返回分页方案
   return {
-    totalPages: currentPage,
-    nodePlacements,
+    totalPages: totalPagesCount,
+    nodePlacements: [...nodePlacements, ...spillPlacements].sort(
+      (a, b) => a.page - b.page,
+    ),
     headerPlacements,
     sortedFontConfig,
     fallbackFontFamily,

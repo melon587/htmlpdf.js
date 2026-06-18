@@ -6,13 +6,10 @@ import { drawText } from './text';
 /**
  * 渲染单个节点到 PDF
  *
- * 流式分页已将页面偏移量（offsetYpx）算入节点的 y 坐标，
- * 所以各 draw 函数只需处理相对当前页顶部的坐标，无需再传 pageOffsetY。
- *
  * @param {Object} doc - jsPDF 实例
- * @param {Object} node - 节点对象（y 已是相对当前页顶部的 px 坐标）
+ * @param {Object} node - 节点对象（y 为全局坐标，由 offsetYpx 转换为页内坐标）
  * @param {Object} ctx - 渲染上下文
- * @param {number} offsetYpx - 当前页在全局坐标系中的起始 y（px），用于将节点 y 转为页内坐标
+ * @param {number} offsetYpx - 当前页内容区起始的全局 y（px）
  * @param {number} contentHeight - 单页内容区高度（mm），用于跨页裁剪
  * @param {Array} sortedFontConfig - 排序后的字体配置
  * @param {string} fallbackFontFamily - fallback 字体

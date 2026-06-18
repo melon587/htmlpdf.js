@@ -6,10 +6,11 @@ import {
   destroyClonedDocument,
   loadFontsToJsPDF,
   renderHeaderFooter,
+  createRepeatHeaderManager,
+  streamPaginate,
 } from './core';
-import { createRepeatHeaderManager } from './core/repeat-header-manager';
-import { streamPaginate } from './core/stream-pagination';
-import { renderNode } from './render/node';
+import { renderNode, drawSpillClosingLines } from './render';
+import { matchesSelector } from './utils';
 
 /**
  * 归并两个已按页码有序的 placement 数组
@@ -65,19 +66,13 @@ function ensurePage(doc, targetPage, currentPage) {
  * @param {Object} [options.header] - 页眉配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
  * @param {Array}  [options.fonts] - 字体配置数组
- * @param {Array}  [options.repeatHeaders] - 需要重复表头的表格配置，例如: ['#table1', { container: '#table2', header: '.my-header' }]
+ * @param {Array}  [options.tables] - 表格配置数组，例如: [{ selector: '.my-table', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]
  * @returns {Promise<Blob|string|ArrayBuffer>}
  */
 export async function htmlpdf(element, options = {}) {
   const startTime = performance.now();
 
-  const {
-    output = 'blob',
-    fonts = [],
-    header,
-    footer,
-    repeatHeaders = [],
-  } = options;
+  const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
 
   // 创建上下文 用于调用jsPDF的api
   const ctx = createContext(element, options);
@@ -98,9 +93,10 @@ export async function htmlpdf(element, options = {}) {
   await loadFontsToJsPDF(doc, fonts);
 
   // 创建 repeat-header 管理器
+  const tablesWithRepeatHeader = tables.filter((t) => t.repeatHeader);
   const repeatHeaderManager =
-    repeatHeaders.length > 0
-      ? createRepeatHeaderManager(nodes, repeatHeaders)
+    tablesWithRepeatHeader.length > 0
+      ? createRepeatHeaderManager(nodes, tables)
       : null;
 
   // 使用流式分页计算渲染方案
@@ -122,7 +118,89 @@ export async function htmlpdf(element, options = {}) {
   // O(n) 归并替代 O(n log n) sort，避免临时大数组
   const allPlacements = mergePlacements(headerPlacements, nodePlacements);
 
-  // 执行渲染
+  // 构建 pageBreakBorder 映射：对每个配置了 pageBreakBorder 的表格，
+  // 只给容器节点本身打上 _pageBreakBorder 标记（不传播到子节点，避免多次重复画线）
+  for (const tableConf of tables) {
+    if (!tableConf.pageBreakBorder) continue;
+
+    const containerNode = nodes.find((n) =>
+      matchesSelector(n._origEl, tableConf.selector),
+    );
+    if (!containerNode) continue;
+
+    containerNode._pageBreakBorder = tableConf.pageBreakBorder;
+  }
+
+  // 收集 spill 闭合线（按页分组）
+  // 策略：对每个有 _pageBreakBorder 标记的表格节点，
+  //   - 出口线：画在当前页内该表格最后一个可见 TR 的底部
+  //   - 入口线：画在重复表头底部（clipTop = 表头高度）
+  const spillClosingLinesByPage = new Map();
+
+  function addSpillLine(page, entry) {
+    if (!spillClosingLinesByPage.has(page))
+      spillClosingLinesByPage.set(page, []);
+
+    spillClosingLinesByPage.get(page).push(entry);
+  }
+
+  // 找到所有有 _pageBreakBorder 的表格容器节点
+  const borderTableNodes = nodes.filter((n) => n._pageBreakBorder);
+
+  for (const tableNode of borderTableNodes) {
+    // 找到该表格内所有 TR 子节点
+    const trNodes = nodes.filter(
+      (n) =>
+        n.tag === 'TR' && n._origEl && tableNode._origEl.contains(n._origEl),
+    );
+
+    // 找到该表格在哪些页有 normal 或 spill placement
+    const tablePlacements = allPlacements.filter((p) => p.node === tableNode);
+
+    for (const placement of tablePlacements) {
+      const pageNum = placement.page;
+      const offsetYpx = placement.offsetYpx;
+      const clipTopPx = placement.clipTopPx || 0;
+
+      // 当前页内容区的全局 px 范围
+      const pageTopGlobal = offsetYpx + clipTopPx; // 内容区顶部（含表头偏移）
+      const pageBottomGlobal = offsetYpx + contentHeight / ctx.scale; // 内容区底部
+
+      // 找当前页内最后一个完整放入页面的 TR 的底部
+      // 条件：TR 顶部在页面范围内，且 TR 底部完全不超出页面底部
+      let lastTrBottomPx = null;
+      for (const tr of trNodes) {
+        const trTop = tr.y;
+        const trBottom = tr.y + tr.height;
+        if (
+          trTop >= pageTopGlobal &&
+          trTop < pageBottomGlobal &&
+          trBottom <= pageBottomGlobal
+        ) {
+          if (lastTrBottomPx === null || trBottom > lastTrBottomPx) {
+            lastTrBottomPx = trBottom;
+          }
+        }
+      }
+
+      // 判断是否是最后一页（节点底部在当前页内）
+      const nodeBottomPx = tableNode.y + tableNode.height;
+      const isLastPage = nodeBottomPx <= pageBottomGlobal;
+
+      if (!isLastPage) {
+        // 非最后页：画出口线（贴着最后一个完整 TR 的底部）
+        const exitAtPx =
+          lastTrBottomPx !== null ? lastTrBottomPx : pageBottomGlobal;
+        addSpillLine(pageNum, {
+          node: tableNode,
+          offsetYpx,
+          exitAtPx,
+        });
+      }
+    }
+  }
+
+  // 执行渲染（不再画 spill 闭合线）
   let currentPage = 0;
   for (const placement of allPlacements) {
     if (placement.page !== currentPage) {
@@ -139,6 +217,24 @@ export async function htmlpdf(element, options = {}) {
       sortedFontConfig,
       fallbackFontFamily,
     });
+  }
+
+  // 逐页绘制出口闭合线（在所有节点渲染完后画，避免被覆盖）
+  for (let page = 1; page <= totalPages; page++) {
+    const spillLines = spillClosingLinesByPage.get(page);
+    if (!spillLines || spillLines.length === 0) continue;
+
+    doc.setPage(page);
+    for (const { node, offsetYpx, exitAtPx } of spillLines) {
+      const clipBottomMM = ctx.toMM(exitAtPx - offsetYpx);
+      drawSpillClosingLines({
+        doc,
+        node,
+        ctx,
+        clipBottom: clipBottomMM,
+        pageBreakBorder: node._pageBreakBorder,
+      });
+    }
   }
 
   // 逐页调用 header/footer render 回调

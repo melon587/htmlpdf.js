@@ -14,7 +14,6 @@ function parseElement(origEl, measEl, rootRect, win) {
     width: rect.width,
     height: rect.height,
     pageBreak: getPageBreak(origEl),
-    repeatHeader: origEl.hasAttribute('repeat-header'),
     _el: origEl.tagName === 'IMG' ? origEl : null,
     _origEl: origEl,
     style: {
