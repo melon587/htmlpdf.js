@@ -1,6 +1,5 @@
 /**
- * Repeat-Header 管理器：工厂函数模式
- *
+ * Repeat-Header 管理器
  * 接收 tables 配置格式：
  * [{ selector, repeatHeader, pageBreakBorder }]
  */
@@ -84,7 +83,7 @@ function markNodeHeaderMeta(nodes, headerMetas) {
 }
 
 /**
- * 工厂函数：创建 repeat-header 管理器
+ * 创建 repeat-header 管理器
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
  */
