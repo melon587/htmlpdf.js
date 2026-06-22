@@ -94,8 +94,10 @@ function drawBackground({ doc, node, ctx, clipTop, clipBottom }) {
 
       try {
         // 用裁剪区域限制背景图只在当前页可见范围内绘制，防止跨页溢出
+        // style=null：putStyle(null) 直接 return，只建路径不执行 stroke/fill，
+        // 避免 style=undefined 时走 defaultPathOperation="S" 产生意外描边
         doc.saveGraphicsState();
-        doc.rect(x, y, w, h);
+        doc.rect(x, y, w, h, null);
         doc.clip();
         doc.discardPath();
         doc.addImage(

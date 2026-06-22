@@ -51,26 +51,34 @@ function drawBorder({ doc, node, ctx, clipTop, clipBottom }) {
     {
       bw: parsePx(style.borderTopWidth),
       color: style.borderTopColor,
+      borderStyle: style.borderTopStyle,
       side: 'top',
     },
     {
       bw: parsePx(style.borderRightWidth),
       color: style.borderRightColor,
+      borderStyle: style.borderRightStyle,
       side: 'right',
     },
     {
       bw: parsePx(style.borderBottomWidth),
       color: style.borderBottomColor,
+      borderStyle: style.borderBottomStyle,
       side: 'bottom',
     },
     {
       bw: parsePx(style.borderLeftWidth),
       color: style.borderLeftColor,
+      borderStyle: style.borderLeftStyle,
       side: 'left',
     },
   ];
 
-  for (const { bw, color, side } of sides) {
+  for (const { bw, color, borderStyle, side } of sides) {
+    // CSS 规范：border-style: none / hidden 时不渲染，无论 border-width 是多少
+    if (!borderStyle || borderStyle === 'none' || borderStyle === 'hidden')
+      continue;
+
     if (side === 'top') {
       if (isFirstPage && bw > 0) {
         const c = parseColor(color);
