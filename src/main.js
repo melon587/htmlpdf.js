@@ -138,7 +138,10 @@ export async function htmlpdf(element, options = {}) {
 
   // 归并两个已按页码有序的数组（headerPlacements 优先，保证同页 header 先渲染）
   // O(n) 归并替代 O(n log n) sort，避免临时大数组
-  const allPlacements = mergePlacements(headerPlacements, nodePlacements);
+  // 注意：归并要求两路输入均严格有序；最终再做一次稳定排序以防边界场景乱序
+  const allPlacements = mergePlacements(headerPlacements, nodePlacements).sort(
+    (a, b) => a.page - b.page,
+  );
 
   // 构建 pageBreakBorder 映射
   markPageBreakBorderNodes(nodes, tables);
@@ -200,6 +203,7 @@ export async function htmlpdf(element, options = {}) {
   else result = doc.output('blob');
 
   const elapsed = (performance.now() - startTime).toFixed(2);
+  // eslint-disable-next-line no-console
   console.log(`[htmlpdf] Conversion completed in ${elapsed}ms`);
 
   return result;
