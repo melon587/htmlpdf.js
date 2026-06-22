@@ -37,6 +37,26 @@ export async function fetchFontAsBase64(url) {
 }
 
 /**
+ * 获取单个字体的 Base64 数据：优先使用内联 fontBase64，否则从 fontUrl fetch。
+ * 失败时打印错误并返回 null（不抛出，避免中断其他字体的加载）。
+ * @param {Object} config - 字体配置对象
+ * @returns {Promise<string|null>}
+ */
+async function getFontBase64(config) {
+  if (config.fontBase64) return config.fontBase64;
+
+  if (config.fontUrl) {
+    try {
+      return await fetchFontAsBase64(config.fontUrl);
+    } catch (error) {
+      console.error(`[htmlpdf] Failed to load font: ${config.fontUrl}`, error);
+    }
+  }
+
+  return null;
+}
+
+/**
  * 加载字体到 jsPDF
  * @param {Object} doc - jsPDF 实例
  * @param {Array} fonts - 字体配置数组
@@ -48,20 +68,7 @@ export async function loadFontsToJsPDF(doc, fonts) {
 
   await Promise.all(
     fonts.map(async (config) => {
-      let fontBase64 = config.fontBase64;
-
-      if (!fontBase64 && config.fontUrl) {
-        try {
-          fontBase64 = await fetchFontAsBase64(config.fontUrl);
-        } catch (error) {
-          console.error(
-            `[htmlpdf] Failed to load font: ${config.fontUrl}`,
-            error,
-          );
-
-          return;
-        }
-      }
+      const fontBase64 = await getFontBase64(config);
 
       if (fontBase64) {
         doc.addFileToVFS(`${config.fontFamily}.ttf`, fontBase64);
@@ -91,20 +98,7 @@ export async function injectFontsToDocument(iframeDoc, fonts) {
   const fontFaceRules = (
     await Promise.all(
       fonts.map(async (config) => {
-        let fontBase64 = config.fontBase64;
-
-        if (!fontBase64 && config.fontUrl) {
-          try {
-            fontBase64 = await fetchFontAsBase64(config.fontUrl);
-          } catch (error) {
-            console.error(
-              `[htmlpdf] Failed to load font for cloned document: ${config.fontUrl}`,
-              error,
-            );
-
-            return null;
-          }
-        }
+        const fontBase64 = await getFontBase64(config);
 
         return fontBase64 ? buildFontFaceRule(config, fontBase64) : null;
       }),
