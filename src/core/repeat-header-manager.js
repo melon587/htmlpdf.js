@@ -81,9 +81,11 @@ function collectHeaderMetas(nodes, tables) {
 }
 
 /**
- * 预标记节点所属的 headerMeta
+ * 预标记节点所属的 headerMeta，返回 WeakMap<node, meta>
  */
-function markNodeHeaderMeta(nodes, headerMetas) {
+function buildNodeHeaderMetaMap(nodes, headerMetas) {
+  const metaMap = new WeakMap();
+
   for (const meta of headerMetas) {
     const containerEl = meta.tableNode._origEl;
     if (!containerEl) continue;
@@ -95,9 +97,11 @@ function markNodeHeaderMeta(nodes, headerMetas) {
       const node = nodes[j];
       if (!node._origEl || !containerEl.contains(node._origEl)) break;
 
-      node._headerMeta = meta;
+      metaMap.set(node, meta);
     }
   }
+
+  return metaMap;
 }
 
 /**
@@ -111,14 +115,14 @@ export function createRepeatHeaderManager(nodes, tables = []) {
 
   if (hasRepeatHeader) {
     const headerMetas = collectHeaderMetas(nodes, tables);
-
-    if (headerMetas.length > 0) {
-      markNodeHeaderMeta(nodes, headerMetas);
-    }
+    const nodeMetaMap =
+      headerMetas.length > 0
+        ? buildNodeHeaderMetaMap(nodes, headerMetas)
+        : new WeakMap();
 
     return {
       headerMetas,
-      getHeaderMetaForNode: (node) => node._headerMeta || null,
+      getHeaderMetaForNode: (node) => nodeMetaMap.get(node) || null,
     };
   }
 

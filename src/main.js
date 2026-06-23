@@ -38,10 +38,12 @@ function comparePlacements(a, b) {
 }
 
 /**
- * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并打上标记。
- * 只标记容器节点本身，不传播到子节点，避免多次重复画线。
+ * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并建立映射。
+ * 返回 WeakMap<node, borderStyle>，不污染 node 对象。
  */
-function markPageBreakBorderNodes(nodes, tables) {
+function buildPageBreakBorderMap(nodes, tables) {
+  const borderMap = new WeakMap();
+
   tables
     .filter((t) => t.pageBreakBorder)
     .forEach((tableConf) => {
@@ -50,9 +52,11 @@ function markPageBreakBorderNodes(nodes, tables) {
       );
 
       if (containerNode) {
-        containerNode._pageBreakBorder = tableConf.pageBreakBorder;
+        borderMap.set(containerNode, tableConf.pageBreakBorder);
       }
     });
+
+  return borderMap;
 }
 
 /**
@@ -135,8 +139,8 @@ export async function htmlpdf(element, options = {}) {
     comparePlacements,
   );
 
-  // 构建 pageBreakBorder 映射
-  markPageBreakBorderNodes(nodes, tables);
+  // 构建 pageBreakBorder 映射（WeakMap，不污染 node）
+  const pageBreakBorderMap = buildPageBreakBorderMap(nodes, tables);
 
   // 收集 spill 闭合线（按页分组）
   const spillClosingLinesByPage = collectPageBreakLines(
@@ -160,7 +164,6 @@ export async function htmlpdf(element, options = {}) {
       ctx,
       offsetYpx: placement.offsetYpx,
       contentHeight,
-      clipTopPx: placement.clipTopPx || 0,
       sortedFontConfig,
       fallbackFontFamily,
       isLastSpill: placement.isLastSpill,
@@ -180,7 +183,7 @@ export async function htmlpdf(element, options = {}) {
         node,
         ctx,
         clipBottom: clipBottomMM,
-        pageBreakBorder: node._pageBreakBorder,
+        pageBreakBorder: pageBreakBorderMap.get(node),
       });
     }
   }
