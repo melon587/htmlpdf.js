@@ -13,6 +13,7 @@ import { drawText } from './text';
  * @param {number} contentHeight - 单页内容区高度（mm），用于跨页裁剪
  * @param {Array} sortedFontConfig - 排序后的字体配置
  * @param {string} fallbackFontFamily - fallback 字体
+ * @param {boolean} isLastSpill - 是否是该节点的最后一个 spill placement（用于跨页背景/边框渲染）
  */
 export function renderNode({
   doc,
@@ -22,6 +23,7 @@ export function renderNode({
   contentHeight,
   sortedFontConfig = [],
   fallbackFontFamily = 'helvetica',
+  isLastSpill = true,
 }) {
   const relativeYpx = node.y - offsetYpx;
 
@@ -38,6 +40,7 @@ export function renderNode({
       ctx,
       clipTop: 0,
       clipBottom: contentHeight,
+      isLastSpill,
     });
     drawBorder({
       doc,
@@ -45,6 +48,7 @@ export function renderNode({
       ctx,
       clipTop: 0,
       clipBottom: contentHeight,
+      isLastSpill,
     });
 
     if (adjustedNode.tag === 'IMG') {

@@ -1,4 +1,4 @@
-import {
+﻿import {
   createContext,
   createClonedDocument,
   collectNodes,
@@ -170,6 +170,7 @@ export async function htmlpdf(element, options = {}) {
       contentHeight,
       sortedFontConfig,
       fallbackFontFamily,
+      isLastSpill: placement.isLastSpill !== false,
     });
   }
 

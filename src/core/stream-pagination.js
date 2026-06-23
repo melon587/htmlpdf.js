@@ -51,6 +51,52 @@ function calcNextPageStart(node, currentPageBottom) {
 }
 
 /**
+ * 构建每个节点（含子孙）出现的最大页码映射。
+ *
+ * 方案A 的核心：避免用 DOM 坐标判断 spill 是否终止。
+ * 在 page-break 场景下，pageContentTopPx 会跳跃，导致坐标判断提前终止 spill。
+ * 改为用"节点自身及子孙节点出现的最大页码"来决定 spill 终止。
+ *
+ * 算法：
+ * 1. 遍历所有 placement，记录每个 origEl 出现的最大页码
+ * 2. 再遍历一次，对每个 element 节点，取自己和所有子孙节点页码的最大值
+ *
+ * @param {Array} nodePlacements - normal placement 数组
+ * @returns {Map} origEl → 该节点及子孙节点出现的最大页码
+ */
+function buildNodeLastPageMap(nodePlacements) {
+  // Step 1: 记录每个 origEl 自身出现的最大页码
+  const selfMaxPage = new Map();
+  for (const p of nodePlacements) {
+    if (!p.node._origEl) continue;
+
+    const cur = selfMaxPage.get(p.node._origEl) || 0;
+    if (p.page > cur) selfMaxPage.set(p.node._origEl, p.page);
+  }
+
+  // Step 2: 对每个 element 节点，取自己和所有子孙节点页码的最大值
+  // 利用 DOM 的 contains() 方法判断祖先关系
+  const nodeLastPage = new Map();
+  for (const p of nodePlacements) {
+    if (p.node.type !== 'element' || !p.node._origEl) continue;
+
+    const el = p.node._origEl;
+    if (nodeLastPage.has(el)) continue; // 已处理过
+
+    let maxPage = selfMaxPage.get(el) || 0;
+    // 遍历所有其他节点，找子孙节点的最大页码
+    for (const [otherEl, otherPage] of selfMaxPage) {
+      if (otherEl !== el && el.contains(otherEl) && otherPage > maxPage) {
+        maxPage = otherPage;
+      }
+    }
+    nodeLastPage.set(el, maxPage);
+  }
+
+  return nodeLastPage;
+}
+
+/**
  * 跨页展开：对每条 normal placement，检查节点是否溢出到后续页，
  * 若溢出则为每个溢出页生成额外的 'spill' placement，
  * 使 renderNode 能在溢出页继续绘制该节点的 bg/border。
@@ -58,6 +104,9 @@ function calcNextPageStart(node, currentPageBottom) {
  * offsetYpx 使用 pageStartOffsets.get(spillPage).pageContentTopPx：
  *   relativeY = node.y - offsetYpx < 0（节点顶部在页面以上，符合预期）
  *   drawBorder/drawBackground 的 clipTop 会正确裁剪
+ *
+ * 方案A：用 nodeLastPage 映射（节点及子孙出现的最大页码）决定 spill 终止，
+ * 而不是用 DOM 坐标，避免 page-break 场景下 pageContentTopPx 跳跃导致的误判。
  *
  * @param {Array}  nodePlacements   - normal placement 数组（页码递增）
  * @param {Map}    pageStartOffsets - 页码 → { pageRawTopPx, pageContentTopPx }
@@ -73,6 +122,9 @@ function expandSpillPlacements(
 ) {
   const spillPlacements = [];
 
+  // 方案A：建立节点及子孙的最大页码映射
+  const nodeLastPage = buildNodeLastPageMap(nodePlacements);
+
   for (const p of nodePlacements) {
     const nodeBottomPx = p.node.y + p.node.height;
     const pageInfo = pageStartOffsets.get(p.page);
@@ -84,24 +136,28 @@ function expandSpillPlacements(
     // 只对有边框或背景的 element 节点展开（text 节点不需要跨页 bg/border）
     if (p.node.type !== 'element') continue;
 
-    for (let sp = p.page + 1; sp <= totalPagesCount; sp++) {
+    // 用页码映射确定该节点真正的最后一页
+    const lastPage = nodeLastPage.get(p.node._origEl) || totalPagesCount;
+
+    const nodeSpills = [];
+    for (let sp = p.page + 1; sp <= lastPage; sp++) {
       const spillPageInfo = pageStartOffsets.get(sp);
       const spillOffsetYpx = spillPageInfo ? spillPageInfo.pageContentTopPx : 0;
       const spillRawOffset = spillPageInfo ? spillPageInfo.pageRawTopPx : 0;
       // clipTopPx = pageRawTopPx - pageContentTopPx = 表头高度 px
       const clipTopPx = spillRawOffset - spillOffsetYpx;
-      const isSpillLastPage = nodeBottomPx <= spillOffsetYpx + contentHeightPx;
 
-      spillPlacements.push({
+      nodeSpills.push({
         page: sp,
         node: p.node,
         offsetYpx: spillOffsetYpx,
         clipTopPx,
         type: 'spill',
+        isLastSpill: sp === lastPage, // 只有最后一页才是 true
       });
-
-      if (isSpillLastPage) break;
     }
+
+    spillPlacements.push(...nodeSpills);
   }
 
   return spillPlacements;

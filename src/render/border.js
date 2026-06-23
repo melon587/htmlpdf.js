@@ -29,8 +29,19 @@ function parseBorderString(borderStr) {
  * 绘制边框（跨页裁剪）
  *
  * isFirstPage → 画 top；isLastPage → 画 bottom；左右每页全画
+ *
+ * @param {boolean} isLastSpill - 是否是该节点的最后一个 spill placement
+ *   - true（默认）：画到节点实际底部，可以画 bottom border
+ *   - false（中间 spill 页）：左右边框延伸到整页高度，不画 bottom border
  */
-function drawBorder({ doc, node, ctx, clipTop, clipBottom }) {
+function drawBorder({
+  doc,
+  node,
+  ctx,
+  clipTop,
+  clipBottom,
+  isLastSpill = true,
+}) {
   const { style } = node;
   const nodeTop = ctx.toMM(node.y);
   const nodeBottom = ctx.toMM(node.y + node.height);
@@ -45,7 +56,10 @@ function drawBorder({ doc, node, ctx, clipTop, clipBottom }) {
   const yTop = ctx.toPdfYmm(drawTop);
   const yBottom = ctx.toPdfYmm(drawBottom);
   const isFirstPage = nodeTop >= clipTop;
-  const isLastPage = nodeBottom <= clipBottom;
+  // isLastSpill=false 说明是中间 spill 页，不能画 bottom border
+  const isLastPage = isLastSpill && nodeBottom <= clipBottom;
+  // 中间 spill 页：左右边框延伸到整页高度；最后一页：到节点实际底部
+  const leftRightBottom = isLastSpill ? yBottom : ctx.toPdfYmm(clipBottom);
 
   const sides = [
     {
@@ -98,7 +112,7 @@ function drawBorder({ doc, node, ctx, clipTop, clipBottom }) {
         }
       }
     } else {
-      // left / right：每页全画
+      // left / right：中间 spill 页延伸到整页，最后一页到节点实际底部
       if (bw <= 0) continue;
 
       const c = parseColor(color);
@@ -106,8 +120,8 @@ function drawBorder({ doc, node, ctx, clipTop, clipBottom }) {
 
       doc.setDrawColor(c[0], c[1], c[2]);
       doc.setLineWidth(ctx.toMM(bw));
-      if (side === 'left') doc.line(x, yTop, x, yBottom);
-      else doc.line(x + w, yTop, x + w, yBottom);
+      if (side === 'left') doc.line(x, yTop, x, leftRightBottom);
+      else doc.line(x + w, yTop, x + w, leftRightBottom);
     }
   }
 }
