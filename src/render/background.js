@@ -2,6 +2,13 @@ import { parseColor, parseBgSizeVal, parseBgPosVal } from '../utils';
 
 /**
  * 根据 backgroundSize / 元素尺寸 / 图片原始尺寸，计算实际渲染的 imgW/imgH（单位 mm）
+ *
+ * CSS background-size 语义：
+ * - cover / contain：按比例缩放覆盖/包含
+ * - auto auto（或单值 auto）：图片保持原始尺寸
+ * - auto <length>：高度固定，宽度按原始比例等比
+ * - <length> auto：宽度固定，高度按原始比例等比
+ * - <length> <length>：两个方向独立指定
  */
 function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
   const parts = (bgSize || 'auto').trim().split(/\s+/);
@@ -20,10 +27,15 @@ function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
     return { imgW: natW * scale, imgH: natH * scale };
   }
 
-  return {
-    imgW: parseBgSizeVal(sx, elW, natW, natH),
-    imgH: parseBgSizeVal(sy, elH, natH, natW),
-  };
+  // 先解析非 auto 的固定值
+  const fixedW = sx !== 'auto' ? parseBgSizeVal(sx, elW) : null;
+  const fixedH = sy !== 'auto' ? parseBgSizeVal(sy, elH) : null;
+
+  // auto：保持原始尺寸；若另一维有固定值则按比例等比
+  const imgW = fixedW ?? (fixedH !== null ? natW * (fixedH / natH) : natW);
+  const imgH = fixedH ?? (fixedW !== null ? natH * (fixedW / natW) : natH);
+
+  return { imgW, imgH };
 }
 
 /**
@@ -48,19 +60,13 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
  *   - true（默认）：背景色只画到节点实际底部
  *   - false（中间 spill 页）：背景色延伸到整页高度（clipBottom），后续内容会覆盖在上面
  */
-function drawBackground({
-  doc,
-  node,
-  ctx,
-  clipTop,
-  clipBottom,
-  isLastSpill = true,
-}) {
+function drawBackground({ doc, node, ctx, clipBottom, isLastSpill = true }) {
   const { style } = node;
   const nodeTop = ctx.toMM(node.y);
   const nodeBottom = ctx.toMM(node.y + node.height);
 
-  const drawTop = Math.max(nodeTop, clipTop);
+  // clipTop 固定为 0（页面顶部），背景从页面顶部开始
+  const drawTop = Math.max(nodeTop, 0);
   // 中间 spill 页：背景延伸到整页高度；最后一页：到节点实际底部
   const drawBottom = isLastSpill
     ? Math.min(nodeBottom, clipBottom)

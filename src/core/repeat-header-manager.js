@@ -132,6 +132,7 @@ export function generateRepeatHeaderPlacements(
     node: headerAtTop,
     offsetYpx: accumulatedYpx,
     type: 'repeat-header',
+    isLastSpill: true,
   });
 
   for (const child of headerMeta.headerChildren) {
@@ -143,6 +144,7 @@ export function generateRepeatHeaderPlacements(
       node: childAtTop,
       offsetYpx: accumulatedYpx,
       type: 'repeat-header-child',
+      isLastSpill: true,
     });
   }
 

@@ -57,9 +57,10 @@ function calcNextPageStart(node, currentPageBottom) {
  * 在 page-break 场景下，pageContentTopPx 会跳跃，导致坐标判断提前终止 spill。
  * 改为用"节点自身及子孙节点出现的最大页码"来决定 spill 终止。
  *
- * 算法：
- * 1. 遍历所有 placement，记录每个 origEl 出现的最大页码
- * 2. 再遍历一次，对每个 element 节点，取自己和所有子孙节点页码的最大值
+ * 算法（O(N) 向上冒泡）：
+ * 1. 遍历所有 placement，记录每个 origEl 自身出现的最大页码（selfMaxPage）
+ * 2. 对每个 el，沿 parentElement 链向上冒泡，将自身最大页码写入所有祖先。
+ *    若祖先已有更大值则提前终止（其上方祖先必然已被更大值更新过）。
  *
  * @param {Array} nodePlacements - normal placement 数组
  * @returns {Map} origEl → 该节点及子孙节点出现的最大页码
@@ -74,23 +75,17 @@ function buildNodeLastPageMap(nodePlacements) {
     if (p.page > cur) selfMaxPage.set(p.node._origEl, p.page);
   }
 
-  // Step 2: 对每个 element 节点，取自己和所有子孙节点页码的最大值
-  // 利用 DOM 的 contains() 方法判断祖先关系
-  const nodeLastPage = new Map();
-  for (const p of nodePlacements) {
-    if (p.node.type !== 'element' || !p.node._origEl) continue;
+  // Step 2: 向上冒泡，将每个节点的最大页码传播到所有祖先（O(N) 均摊）
+  const nodeLastPage = new Map(selfMaxPage);
+  for (const [el, page] of selfMaxPage) {
+    let ancestor = el.parentElement;
+    while (ancestor) {
+      const cur = nodeLastPage.get(ancestor) || 0;
+      if (page <= cur) break; // 祖先已有更大值，更上方祖先也已更新，提前终止
 
-    const el = p.node._origEl;
-    if (nodeLastPage.has(el)) continue; // 已处理过
-
-    let maxPage = selfMaxPage.get(el) || 0;
-    // 遍历所有其他节点，找子孙节点的最大页码
-    for (const [otherEl, otherPage] of selfMaxPage) {
-      if (otherEl !== el && el.contains(otherEl) && otherPage > maxPage) {
-        maxPage = otherPage;
-      }
+      nodeLastPage.set(ancestor, page);
+      ancestor = ancestor.parentElement;
     }
-    nodeLastPage.set(el, maxPage);
   }
 
   return nodeLastPage;
@@ -260,6 +255,7 @@ export function streamPaginate({
       node,
       offsetYpx: effectiveOffsetYpx,
       type: 'normal',
+      isLastSpill: true,
     });
 
     // headerNode 放入渲染计划后立即标记，下次该表格换页时开始生成 repeat-header 副本

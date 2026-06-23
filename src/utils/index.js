@@ -98,16 +98,12 @@ export function getPageBreak(el) {
 }
 
 /**
- * 解析 background-size 的单个分量值（auto / 百分比 / px）
- * @param {string} val   - 分量字符串，如 'auto' / '50%' / '200px'
- * @param {number} ref   - 对应方向的元素尺寸（mm）
- * @param {number} nat   - 图片在该方向的原始尺寸（mm）
- * @param {number} natRef- 图片在另一方向的原始尺寸（mm），用于 auto 等比
+ * 解析 background-size 的单个分量值（百分比 / px），不处理 auto
+ * @param {string} val   - 分量字符串，如 '50%' / '200px'
+ * @param {number} ref   - 对应方向的元素尺寸（mm），用于百分比计算
  * @returns {number} 计算后的尺寸（mm）
  */
-export function parseBgSizeVal(val, ref, nat, natRef) {
-  if (val === 'auto') return (nat / natRef) * ref;
-
+export function parseBgSizeVal(val, ref) {
   if (val.endsWith('%')) return (parseFloat(val) / 100) * ref;
 
   return parsePx(val);

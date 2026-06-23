@@ -1,4 +1,4 @@
-﻿import {
+import {
   createContext,
   createClonedDocument,
   collectNodes,
@@ -15,29 +15,6 @@ import {
   collectPageBreakLines,
 } from './render';
 import { matchesSelector } from './utils';
-
-/**
- * 归并两个已按页码有序的 placement 数组
- * 同页时左数组（headerPlacements）优先，保证 repeat-header 在普通节点之前渲染
- */
-function mergePlacements(left, right) {
-  const result = [];
-  let i = 0;
-  let j = 0;
-
-  while (i < left.length && j < right.length) {
-    if (left[i].page <= right[j].page) {
-      result.push(left[i++]);
-    } else {
-      result.push(right[j++]);
-    }
-  }
-
-  while (i < left.length) result.push(left[i++]);
-  while (j < right.length) result.push(right[j++]);
-
-  return result;
-}
 
 /**
  * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并打上标记。
@@ -136,10 +113,8 @@ export async function htmlpdf(element, options = {}) {
     repeatHeaderManager,
   });
 
-  // 归并两个已按页码有序的数组（headerPlacements 优先，保证同页 header 先渲染）
-  // O(n) 归并替代 O(n log n) sort，避免临时大数组
-  // 排序规则：先按页码，同页内：spill < repeat-header < normal（背景在最底层）
-  const allPlacements = mergePlacements(headerPlacements, nodePlacements).sort(
+  // 合并所有 placement 并排序：先按页码，同页内 spill < repeat-header < normal
+  const allPlacements = [...headerPlacements, ...nodePlacements].sort(
     (a, b) => {
       if (a.page !== b.page) return a.page - b.page;
 
@@ -168,7 +143,7 @@ export async function htmlpdf(element, options = {}) {
     contentHeight,
   );
 
-  // 执行渲染（不再画 spill 闭合线）
+  // 执行渲染
   let currentPage = 0;
   for (const placement of allPlacements) {
     if (placement.page !== currentPage) {
@@ -182,9 +157,10 @@ export async function htmlpdf(element, options = {}) {
       ctx,
       offsetYpx: placement.offsetYpx,
       contentHeight,
+      clipTopPx: placement.clipTopPx || 0,
       sortedFontConfig,
       fallbackFontFamily,
-      isLastSpill: placement.isLastSpill !== false,
+      isLastSpill: placement.isLastSpill,
     });
   }
 

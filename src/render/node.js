@@ -1,4 +1,4 @@
-import { drawBackground } from './background';
+﻿import { drawBackground } from './background';
 import { drawBorder } from './border';
 import { drawImage } from './image';
 import { drawText } from './text';
@@ -27,7 +27,7 @@ export function renderNode({
 }) {
   const relativeYpx = node.y - offsetYpx;
 
-  // 跳过完全在当前页之外的节点
+  // 跳过完全在当前页之外的节点（顶部和底部都在页面顶部以上）
   const relativeYmm = ctx.toMM(relativeYpx);
   if (relativeYmm < 0 && relativeYmm + ctx.toMM(node.height) <= 0) return;
 
@@ -38,7 +38,6 @@ export function renderNode({
       doc,
       node: adjustedNode,
       ctx,
-      clipTop: 0,
       clipBottom: contentHeight,
       isLastSpill,
     });
@@ -46,7 +45,6 @@ export function renderNode({
       doc,
       node: adjustedNode,
       ctx,
-      clipTop: 0,
       clipBottom: contentHeight,
       isLastSpill,
     });
