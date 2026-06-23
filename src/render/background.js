@@ -43,14 +43,28 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
 /**
  * 绘制背景色和背景图
  * clipTop/clipBottom（mm）：当前页可见范围，用于跨页裁剪，只绘制节点与当前页交叉的区域
+ *
+ * @param {boolean} isLastSpill - 是否是该节点的最后一个 spill placement
+ *   - true（默认）：背景色只画到节点实际底部
+ *   - false（中间 spill 页）：背景色延伸到整页高度（clipBottom），后续内容会覆盖在上面
  */
-function drawBackground({ doc, node, ctx, clipTop, clipBottom }) {
+function drawBackground({
+  doc,
+  node,
+  ctx,
+  clipTop,
+  clipBottom,
+  isLastSpill = true,
+}) {
   const { style } = node;
   const nodeTop = ctx.toMM(node.y);
   const nodeBottom = ctx.toMM(node.y + node.height);
 
   const drawTop = Math.max(nodeTop, clipTop);
-  const drawBottom = Math.min(nodeBottom, clipBottom);
+  // 中间 spill 页：背景延伸到整页高度；最后一页：到节点实际底部
+  const drawBottom = isLastSpill
+    ? Math.min(nodeBottom, clipBottom)
+    : clipBottom;
   if (drawBottom <= drawTop) return;
 
   const x = ctx.toPdfX(node.x);

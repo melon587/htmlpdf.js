@@ -138,9 +138,23 @@ export async function htmlpdf(element, options = {}) {
 
   // 归并两个已按页码有序的数组（headerPlacements 优先，保证同页 header 先渲染）
   // O(n) 归并替代 O(n log n) sort，避免临时大数组
-  // 注意：归并要求两路输入均严格有序；最终再做一次稳定排序以防边界场景乱序
+  // 排序规则：先按页码，同页内：spill < repeat-header < normal（背景在最底层）
   const allPlacements = mergePlacements(headerPlacements, nodePlacements).sort(
-    (a, b) => a.page - b.page,
+    (a, b) => {
+      if (a.page !== b.page) return a.page - b.page;
+
+      // 同页内：spill 最先（背景/边框垫底），repeat-header 次之，normal 最后
+      const typeOrder = (p) => {
+        if (p.type === 'spill') return 0;
+
+        if (p.type === 'repeat-header' || p.type === 'repeat-header-child')
+          return 1;
+
+        return 2;
+      };
+
+      return typeOrder(a) - typeOrder(b);
+    },
   );
 
   // 构建 pageBreakBorder 映射

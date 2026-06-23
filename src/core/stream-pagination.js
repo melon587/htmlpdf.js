@@ -282,14 +282,20 @@ export function streamPaginate({
 
   // 归并 nodePlacements（页码递增）与 spillPlacements（spill 页也递增）
   // O(n) 替代 O(n log n) sort，避免临时大数组
+  // 同页时 spill placement 优先：背景/边框 spill 先渲染，normal placement 后覆盖在上面
   const mergedPlacements = [];
   {
     let i = 0;
     let j = 0;
     while (i < nodePlacements.length && j < spillPlacements.length) {
-      if (nodePlacements[i].page <= spillPlacements[j].page) {
+      if (spillPlacements[j].page < nodePlacements[i].page) {
+        // spill 页码更小，先放 spill
+        mergedPlacements.push(spillPlacements[j++]);
+      } else if (nodePlacements[i].page < spillPlacements[j].page) {
+        // normal 页码更小，先放 normal
         mergedPlacements.push(nodePlacements[i++]);
       } else {
+        // 同页：spill 优先（背景在下，内容在上）
         mergedPlacements.push(spillPlacements[j++]);
       }
     }
