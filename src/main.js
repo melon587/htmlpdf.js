@@ -17,6 +17,27 @@ import {
 import { matchesSelector } from './utils';
 
 /**
+ * 同页内渲染顺序权重：spill(0) < repeat-header(1) < normal(2)
+ * spill 最先渲染，背景/边框垫底；repeat-header 次之；normal 内容最后覆盖在上面
+ */
+function placementOrder(p) {
+  if (p.type === 'spill') return 0;
+
+  if (p.type === 'repeat-header' || p.type === 'repeat-header-child') return 1;
+
+  return 2;
+}
+
+/**
+ * placement 排序比较函数：先按页码升序，同页内按 placementOrder 升序
+ */
+function comparePlacements(a, b) {
+  if (a.page !== b.page) return a.page - b.page;
+
+  return placementOrder(a) - placementOrder(b);
+}
+
+/**
  * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并打上标记。
  * 只标记容器节点本身，不传播到子节点，避免多次重复画线。
  */
@@ -91,12 +112,8 @@ export async function htmlpdf(element, options = {}) {
   // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
   await loadFontsToJsPDF(doc, fonts);
 
-  // 创建 repeat-header 管理器
-  const tablesWithRepeatHeader = tables.filter((t) => t.repeatHeader);
-  const repeatHeaderManager =
-    tablesWithRepeatHeader.length > 0
-      ? createRepeatHeaderManager(nodes, tables)
-      : null;
+  // 创建 repeat-header 管理器（无 repeatHeader 配置时返回 null）
+  const repeatHeaderManager = createRepeatHeaderManager(nodes, tables);
 
   // 使用流式分页计算渲染方案
   const {
@@ -113,29 +130,15 @@ export async function htmlpdf(element, options = {}) {
     repeatHeaderManager,
   });
 
-  // 合并所有 placement 并排序：先按页码，同页内 spill < repeat-header < normal
+  // 合并所有 placement 并按页码、类型排序（spill < repeat-header < normal）
   const allPlacements = [...headerPlacements, ...nodePlacements].sort(
-    (a, b) => {
-      if (a.page !== b.page) return a.page - b.page;
-
-      // 同页内：spill 最先（背景/边框垫底），repeat-header 次之，normal 最后
-      const typeOrder = (p) => {
-        if (p.type === 'spill') return 0;
-
-        if (p.type === 'repeat-header' || p.type === 'repeat-header-child')
-          return 1;
-
-        return 2;
-      };
-
-      return typeOrder(a) - typeOrder(b);
-    },
+    comparePlacements,
   );
 
   // 构建 pageBreakBorder 映射
   markPageBreakBorderNodes(nodes, tables);
 
-  // 收集 spill 闭合线（按页分组），O(N+P) 替代原 O(n²) 嵌套扫描
+  // 收集 spill 闭合线（按页分组）
   const spillClosingLinesByPage = collectPageBreakLines(
     nodes,
     allPlacements,
@@ -194,7 +197,6 @@ export async function htmlpdf(element, options = {}) {
   else result = doc.output('blob');
 
   const elapsed = (performance.now() - startTime).toFixed(2);
-  // eslint-disable-next-line no-console
   console.log(`[htmlpdf] Conversion completed in ${elapsed}ms`);
 
   return result;

@@ -21,19 +21,32 @@ function collectHeaderMetas(nodes, tables) {
     if (!repeatHeader) continue;
 
     // 1. 找到表格容器节点
-    const tableNode = nodes.find((n) => matchesSelector(n._origEl, selector));
+    const tableNodeIdx = nodes.findIndex((n) =>
+      matchesSelector(n._origEl, selector),
+    );
 
-    if (!tableNode) {
+    if (tableNodeIdx === -1) {
       console.warn(`[repeat-header] Table container not found: ${selector}`);
       continue;
     }
 
-    // 2. 查找表头节点（用 repeatHeader 选择器，在容器内查找）
-    const headerNode = nodes.find(
-      (n) =>
-        matchesSelector(n._origEl, repeatHeader) &&
-        tableNode._origEl.contains(n._origEl),
-    );
+    const tableNode = nodes[tableNodeIdx];
+
+    // 2. 查找表头节点（只在容器节点之后的范围内查找，DOM 顺序保证子节点在容器后）
+    let headerNode = null;
+    let headerNodeIdx = -1;
+
+    for (let i = tableNodeIdx + 1; i < nodes.length; i++) {
+      const n = nodes[i];
+      // 已超出容器范围，停止查找
+      if (n._origEl && !tableNode._origEl.contains(n._origEl)) break;
+
+      if (matchesSelector(n._origEl, repeatHeader)) {
+        headerNode = n;
+        headerNodeIdx = i;
+        break;
+      }
+    }
 
     if (!headerNode) {
       console.warn(
@@ -42,13 +55,18 @@ function collectHeaderMetas(nodes, tables) {
       continue;
     }
 
-    // 3. 找到表头的所有子节点
-    const headerChildren = nodes.filter(
-      (n) =>
-        n._origEl &&
-        n._origEl !== headerNode._origEl &&
-        headerNode._origEl.contains(n._origEl),
-    );
+    // 3. 找到表头的所有子节点（只在表头节点之后查找）
+    const headerChildren = [];
+
+    for (let i = headerNodeIdx + 1; i < nodes.length; i++) {
+      const n = nodes[i];
+      // 已超出表头范围，停止查找
+      if (n._origEl && !headerNode._origEl.contains(n._origEl)) break;
+
+      if (n._origEl && n._origEl !== headerNode._origEl) {
+        headerChildren.push(n);
+      }
+    }
 
     headerMetas.push({
       tableNode,
@@ -84,20 +102,27 @@ function markNodeHeaderMeta(nodes, headerMetas) {
 
 /**
  * 创建 repeat-header 管理器
+ * 若 tables 中没有任何 repeatHeader 配置，返回 null。
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
  */
 export function createRepeatHeaderManager(nodes, tables = []) {
-  const headerMetas = collectHeaderMetas(nodes, tables);
+  const hasRepeatHeader = tables.some((t) => t.repeatHeader);
 
-  if (headerMetas.length > 0) {
-    markNodeHeaderMeta(nodes, headerMetas);
+  if (hasRepeatHeader) {
+    const headerMetas = collectHeaderMetas(nodes, tables);
+
+    if (headerMetas.length > 0) {
+      markNodeHeaderMeta(nodes, headerMetas);
+    }
+
+    return {
+      headerMetas,
+      getHeaderMetaForNode: (node) => node._headerMeta || null,
+    };
   }
 
-  return {
-    headerMetas,
-    getHeaderMetaForNode: (node) => node._headerMeta || null,
-  };
+  return null;
 }
 
 /**
@@ -106,13 +131,17 @@ export function createRepeatHeaderManager(nodes, tables = []) {
 export function shouldSkipOriginalHeader(node, headerMeta) {
   if (!headerMeta) return false;
 
+  // 先判断是否是表头节点本身
   const isHeaderNode = node._origEl === headerMeta.headerNode._origEl;
+  if (isHeaderNode) return true;
+
+  // 再判断是否是表头子节点
   const isHeaderChild =
     node._origEl &&
     headerMeta.headerNode._origEl &&
     headerMeta.headerNode._origEl.contains(node._origEl);
 
-  return isHeaderNode || isHeaderChild;
+  return isHeaderChild;
 }
 
 /**
