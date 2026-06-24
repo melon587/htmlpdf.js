@@ -60,6 +60,30 @@ function buildPageBreakBorderMap(nodes, tables) {
 }
 
 /**
+ * 创建进度追踪器，返回 tick(stage, progress) 函数。
+ * 每次调用时输出分段计时日志（debug 模式）并触发 onProgress 回调。
+ * @param {Object} options   - htmlpdf 选项（读取 debug / onProgress）
+ * @param {number} startTime - performance.now() 起点
+ */
+function createProgressTracker(options, startTime) {
+  const { debug = false, onProgress } = options;
+  let lastT = startTime;
+
+  return function tick(stage, progress) {
+    const now = performance.now();
+    if (debug) {
+      const total = (now - startTime).toFixed(1);
+      const delta = (now - lastT).toFixed(1);
+      console.log(`[htmlpdf] ${stage}: ${total}ms (+${delta}ms)`);
+    }
+
+    if (onProgress) onProgress({ stage, progress });
+
+    lastT = now;
+  };
+}
+
+/**
  * 确保 PDF 文档有指定页，并切换到该页
  */
 function ensurePage(doc, targetPage, currentPage) {
@@ -89,20 +113,15 @@ function ensurePage(doc, targetPage, currentPage) {
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
  * @param {Array}  [options.fonts] - 字体配置数组
  * @param {Array}  [options.tables] - 表格配置数组，例如: [{ selector: '.my-table', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]
- * @param {boolean} [options.debug=false] - 是否输出调试日志（耗时统计等）
+ * @param {boolean} [options.debug=false] - 是否输出分段计时日志
+ * @param {Function} [options.onProgress] - 进度回调 ({ stage, progress: 0~1 }) => void
  * @returns {Promise<Blob|string|ArrayBuffer>}
  */
 export async function htmlpdf(element, options = {}) {
   const startTime = performance.now();
+  const tick = createProgressTracker(options, startTime);
 
-  const {
-    output = 'blob',
-    fonts = [],
-    header,
-    footer,
-    tables = [],
-    debug = false,
-  } = options;
+  const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
 
   // 创建上下文 用于调用jsPDF的api
   const ctx = createContext(element, options);
@@ -110,6 +129,7 @@ export async function htmlpdf(element, options = {}) {
 
   // 克隆目标元素（传入 fonts，注入字体到克隆文档）
   const { iframe, cloneRoot } = await createClonedDocument(element, fonts);
+  tick('clone', 0.2);
 
   let nodes;
   try {
@@ -118,9 +138,11 @@ export async function htmlpdf(element, options = {}) {
   } finally {
     destroyClonedDocument(iframe);
   }
+  tick('images', 0.4);
 
   // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
   await loadFontsToJsPDF(doc, fonts);
+  tick('fonts', 0.5);
 
   // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────
   // 创建 repeat-header 管理器（无 repeatHeader 配置时返回 null）
@@ -147,6 +169,7 @@ export async function htmlpdf(element, options = {}) {
   const allPlacements = [...headerPlacements, ...nodePlacements].sort(
     comparePlacements,
   );
+  tick('paginate', 0.7);
 
   // 收集 spill 闭合线（按页分组）
   const spillClosingLinesByPage = collectPageBreakLines({
@@ -200,14 +223,15 @@ export async function htmlpdf(element, options = {}) {
     renderHeaderFooter(doc, { totalPages, ctx, header, footer });
   }
 
+  tick('render', 0.9);
+
   // 输出
   let result;
   if (output === 'dataurl') result = doc.output('datauristring');
   else if (output === 'arraybuffer') result = doc.output('arraybuffer');
   else result = doc.output('blob');
 
-  const elapsed = (performance.now() - startTime).toFixed(2);
-  if (debug) console.log(`[htmlpdf] Conversion completed in ${elapsed}ms`);
+  tick('output', 1.0);
 
   return result;
 }
