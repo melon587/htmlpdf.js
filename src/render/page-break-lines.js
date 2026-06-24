@@ -12,7 +12,7 @@ function addLine(linesByPage, page, entry) {
  * 条件：TR 顶部在页面范围内，且 TR 底部不超出页面底部
  * @returns {number|null} 找不到时返回 null
  */
-function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
+export function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
   let lastTrBottomPx = null;
 
   for (const tr of trNodes) {
@@ -34,22 +34,25 @@ function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
 /**
  * 收集每页的 pageBreakBorder 出口闭合线
  *
- * 策略：对每个有 _pageBreakBorder 标记的表格容器节点，
+ * 策略：对每个在 pageBreakBorderMap 中登记的表格容器节点，
  * 在该节点跨页的每一页（非最后页）画一条出口线，
  * 出口线贴着当前页内最后一个完整放入的 TR 的底部。
  *
- * @param {Array}  nodes          - 节点数组
- * @param {Array}  allPlacements  - 所有渲染计划（normal + spill + repeat-header）
- * @param {Object} ctx            - 渲染上下文
- * @param {number} contentHeight  - 单页内容区高度（mm）
+ * @param {Object}  options
+ * @param {Array}   options.nodes               - 节点数组
+ * @param {Array}   options.allPlacements       - 所有渲染计划（normal + spill + repeat-header）
+ * @param {Object}  options.ctx                 - 渲染上下文
+ * @param {number}  options.contentHeight       - 单页内容区高度（mm）
+ * @param {WeakMap} options.pageBreakBorderMap  - node → borderStyle 映射（由 main.js 构建）
  * @returns {Map<number, Array>}  pageNum → [{ node, offsetYpx, exitAtPx }]
  */
-export function collectPageBreakLines(
+export function collectPageBreakLines({
   nodes,
   allPlacements,
   ctx,
   contentHeight,
-) {
+  pageBreakBorderMap,
+}) {
   const contentHeightPx = contentHeight / ctx.scale;
 
   // ── 预处理：O(N) 建立两个 Map，避免后续嵌套全量扫描 ──────────────────────
@@ -60,7 +63,7 @@ export function collectPageBreakLines(
   const placementsByTable = new Map();
 
   for (const node of nodes) {
-    if (node._pageBreakBorder) {
+    if (pageBreakBorderMap.has(node)) {
       // 这是表格容器节点，初始化 Map 条目
       if (!trNodesByTable.has(node._origEl))
         trNodesByTable.set(node._origEl, []);
@@ -68,7 +71,7 @@ export function collectPageBreakLines(
       if (!placementsByTable.has(node)) placementsByTable.set(node, []);
     }
 
-    // 如果是 TR，挂到它所属的每一个 _pageBreakBorder 祖先容器下
+    // 如果是 TR，挂到它所属的每一个 pageBreakBorder 祖先容器下
     if (node.tag === 'TR' && node._origEl) {
       for (const [tableEl, trList] of trNodesByTable) {
         if (tableEl.contains(node._origEl)) {

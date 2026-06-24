@@ -8,8 +8,6 @@ const fontCache = new Map();
  */
 export async function fetchFontAsBase64(url) {
   if (fontCache.has(url)) {
-    console.log(`[htmlpdf] Font loaded from cache: ${url}`);
-
     return fontCache.get(url);
   }
 
@@ -31,7 +29,6 @@ export async function fetchFontAsBase64(url) {
   const base64 = btoa(binary);
 
   fontCache.set(url, base64);
-  console.log(`[htmlpdf] Font loaded from URL: ${url}`);
 
   return base64;
 }
@@ -78,7 +75,6 @@ export async function loadFontsToJsPDF(doc, fonts) {
           config.fontStyle,
           config.fontWeight,
         );
-        console.log(`[htmlpdf] Font registered: ${config.fontFamily}`);
       }
     }),
   );
@@ -110,13 +106,9 @@ export async function injectFontsToDocument(iframeDoc, fonts) {
     styleEl.setAttribute('data-htmlpdf-fonts', '1');
     styleEl.textContent = fontFaceRules.join('\n');
     iframeDoc.head.appendChild(styleEl);
-    console.log(
-      `[htmlpdf] Injected ${fontFaceRules.length} fonts into cloned document`,
-    );
 
     if (iframeDoc.fonts && iframeDoc.fonts.ready) {
       await iframeDoc.fonts.ready;
-      console.log('[htmlpdf] Cloned document fonts loaded');
     }
 
     // 修改 body 的 font-family，让它使用注入的字体（按顺序排列，优先使用注入字体）
@@ -128,8 +120,6 @@ export async function injectFontsToDocument(iframeDoc, fonts) {
 
       const newFontFamily = `${fontFamilies}, ${currentFontFamily}`;
       iframeDoc.body.style.setProperty('font-family', newFontFamily);
-
-      console.log(`[htmlpdf] Updated body font-family: ${newFontFamily}`);
     }
   }
 }

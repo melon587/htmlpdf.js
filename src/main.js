@@ -63,19 +63,17 @@ function buildPageBreakBorderMap(nodes, tables) {
  * 确保 PDF 文档有指定页，并切换到该页
  */
 function ensurePage(doc, targetPage, currentPage) {
-  if (targetPage > 1 && currentPage === 0) {
-    // 第一页不需要 addPage
-    doc.setPage(1);
-  } else if (targetPage > currentPage) {
-    // 需要新增页面
-    for (let p = currentPage + 1; p <= targetPage; p++) {
-      if (p > 1) doc.addPage();
-
-      doc.setPage(p);
-    }
-  } else {
+  if (targetPage <= currentPage) {
     doc.setPage(targetPage);
+
+    return;
   }
+
+  // 第一页由 jsPDF 自动创建，pagesToAdd 从 max(currentPage,1) 开始计算
+  const pagesToAdd = targetPage - Math.max(currentPage, 1);
+  for (let i = 0; i < pagesToAdd; i++) doc.addPage();
+
+  doc.setPage(targetPage);
 }
 
 /**
@@ -91,12 +89,20 @@ function ensurePage(doc, targetPage, currentPage) {
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
  * @param {Array}  [options.fonts] - 字体配置数组
  * @param {Array}  [options.tables] - 表格配置数组，例如: [{ selector: '.my-table', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]
+ * @param {boolean} [options.debug=false] - 是否输出调试日志（耗时统计等）
  * @returns {Promise<Blob|string|ArrayBuffer>}
  */
 export async function htmlpdf(element, options = {}) {
   const startTime = performance.now();
 
-  const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
+  const {
+    output = 'blob',
+    fonts = [],
+    header,
+    footer,
+    tables = [],
+    debug = false,
+  } = options;
 
   // 创建上下文 用于调用jsPDF的api
   const ctx = createContext(element, options);
@@ -116,8 +122,11 @@ export async function htmlpdf(element, options = {}) {
   // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
   await loadFontsToJsPDF(doc, fonts);
 
+  // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────
   // 创建 repeat-header 管理器（无 repeatHeader 配置时返回 null）
   const repeatHeaderManager = createRepeatHeaderManager(nodes, tables);
+  // 构建 pageBreakBorder 映射（WeakMap，不污染 node）
+  const pageBreakBorderMap = buildPageBreakBorderMap(nodes, tables);
 
   // 使用流式分页计算渲染方案
   const {
@@ -139,16 +148,14 @@ export async function htmlpdf(element, options = {}) {
     comparePlacements,
   );
 
-  // 构建 pageBreakBorder 映射（WeakMap，不污染 node）
-  const pageBreakBorderMap = buildPageBreakBorderMap(nodes, tables);
-
   // 收集 spill 闭合线（按页分组）
-  const spillClosingLinesByPage = collectPageBreakLines(
+  const spillClosingLinesByPage = collectPageBreakLines({
     nodes,
     allPlacements,
     ctx,
     contentHeight,
-  );
+    pageBreakBorderMap,
+  });
 
   // 执行渲染
   let currentPage = 0;
@@ -200,7 +207,7 @@ export async function htmlpdf(element, options = {}) {
   else result = doc.output('blob');
 
   const elapsed = (performance.now() - startTime).toFixed(2);
-  console.log(`[htmlpdf] Conversion completed in ${elapsed}ms`);
+  if (debug) console.log(`[htmlpdf] Conversion completed in ${elapsed}ms`);
 
   return result;
 }

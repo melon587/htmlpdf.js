@@ -26,5 +26,6 @@ proxy.js
 vite.config.js
 webpack.*.js
 rollup.config.js
+vitest.config.js
 
 Dockerfile

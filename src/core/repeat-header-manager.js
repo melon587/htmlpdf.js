@@ -158,6 +158,8 @@ export function generateRepeatHeaderPlacements(
 ) {
   const placements = [];
   const headerHeightPx = headerMeta.headerNode.height;
+  // 浅拷贝节点，仅覆盖 y 坐标以对齐新页顶部。
+  // _origEl / style / children 等引用字段与原始节点共享，渲染管线只读不写，安全。
   const headerAtTop = { ...headerMeta.headerNode, y: accumulatedYpx };
 
   placements.push({
@@ -170,6 +172,7 @@ export function generateRepeatHeaderPlacements(
 
   for (const child of headerMeta.headerChildren) {
     const offsetInHeader = child.y - headerMeta.headerNode.y;
+    // 同上：浅拷贝子节点，仅覆盖 y 坐标。
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };
 
     placements.push({

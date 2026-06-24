@@ -65,7 +65,7 @@ function calcNextPageStart(node, currentPageBottom) {
  * @param {Array} nodePlacements - normal placement 数组
  * @returns {Map} origEl → 该节点及子孙节点出现的最大页码
  */
-function buildNodeLastPageMap(nodePlacements) {
+export function buildNodeLastPageMap(nodePlacements) {
   // Step 1: 记录每个 origEl 自身出现的最大页码
   const selfMaxPage = new Map();
   for (const p of nodePlacements) {
@@ -109,7 +109,7 @@ function buildNodeLastPageMap(nodePlacements) {
  * @param {number} totalPagesCount  - 总页数
  * @returns {Array} spillPlacements（页码递增）
  */
-function expandSpillPlacements(
+export function expandSpillPlacements(
   nodePlacements,
   pageStartOffsets,
   contentHeightPx,

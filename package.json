@@ -38,7 +38,9 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "jspdf": "4.2.1"
@@ -53,7 +55,8 @@
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-promise": "7.3.0",
     "prettier": "3.8.3",
-    "rollup": "3.30.0"
+    "rollup": "3.30.0",
+    "vitest": "1.6.1"
   },
   "engines": {
     "node": ">=14.0.0"
