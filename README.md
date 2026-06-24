@@ -1,7 +1,6 @@
 # htmlpdf.js
 
-[![npm version](https://img.shields.io/npm/v/htmlpdf.js.svg)](https://www.npmjs.com/package/htmlpdf.js)
-[![license](https://img.shields.io/npm/l/htmlpdf.js.svg)](https://github.com/melon587/htmlpdf.js/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/htmlpdf.js.svg)](https://www.npmjs.com/package/htmlpdf.js) [![license](https://img.shields.io/npm/l/htmlpdf.js.svg)](https://github.com/melon587/htmlpdf.js/blob/main/LICENSE)
 
 A lightweight HTML to PDF converter library based on jsPDF, supporting custom fonts, page breaks, repeat headers, and multi-page rendering.
 
@@ -13,7 +12,7 @@ A lightweight HTML to PDF converter library based on jsPDF, supporting custom fo
 - 🔁 **Repeat headers** - Automatically repeat table headers on each page with `repeat-header` attribute
 - 📐 **Header & Footer** - Customizable page headers and footers with page numbers
 - 🗜️ **Compression** - Built-in PDF compression support
-- 🎯 **Accurate rendering** - Preserves text, colors, backgrounds, borders, and images
+- 🎯 **Rendering** - Preserves text, colors, solid backgrounds, borders, and images. CSS layout (flex/grid/transform/border-radius) is not supported — rendered output reflects the browser's computed layout, not a pixel-perfect screenshot.
 
 ## 📦 Installation
 
@@ -43,11 +42,11 @@ a.click();
 
 ```javascript
 const blob = await htmlpdf(element, {
-  format: 'a4',              // Page format: 'a4', 'letter', etc.
-  orientation: 'portrait',   // 'portrait' or 'landscape'
-  margin: 10,                // Page margin in mm
-  compress: true,            // Enable PDF compression
-  output: 'blob'             // Output format: 'blob', 'dataurl', or 'arraybuffer'
+  format: 'a4', // Page format: 'a4', 'letter', etc.
+  orientation: 'portrait', // 'portrait' or 'landscape'
+  margin: 10, // Page margin in px
+  compress: true, // Enable PDF compression
+  output: 'blob', // Output format: 'blob', 'dataurl', or 'arraybuffer'
 });
 ```
 
@@ -61,15 +60,15 @@ const blob = await htmlpdf(element, {
       fontUrl: 'https://example.com/fonts/roboto-regular.ttf',
       fontWeight: 400,
       fontStyle: 'normal',
-      isDefault: true
+      isDefault: true,
     },
     {
       fontFamily: 'Roboto',
       fontUrl: 'https://example.com/fonts/roboto-bold.ttf',
       fontWeight: 700,
-      fontStyle: 'normal'
-    }
-  ]
+      fontStyle: 'normal',
+    },
+  ],
 });
 ```
 
@@ -78,7 +77,7 @@ const blob = await htmlpdf(element, {
 ```javascript
 const blob = await htmlpdf(element, {
   header: {
-    height: 10,  // Header height in mm
+    height: 10, // Header height in mm
     render(doc, { pageNumber, totalPages, pageWidth, margin }) {
       doc.setFontSize(9);
       doc.text('My Document', margin, margin - 2);
@@ -86,22 +85,22 @@ const blob = await htmlpdf(element, {
         `Page ${pageNumber} / ${totalPages}`,
         pageWidth - margin,
         margin - 2,
-        { align: 'right' }
+        { align: 'right' },
       );
-    }
+    },
   },
   footer: {
-    height: 8,   // Footer height in mm
+    height: 8, // Footer height in mm
     render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) {
       doc.setFontSize(8);
       doc.text(
         `${pageNumber} / ${totalPages}`,
         pageWidth / 2,
         pageHeight - margin + 4,
-        { align: 'center' }
+        { align: 'center' },
       );
-    }
-  }
+    },
+  },
 });
 ```
 
@@ -109,23 +108,19 @@ const blob = await htmlpdf(element, {
 
 ```html
 <!-- Force page break before this element -->
-<div page-break="before">
-  This content starts on a new page
-</div>
+<div page-break="before">This content starts on a new page</div>
 
 <!-- Avoid page break inside this element -->
-<div page-break="avoid">
-  This content will not be split across pages
-</div>
+<div page-break="avoid">This content will not be split across pages</div>
 ```
 
 ### Repeat Table Headers
 
-Add `repeat-header` attribute to the `<thead>` element, then pass the table selector via `repeatHeaders`:
+Add the table selector and header selector via `tables`:
 
 ```html
 <table id="my-table">
-  <thead repeat-header>
+  <thead id="my-table-header">
     <tr>
       <th>Name</th>
       <th>Email</th>
@@ -140,11 +135,12 @@ Add `repeat-header` attribute to the `<thead>` element, then pass the table sele
 
 ```javascript
 const blob = await htmlpdf(element, {
-  repeatHeaders: [
-    '#my-table',
-    // Or with explicit header selector:
-    // { container: '#my-table', header: 'thead' }
-  ]
+  tables: [
+    {
+      selector: '#my-table',
+      repeatHeader: '#my-table-header',
+    },
+  ],
 });
 ```
 
@@ -162,26 +158,28 @@ Converts an HTML element to PDF.
 #### Options
 
 | Option | Type | Default | Description |
-|--------|------|---------|-------------|
+| --- | --- | --- | --- |
 | `output` | `string` | `'blob'` | Output format: `'blob'`, `'dataurl'`, or `'arraybuffer'` |
 | `format` | `string` | `'a4'` | Page format (any jsPDF supported format) |
 | `orientation` | `string` | `'portrait'` | Page orientation: `'portrait'` or `'landscape'` |
-| `margin` | `number` | `10` | Page margin in mm |
+| `margin` | `number` | `0` | Page margin in px |
 | `compress` | `boolean` | `true` | Enable PDF compression |
 | `fonts` | `Array` | `[]` | Custom font configurations |
-| `header` | `Object` | - | Header configuration `{ height, render }` |
-| `footer` | `Object` | - | Footer configuration `{ height, render }` |
-| `repeatHeaders` | `Array` | `[]` | Tables to repeat headers on each page, e.g. `['#table1', { container: '#table2', header: 'thead' }]` |
+| `header` | `Object` | - | Header configuration `{ height: mm, render(doc, info) }` |
+| `footer` | `Object` | - | Footer configuration `{ height: mm, render(doc, info) }` |
+| `tables` | `Array` | `[]` | Table configurations, e.g. `[{ selector: '#t1', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]` |
+| `debug` | `boolean` | `false` | Print per-stage timing logs to the console |
+| `onProgress` | `Function` | - | Progress callback `({ stage, progress: 0~1 }) => void` |
 
 #### Font Configuration
 
 Each font config object supports the following fields:
 
 | Field | Type | Required | Description |
-|-------|------|----------|-------------|
+| --- | --- | --- | --- |
 | `fontFamily` | `string` | ✅ | Font family name (e.g., `'Roboto'`, `'NotoSansCJK'`) |
-| `fontUrl` | `string` | * | URL to .ttf font file (required if `fontBase64` not provided) |
-| `fontBase64` | `string` | * | Base64-encoded font data (required if `fontUrl` not provided) |
+| `fontUrl` | `string` | \* | URL to .ttf font file (required if `fontBase64` not provided) |
+| `fontBase64` | `string` | \* | Base64-encoded font data (required if `fontUrl` not provided) |
 | `fontWeight` | `number\|string` | ❌ | Font weight: `400`, `700`, `'bold'`, etc. (default: `400`) |
 | `fontStyle` | `string` | ❌ | Font style: `'normal'` or `'italic'` (default: `'normal'`) |
 | `isDefault` | `boolean` | ❌ | If `true`, this font is used for all characters not matched by `charRanges` |
@@ -202,26 +200,27 @@ fonts: [
   {
     fontFamily: 'NotoSansCJK',
     fontUrl: 'https://example.com/NotoSansCJK-Regular.ttf',
-    charRanges: [[0x4E00, 0x9FFF]],  // Chinese characters
-    priority: 10
+    charRanges: [[0x4e00, 0x9fff]], // Chinese characters
+    priority: 10,
   },
   {
     fontFamily: 'Roboto',
     fontUrl: 'https://example.com/Roboto-Regular.ttf',
-    isDefault: true  // For all other characters (English, numbers, etc.)
-  }
-]
+    isDefault: true, // For all other characters (English, numbers, etc.)
+  },
+];
 ```
 
 **Notes:**
+
 - `charRanges` and `isDefault` are mutually exclusive (use one or the other per font)
 - When `charRanges` overlap across multiple fonts, array order (or `priority`) determines precedence
-- Fonts are loaded once and cached for the entire rendering session
-
+- Fonts are fetched and cached by URL for the lifetime of the page; changing the URL is the correct way to bust the cache
 
 #### Returns
 
 Returns a `Promise` that resolves to:
+
 - `Blob` - if `output` is `'blob'`
 - `string` - if `output` is `'dataurl'`
 - `ArrayBuffer` - if `output` is `'arraybuffer'`
@@ -229,6 +228,7 @@ Returns a `Promise` that resolves to:
 ## 🎯 Browser Support
 
 Modern browsers with ES6+ support:
+
 - Chrome/Edge 90+
 - Firefox 88+
 - Safari 14+
