@@ -47,13 +47,12 @@ function buildPageBreakBorderMap(nodes, tables) {
   tables
     .filter((t) => t.pageBreakBorder)
     .forEach((tableConf) => {
-      const containerNode = nodes.find((n) =>
-        matchesSelector(n._origEl, tableConf.selector),
-      );
-
-      if (containerNode) {
-        borderMap.set(containerNode, tableConf.pageBreakBorder);
-      }
+      // 找所有匹配的容器节点（同一 selector 可能匹配多个表格实例）
+      nodes
+        .filter((n) => matchesSelector(n._origEl, tableConf.selector))
+        .forEach((containerNode) => {
+          borderMap.set(containerNode, tableConf.pageBreakBorder);
+        });
     });
 
   return borderMap;
