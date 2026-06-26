@@ -241,5 +241,95 @@ export function collectNodes(element, cloneRoot) {
 
   walk(element, measRoot);
 
-  return nodes;
+  // 后处理：合并同一行、相同样式的 RTL 文本节点，以恢复 BiDi 上下文
+  return mergeRTLTextNodes(nodes);
+}
+
+/**
+ * 合并同一行、相同样式、同一父元素内的 RTL 文本节点
+ * 目的：让 jsPDF 的 BiDi 引擎能看到完整的段落上下文，正确处理 "100%" 等混合方向文本
+ *
+ * 合并条件：
+ * 1. 都是 text 节点
+ * 2. direction 都是 rtl
+ * 3. 在同一行（y 坐标相近，容差 2px）
+ * 4. 样式完全相同（fontSize, fontFamily, fontWeight, fontStyle, color）
+ * 5. 同一个父元素（_origEl 相同）← 关键：确保不跨越单元格/段落边界
+ */
+function mergeRTLTextNodes(nodes) {
+  const result = [];
+  let i = 0;
+
+  while (i < nodes.length) {
+    const node = nodes[i];
+
+    // 非文本节点或非 RTL 节点，直接添加
+    if (node.type !== 'text' || node.style.direction !== 'rtl') {
+      result.push(node);
+      i++;
+      continue;
+    }
+
+    // 尝试合并后续相邻的 RTL 文本节点
+    const group = [node];
+    let j = i + 1;
+
+    while (j < nodes.length) {
+      const next = nodes[j];
+
+      // 检查是否可以合并
+      if (
+        next.type === 'text' &&
+        next.style.direction === 'rtl' &&
+        next._origEl === node._origEl && // ← 关键：必须是同一个父元素
+        Math.abs(next.y - node.y) < 2 && // 同一行
+        next.style.fontSize === node.style.fontSize &&
+        next.style.fontFamily === node.style.fontFamily &&
+        next.style.fontWeight === node.style.fontWeight &&
+        next.style.fontStyle === node.style.fontStyle &&
+        next.style.color === node.style.color
+      ) {
+        group.push(next);
+        j++;
+      } else {
+        break;
+      }
+    }
+
+    // 如果只有一个节点，直接添加
+    if (group.length === 1) {
+      result.push(node);
+      i++;
+      continue;
+    }
+
+    // 合并：RTL 文本从右到左排列，需要按 x 坐标降序排列后再拼接
+    group.sort((a, b) => b.x - a.x); // 从右到左
+
+    // 拼接文本，用空格分隔（因为浏览器已经按单词拆分了）
+    const mergedText = group.map((n) => n.text).join(' ');
+
+    // 使用最右边节点的 x 坐标和最右边节点的右边界
+    const rightmostNode = group[0]; // 排序后第一个就是最右边的
+    const leftmostNode = group[group.length - 1]; // 排序后最后一个是最左边的
+
+    // 合并后的节点
+    result.push({
+      type: 'text',
+      tag: '#text',
+      text: mergedText,
+      x: rightmostNode.x, // 最右边单词的左边界
+      y: rightmostNode.y,
+      width: rightmostNode.x + rightmostNode.width - leftmostNode.x, // 从最左边到最右边的总宽度
+      height: rightmostNode.height,
+      style: rightmostNode.style,
+      _origEl: rightmostNode._origEl,
+      _isRTLMerged: true, // 标记这是合并后的 RTL 节点
+      _rightEdge: rightmostNode.x + rightmostNode.width, // 保存最右边单词的右边界
+    });
+
+    i = j; // 跳过已合并的节点
+  }
+
+  return result;
 }

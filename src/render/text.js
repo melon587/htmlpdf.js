@@ -122,17 +122,33 @@ function drawText({
   const fontStyle = getCombinedFontStyle(style.fontStyle, style.fontWeight);
   const x = ctx.toPdfX(node.x);
   const y = ctx.toPdfY(node.y) + ctx.toMM(fontSize);
+  const isRTL = style.direction === 'rtl';
 
   // 无字体配置，走简单路径
   if (!sortedFontConfig || sortedFontConfig.length === 0) {
     doc.setFont('helvetica', fontStyle);
-    doc.text(node.text, x, y, { baseline: 'alphabetic' });
+
+    if (isRTL) {
+      // RTL 文本：使用 jsPDF 的 RTL 处理，但不使用 align
+      // 关键：使用浏览器计算的坐标，让 RTL 引擎处理文本顺序即可
+      doc.text(node.text, x, y, {
+        baseline: 'alphabetic',
+        isInputVisual: false,
+        isOutputVisual: true,
+        isInputRtl: true,
+        isOutputRtl: false,
+        isSymmetricSwapping: true,
+      });
+    } else {
+      doc.text(node.text, x, y, { baseline: 'alphabetic' });
+    }
 
     return;
   }
 
-  // 混合字体渲染：按字体分段分别绘制
+  // 混合字体渲染:按字体分段分别绘制
   const segments = segmentTextByFont(node.text, sortedFontConfig);
+
   let curX = x;
 
   for (const segment of segments) {
@@ -146,7 +162,42 @@ function drawText({
       doc.setFont(fallbackFontFamily, fontStyle);
     }
 
-    doc.text(segment.text, curX, y, { baseline: 'alphabetic' });
+    // 如果在 RTL 环境中且使用了自定义字体，使用 RTL 引擎
+    const shouldUseRTL = isRTL && segment.font?.fontFamily;
+
+    if (shouldUseRTL) {
+      // 检查是否为合并后的 RTL 节点
+      const isRTLMerged = node._isRTLMerged;
+
+      if (isRTLMerged) {
+        // 合并后的 RTL 节点：使用保存的最右边单词右边界作为对齐点
+        const rightEdge = ctx.toPdfX(node._rightEdge);
+
+        doc.text(segment.text, rightEdge, y, {
+          baseline: 'alphabetic',
+          align: 'right', // 右对齐
+          isInputVisual: false,
+          isOutputVisual: true,
+          isInputRtl: true,
+          isOutputRtl: false,
+          isSymmetricSwapping: true,
+        });
+      } else {
+        // 未合并的单个 RTL 单词：使用浏览器坐标
+        doc.text(segment.text, curX, y, {
+          baseline: 'alphabetic',
+          isInputVisual: false,
+          isOutputVisual: true,
+          isInputRtl: true,
+          isOutputRtl: false,
+          isSymmetricSwapping: true,
+        });
+      }
+    } else {
+      doc.text(segment.text, curX, y, { baseline: 'alphabetic' });
+    }
+
+    // 继续向右累积（浏览器已经处理了 RTL 布局）
     curX += doc.getTextWidth(segment.text);
   }
 }
