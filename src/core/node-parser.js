@@ -60,6 +60,7 @@ function parseElement(origEl, measEl, rootRect, win) {
  *   - 不手动推算换行、不处理 RTL/BiDi，坐标完全来自浏览器
  *   - 每个 token (word/space) 单独 createRange → getClientRects()
  *   - 直接用 rect.left 作为渲染 x 坐标，天然支持 RTL/BiDi/换行
+ *   - 支持多行文本渲染：当 token 跨行时，逐字符分析定位到每一行
  */
 function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   const raw = textNode.textContent;
@@ -104,13 +105,70 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
 
     if (!rects || rects.length === 0) continue;
 
-    // ✅ 只取第一个 rect，避免重复渲染
-    // 问题：当文本换行时，getClientRects() 返回多个 rect（每行一个）
-    // 但我们不知道每个 rect 对应哪部分文字，如果全部渲染会导致重复
-    // 解决方案：只渲染第一个 rect（第一行），后续行会被截断
-    // TODO: 未来需要更细粒度的文本拆分来支持真正的换行
-    for (let i = 0; i < Math.min(1, rects.length); i++) {
-      const r = rects[i];
+    // 多行文本处理：当文本换行时，getClientRects() 返回多个 rect
+    // 需要逐字符分析，确定每个字符属于哪一行
+    if (rects.length > 1) {
+      // 按字符分析并按行分组
+      const lineGroups = []; // [{top, left, right, bottom, height, chars: [char1, char2, ...], charIndices: [0, 1, 2...]}]
+
+      for (let charIdx = 0; charIdx < token.text.length; charIdx++) {
+        docRange.setStart(textNode, token.offset + charIdx);
+        docRange.setEnd(textNode, token.offset + charIdx + 1);
+        const charRects = docRange.getClientRects();
+
+        if (!charRects || charRects.length === 0) continue;
+
+        const charRect = charRects[0];
+
+        // 查找该字符属于哪一行（通过 y 坐标判断，容差 2px）
+        let lineGroup = lineGroups.find(
+          (g) => Math.abs(g.top - charRect.top) < 2,
+        );
+
+        if (!lineGroup) {
+          lineGroup = {
+            top: charRect.top,
+            left: charRect.left,
+            right: charRect.right,
+            bottom: charRect.bottom,
+            height: charRect.height,
+            chars: [],
+            charIndices: [],
+          };
+          lineGroups.push(lineGroup);
+        } else {
+          // 扩展该行的边界矩形
+          lineGroup.left = Math.min(lineGroup.left, charRect.left);
+          lineGroup.right = Math.max(lineGroup.right, charRect.right);
+          lineGroup.bottom = Math.max(lineGroup.bottom, charRect.bottom);
+          lineGroup.height = Math.max(lineGroup.height, charRect.height);
+        }
+
+        lineGroup.chars.push(token.text[charIdx]);
+        lineGroup.charIndices.push(charIdx);
+      }
+
+      // 为每一行创建文本节点
+      for (const group of lineGroups) {
+        if (group.chars.length === 0) continue;
+
+        const lineText = group.chars.join('');
+
+        nodes.push({
+          type: 'text',
+          tag: '#text',
+          text: lineText,
+          x: group.left - rootRect.left,
+          y: group.top - rootRect.top,
+          width: group.right - group.left,
+          height: group.height,
+          style: nodeStyle,
+          _origEl: origParent || null,
+        });
+      }
+    } else {
+      // 单行文本：直接使用第一个 rect
+      const r = rects[0];
       if (r.width === 0 || r.height === 0) continue;
 
       nodes.push({
