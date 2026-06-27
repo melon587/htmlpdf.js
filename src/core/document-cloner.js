@@ -2,6 +2,7 @@
 // 把整个 documentElement 克隆进隐藏 iframe，在克隆副本上加 margin-top 实现强制分页
 // 原始 DOM 完全不受影响
 
+import { canvasHasAlpha } from '../utils';
 import { injectFontsToDocument } from './font-loader.js';
 
 /**
@@ -56,25 +57,7 @@ function loadImageAsBase64(url) {
       const ctx2d = canvas.getContext('2d');
       ctx2d.drawImage(img, 0, 0);
 
-      // 检测是否有透明像素（alpha < 255）
-      let hasAlpha = false;
-      try {
-        const pixels = ctx2d.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        ).data;
-        for (let i = 3; i < pixels.length; i += 4) {
-          if (pixels[i] < 255) {
-            hasAlpha = true;
-            break;
-          }
-        }
-      } catch (_) {
-        // 跨域图片无法读取像素，保守用 PNG
-        hasAlpha = true;
-      }
+      const hasAlpha = canvasHasAlpha(canvas);
 
       resolve({
         src: hasAlpha
@@ -128,13 +111,13 @@ export async function preloadImages(nodes) {
 
       // CANVAS 标签：cloneNode 不复制 canvas 像素内容，_el 已指向原始 DOM 的 canvas 元素。
       // 直接将原始 canvas 作为 _srcCanvas，无需额外绘制。
-      // 使用 PNG 格式以正确保留透明通道（CANVAS 可能含透明区域，JPEG 会将透明渲染为黑色）
+      // 透明检测：扫描 alpha 通道，有透明像素用 PNG，否则用 JPEG（体积更小）
       if (e.tag === 'CANVAS' && e._el) {
         const canvasEl = e._el;
         e._srcCanvas = canvasEl;
         e.naturalWidth = canvasEl.width;
         e.naturalHeight = canvasEl.height;
-        e._srcFormat = 'PNG';
+        e._srcFormat = canvasHasAlpha(canvasEl) ? 'PNG' : 'JPEG';
       }
 
       // backgroundImage url → base64 + 原始尺寸

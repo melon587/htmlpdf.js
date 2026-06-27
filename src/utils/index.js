@@ -164,3 +164,30 @@ export function buildFontFaceRule(config, fontBase64) {
   ${unicodeRange}
 }`;
 }
+
+/**
+ * 检测 canvas 是否含有透明像素（alpha < 255）
+ * 无法读取像素时（跨域等）保守返回 true
+ * @param {HTMLCanvasElement} canvasEl
+ * @returns {boolean}
+ */
+export function canvasHasAlpha(canvasEl) {
+  try {
+    const ctx2d = canvasEl.getContext('2d');
+    if (!ctx2d || canvasEl.width === 0 || canvasEl.height === 0) return false;
+
+    const pixels = ctx2d.getImageData(
+      0,
+      0,
+      canvasEl.width,
+      canvasEl.height,
+    ).data;
+    for (let i = 3; i < pixels.length; i += 4) {
+      if (pixels[i] < 255) return true;
+    }
+
+    return false;
+  } catch (_) {
+    return true;
+  }
+}

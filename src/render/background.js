@@ -1,4 +1,7 @@
 import { parseColor, parseBgSizeVal, parseBgPosVal } from '../utils';
+import { parseLinearGradient, renderGradientSlice } from './gradient';
+
+// ─── 背景图尺寸/位置计算 ─────────────────────────────────────────────────────
 
 /**
  * 根据 backgroundSize / 元素尺寸 / 图片原始尺寸，计算实际渲染的 imgW/imgH（单位 mm）
@@ -52,9 +55,16 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
   };
 }
 
+// ─── 主函数 ───────────────────────────────────────────────────────────────────
+
 /**
- * 绘制背景色和背景图
+ * 绘制背景色、渐变背景和背景图
  * clipTop/clipBottom（mm）：当前页可见范围，用于跨页裁剪，只绘制节点与当前页交叉的区域
+ *
+ * 绘制顺序：
+ *   1. 纯色背景（backgroundColor）
+ *   2. 渐变背景（linear-gradient，覆盖纯色）
+ *   3. backgroundImage URL（bgSrc，叠加在渐变上）
  *
  * @param {boolean} isLastSpill - 是否是该节点的最后一个 spill placement
  *   - true（默认）：背景色只画到节点实际底部
@@ -85,7 +95,40 @@ function drawBackground({ doc, node, ctx, clipBottom, isLastSpill = true }) {
     doc.rect(x, y, w, h, 'F');
   }
 
-  // 2. 再画背景图（叠加在背景色上）
+  // 2. 渐变背景（linear-gradient）：解析 → 直接绘制当前页片段 canvas → addImage
+  const gradient = parseLinearGradient(style?.backgroundImage);
+  if (gradient) {
+    // canvas 尺寸使用节点的 CSS 像素尺寸（width/height 已是 px）
+    const natW = Math.round(node.width);
+    const natH = Math.round(node.height);
+    const nodeHeightMM = nodeBottom - nodeTop;
+    const ratioTop = (drawTop - nodeTop) / nodeHeightMM;
+    const ratioBottom = (drawBottom - nodeTop) / nodeHeightMM;
+    const srcY = Math.round(ratioTop * natH);
+    const srcH = Math.round((ratioBottom - ratioTop) * natH);
+
+    if (natW > 0 && natH > 0 && nodeHeightMM > 0 && srcH > 0) {
+      const { dataUrl, format } = renderGradientSlice({
+        gradient,
+        natW,
+        natH,
+        srcY,
+        srcH,
+      });
+      try {
+        doc.saveGraphicsState();
+        doc.rect(x, y, w, h, null);
+        doc.clip();
+        doc.discardPath();
+        doc.addImage(dataUrl, format, x, y, w, h);
+        doc.restoreGraphicsState();
+      } catch (e) {
+        console.warn('[htmlpdf] gradient addImage failed:', e);
+      }
+    }
+  }
+
+  // 3. 再画背景图（叠加在背景色/渐变上）
   if (node.bgSrc) {
     const elW = ctx.toMM(node.width);
     const elH = ctx.toMM(node.height);
