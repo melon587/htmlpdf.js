@@ -57,7 +57,9 @@ function drawImage({ doc, node, ctx, offsetYpx = 0, contentHeight }) {
   const pdfW = ctx.toMM(node.width);
   const pdfH = ctx.toMM(visibleBottomPx - visibleTopPx);
 
-  // 从已预先绘制的全图 canvas 裁出当前页可见片段，无需重新解码 Image
+  // 从已预先绘制的全图 canvas 裁出当前页可见片段
+  // IMG 用 JPEG（无透明，体积小）；CANVAS 用 PNG（保留透明通道，避免透明区域变黑）
+  const format = node._srcFormat || 'JPEG';
   const cropCanvas = document.createElement('canvas');
   cropCanvas.width = natW;
   cropCanvas.height = srcH;
@@ -65,15 +67,13 @@ function drawImage({ doc, node, ctx, offsetYpx = 0, contentHeight }) {
     .getContext('2d')
     .drawImage(srcCanvas, 0, srcY, natW, srcH, 0, 0, natW, srcH);
 
+  const dataUrl =
+    format === 'PNG'
+      ? cropCanvas.toDataURL('image/png')
+      : cropCanvas.toDataURL('image/jpeg', 0.92);
+
   try {
-    doc.addImage(
-      cropCanvas.toDataURL('image/jpeg', 0.92),
-      'JPEG',
-      pdfX,
-      pdfY,
-      pdfW,
-      pdfH,
-    );
+    doc.addImage(dataUrl, format, pdfX, pdfY, pdfW, pdfH);
   } catch (e) {
     console.warn('[htmlpdf] addImage failed:', e);
   }

@@ -41,7 +41,8 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
  * @param {DOMRect} rootRect - 根元素的 BoundingClientRect，用于将坐标转为相对值
  * @param {Window}  win      - 测量窗口（可能是 iframe 的 contentWindow）
  * @returns {{ type:'element', tag, x, y, width, height, pageBreak, _el, _origEl, style }}
- *   _el      仅 IMG 元素有值，指向 iframe 内的 measEl（同源，可安全 drawImage 到 canvas）
+ *   _el      IMG 保存 iframe 内的 measEl（同源，可安全 drawImage 到 canvas）；
+ *            CANVAS 保存原始 origEl（iframe 克隆的 canvas 像素为空，需读原始内容）
  *   _origEl  指向原始 DOM 元素，供后处理（如 mergeRTLTextNodes）判断父元素边界
  */
 
@@ -57,7 +58,14 @@ function parseElement(origEl, measEl, rootRect, win) {
     width: rect.width,
     height: rect.height,
     pageBreak: getPageBreak(origEl),
-    _el: origEl.tagName === 'IMG' ? measEl : null,
+    // IMG 用 measEl：iframe 内同源图片，可安全 drawImage 到 canvas（解决 CORS 问题）
+    // CANVAS 用 origEl：cloneNode 不复制 canvas 像素，需读原始元素内容
+    _el:
+      origEl.tagName === 'IMG'
+        ? measEl
+        : origEl.tagName === 'CANVAS'
+          ? origEl
+          : null,
     _origEl: origEl,
     style: {
       backgroundColor: style.backgroundColor,

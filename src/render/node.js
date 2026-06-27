@@ -49,7 +49,7 @@ export function renderNode({
       isLastSpill,
     });
 
-    if (adjustedNode.tag === 'IMG') {
+    if (adjustedNode.tag === 'IMG' || adjustedNode.tag === 'CANVAS') {
       drawImage({ doc, node: adjustedNode, ctx, offsetYpx, contentHeight });
     }
   } else if (adjustedNode.type === 'text') {

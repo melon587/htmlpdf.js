@@ -103,6 +103,7 @@ export async function preloadImages(nodes) {
 
       // IMG 标签：将 iframe 内已加载的图片绘到 canvas，保存 base64 和像素尺寸供渲染层使用。
       // _srcCanvas 直接作为裁切源，drawImage 无需重新解码 Image 对象。
+      // IMG 通常为照片（JPEG，无透明），使用 JPEG 编码以减小体积。
       if (e.tag === 'IMG' && e._el?.src) {
         const imgEl = e._el;
         const natW = imgEl.naturalWidth || imgEl.width;
@@ -116,12 +117,24 @@ export async function preloadImages(nodes) {
           e.naturalWidth = natW;
           e.naturalHeight = natH;
           e._srcCanvas = canvas; // 保存全图 canvas，供 drawImage 裁切用
+          e._srcFormat = 'JPEG';
         } catch (err) {
           console.warn(
             '[htmlpdf] preloadImages: canvas.drawImage failed:',
             err,
           );
         }
+      }
+
+      // CANVAS 标签：cloneNode 不复制 canvas 像素内容，_el 已指向原始 DOM 的 canvas 元素。
+      // 直接将原始 canvas 作为 _srcCanvas，无需额外绘制。
+      // 使用 PNG 格式以正确保留透明通道（CANVAS 可能含透明区域，JPEG 会将透明渲染为黑色）
+      if (e.tag === 'CANVAS' && e._el) {
+        const canvasEl = e._el;
+        e._srcCanvas = canvasEl;
+        e.naturalWidth = canvasEl.width;
+        e.naturalHeight = canvasEl.height;
+        e._srcFormat = 'PNG';
       }
 
       // backgroundImage url → base64 + 原始尺寸
