@@ -41,7 +41,7 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
  * @param {DOMRect} rootRect - 根元素的 BoundingClientRect，用于将坐标转为相对值
  * @param {Window}  win      - 测量窗口（可能是 iframe 的 contentWindow）
  * @returns {{ type:'element', tag, x, y, width, height, pageBreak, _el, _origEl, style }}
- *   _el      仅 IMG 元素有值，供渲染层绘制图片
+ *   _el      仅 IMG 元素有值，指向 iframe 内的 measEl（同源，可安全 drawImage 到 canvas）
  *   _origEl  指向原始 DOM 元素，供后处理（如 mergeRTLTextNodes）判断父元素边界
  */
 
@@ -57,7 +57,7 @@ function parseElement(origEl, measEl, rootRect, win) {
     width: rect.width,
     height: rect.height,
     pageBreak: getPageBreak(origEl),
-    _el: origEl.tagName === 'IMG' ? origEl : null,
+    _el: origEl.tagName === 'IMG' ? measEl : null,
     _origEl: origEl,
     style: {
       backgroundColor: style.backgroundColor,

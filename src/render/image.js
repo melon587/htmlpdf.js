@@ -1,24 +1,79 @@
 /**
- * 渲染图片节点到 PDF
+ * 渲染图片节点到 PDF，支持跨页裁切
  *
- * @param {Object} doc     - jsPDF 实例
- * @param {Object} node    - 图片节点
- * @param {Object} ctx     - 渲染上下文
- * @param {number} clipTop - 裁剪顶部（mm），节点 y 坐标小于此值时跳过
+ * ## 工作原理
+ *
+ * preloadImages 阶段（iframe 销毁前）已将图片同步绘制到 canvas 并保存到 node._srcCanvas，
+ * 同时记录原始像素尺寸（node.naturalWidth / node.naturalHeight）。
+ * 渲染时直接从 node._srcCanvas 裁出当前页可见区域的像素片段写入 PDF，
+ * 无需重新创建 Image 对象或等待异步解码。
+ *
+ * ## 坐标约定（进入本函数时）
+ *
+ * node.y 已由 renderNode 转换为页内相对坐标（全局 y − offsetYpx）。
+ * 本函数内部通过加回 offsetYpx 还原全局坐标，再与页面边界取交集，
+ * 得到当前页内可见的像素范围。
+ *
+ * @param {Object} doc           - jsPDF 实例
+ * @param {Object} node          - 图片节点（node._srcCanvas 为全图 canvas，y 为页内相对坐标）
+ * @param {Object} ctx           - 渲染上下文
+ * @param {number} offsetYpx     - 当前页内容区起始全局 y（px）
+ * @param {number} contentHeight - 单页内容区高度（mm）
  */
-function drawImage({ doc, node, ctx, clipTop }) {
-  if (!node.src) return;
+function drawImage({ doc, node, ctx, offsetYpx = 0, contentHeight }) {
+  // node._srcCanvas 是 preloadImages 阶段预先绘制好的全图 canvas
+  const srcCanvas = node._srcCanvas;
+  if (!srcCanvas) return;
 
-  const nodeTop = ctx.toMM(node.y);
-  if (nodeTop < clipTop) return;
+  const natW = node.naturalWidth;
+  const natH = node.naturalHeight;
+  if (!natW || !natH) return;
 
-  const x = ctx.toPdfX(node.x);
-  const y = ctx.toPdfY(node.y);
-  const w = ctx.toMM(node.width);
-  const h = ctx.toMM(node.height);
+  // 还原全局坐标（node.y 是页内相对值，加回 offsetYpx 得到全局 px）
+  const globalNodeTopPx = node.y + offsetYpx;
+  const globalNodeBottomPx = globalNodeTopPx + node.height;
+
+  const contentHeightPx = contentHeight / ctx.scale;
+  const pageBottomGlobalPx = offsetYpx + contentHeightPx;
+
+  // 当前页内可见的全局 px 范围
+  const visibleTopPx = Math.max(globalNodeTopPx, offsetYpx);
+  const visibleBottomPx = Math.min(globalNodeBottomPx, pageBottomGlobalPx);
+
+  if (visibleBottomPx <= visibleTopPx) return;
+
+  // 可见区域对应原始图片的像素范围
+  const ratioTop = (visibleTopPx - globalNodeTopPx) / node.height;
+  const ratioBottom = (visibleBottomPx - globalNodeTopPx) / node.height;
+
+  const srcY = Math.round(ratioTop * natH);
+  const srcH = Math.round((ratioBottom - ratioTop) * natH);
+
+  if (srcH <= 0) return;
+
+  // PDF 目标坐标（可见区域在页面上的位置）
+  const pdfX = ctx.toPdfX(node.x);
+  const pdfY = ctx.toPdfY(visibleTopPx - offsetYpx);
+  const pdfW = ctx.toMM(node.width);
+  const pdfH = ctx.toMM(visibleBottomPx - visibleTopPx);
+
+  // 从已预先绘制的全图 canvas 裁出当前页可见片段，无需重新解码 Image
+  const cropCanvas = document.createElement('canvas');
+  cropCanvas.width = natW;
+  cropCanvas.height = srcH;
+  cropCanvas
+    .getContext('2d')
+    .drawImage(srcCanvas, 0, srcY, natW, srcH, 0, 0, natW, srcH);
 
   try {
-    doc.addImage(node.src, 'JPEG', x, y, w, h);
+    doc.addImage(
+      cropCanvas.toDataURL('image/jpeg', 0.92),
+      'JPEG',
+      pdfX,
+      pdfY,
+      pdfW,
+      pdfH,
+    );
   } catch (e) {
     console.warn('[htmlpdf] addImage failed:', e);
   }

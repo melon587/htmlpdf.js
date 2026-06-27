@@ -50,7 +50,7 @@ export function renderNode({
     });
 
     if (adjustedNode.tag === 'IMG') {
-      drawImage({ doc, node: adjustedNode, ctx, clipTop: 0 });
+      drawImage({ doc, node: adjustedNode, ctx, offsetYpx, contentHeight });
     }
   } else if (adjustedNode.type === 'text') {
     drawText({

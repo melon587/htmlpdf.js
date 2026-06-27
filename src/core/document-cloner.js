@@ -101,7 +101,8 @@ export async function preloadImages(nodes) {
 
       const tasks = [];
 
-      // IMG 标签 src → base64（同步操作，图片在 waitForImages 时已加载完毕）
+      // IMG 标签：将 iframe 内已加载的图片绘到 canvas，保存 base64 和像素尺寸供渲染层使用。
+      // _srcCanvas 直接作为裁切源，drawImage 无需重新解码 Image 对象。
       if (e.tag === 'IMG' && e._el?.src) {
         const imgEl = e._el;
         const natW = imgEl.naturalWidth || imgEl.width;
@@ -109,8 +110,18 @@ export async function preloadImages(nodes) {
         const canvas = document.createElement('canvas');
         canvas.width = natW;
         canvas.height = natH;
-        canvas.getContext('2d').drawImage(imgEl, 0, 0);
-        e.src = canvas.toDataURL('image/jpeg', 0.92);
+        try {
+          canvas.getContext('2d').drawImage(imgEl, 0, 0);
+          e.src = canvas.toDataURL('image/jpeg', 0.92);
+          e.naturalWidth = natW;
+          e.naturalHeight = natH;
+          e._srcCanvas = canvas; // 保存全图 canvas，供 drawImage 裁切用
+        } catch (err) {
+          console.warn(
+            '[htmlpdf] preloadImages: canvas.drawImage failed:',
+            err,
+          );
+        }
       }
 
       // backgroundImage url → base64 + 原始尺寸

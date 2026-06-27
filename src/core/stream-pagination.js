@@ -131,8 +131,30 @@ export function expandSpillPlacements(
     // 只对有边框或背景的 element 节点展开（text 节点不需要跨页 bg/border）
     if (p.node.type !== 'element') continue;
 
-    // 用页码映射确定该节点真正的最后一页
-    const lastPage = nodeLastPage.get(p.node._origEl) || totalPagesCount;
+    // 确定该节点真正的最后一页，取以下两者的最大值：
+    //
+    // lastPageByMap：节点及子孙在 nodePlacements 里出现的最大页码。
+    //   适用于容器节点——子孙分布到更后面的页时，容器的 bg/border 也需要延伸到那页。
+    //   对叶子节点（如 IMG），子孙 = 自身，lastPageByMap = p.page，无法反映实际跨越页数。
+    //
+    // lastPageByCoord：从节点底部坐标直接推算的绝对页码。
+    //   适用于叶子节点（无子孙可冒泡），同时为容器节点提供兜底。
+    //   公式：ceil((nodeBottom - pageContentTopPx) / contentHeightPx) + p.page - 1
+    //   含义：节点底部在当前页之后还跨了多少页，加上当前页码即为绝对页码。
+    const lastPageByMap = nodeLastPage.get(p.node._origEl) || p.page;
+    const lastPageByCoord =
+      Math.ceil(
+        (p.node.y +
+          p.node.height -
+          (pageInfo ? pageInfo.pageContentTopPx : 0)) /
+          contentHeightPx,
+      ) +
+      p.page -
+      1;
+    const lastPage = Math.min(
+      Math.max(lastPageByMap, lastPageByCoord),
+      totalPagesCount,
+    );
 
     const nodeSpills = [];
     for (let sp = p.page + 1; sp <= lastPage; sp++) {

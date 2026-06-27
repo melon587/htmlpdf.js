@@ -1,4 +1,5 @@
-const AUTO_AVOID_TAGS = new Set(['TR', 'IMG', 'SVG', 'VIDEO', 'CANVAS']);
+// IMG 支持跨页裁切，不使用 avoid；TR/SVG/VIDEO/CANVAS 保持 avoid 避免跨页撕裂
+const AUTO_AVOID_TAGS = new Set(['TR', 'SVG', 'VIDEO', 'CANVAS']);
 
 /**
  * 判断一个元素是否可见
