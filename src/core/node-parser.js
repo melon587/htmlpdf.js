@@ -1,6 +1,49 @@
 import { isVisible, getPageBreak } from '../utils';
 
+/**
+ * @file node-parser.js
+ * DOM → 节点树 解析模块
+ *
+ * ## 整体流程
+ *
+ * collectNodes(element, cloneRoot)
+ *   │
+ *   ├─ walk(origEl, measEl)          递归遍历 DOM 树
+ *   │    ├─ parseElement()           元素节点 → { type:'element', x, y, width, height, style, ... }
+ *   │    └─ parseTextNode()          文本节点 → [{ type:'text', text, x, y, ... }, ...]
+ *   │         ├─ tokenize            按单词/连字符拆分原始文本
+ *   │         ├─ Range.getClientRects()  获取每个 token 的浏览器坐标（支持 RTL/BiDi）
+ *   │         └─ 多行处理            token 跨行时逐字符定位，拆成多个单行节点
+ *   │
+ *   └─ mergeRTLTextNodes()           后处理：把同行、同父、同样式的 RTL token 合并为整句
+ *        目的：让 jsPDF BiDi 引擎看到完整上下文，正确处理 "100%"→"%100"、括号镜像等
+ *
+ * ## 双树设计（orig / meas）
+ *
+ * 为了在不影响原始页面布局的情况下精确测量坐标，外部会将 DOM 克隆到 iframe 中：
+ *   - origEl / origParent：原始 DOM 节点，用于读取 tagName、pageBreak 等语义信息
+ *   - measEl / measParent：iframe 内的克隆节点，用于 getBoundingClientRect() 和 getComputedStyle()
+ * 当 cloneRoot 未传入时，两棵树相同（直接在原始 DOM 上测量）。
+ *
+ * ## 坐标系
+ *
+ * 所有 x/y 坐标均相对于根元素左上角（rootRect），单位 px。
+ * 渲染层（text.js / element.js）再通过 ctx.toPdfX/toPdfY 转换为 PDF mm 坐标。
+ */
+
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
+
+/**
+ * 解析单个元素节点，提取坐标、尺寸和计算样式
+ *
+ * @param {Element} origEl   - 原始 DOM 元素（用于读取 tagName、pageBreak 等）
+ * @param {Element} measEl   - 测量用元素（用于 getBoundingClientRect / getComputedStyle）
+ * @param {DOMRect} rootRect - 根元素的 BoundingClientRect，用于将坐标转为相对值
+ * @param {Window}  win      - 测量窗口（可能是 iframe 的 contentWindow）
+ * @returns {{ type:'element', tag, x, y, width, height, pageBreak, _el, _origEl, style }}
+ *   _el      仅 IMG 元素有值，供渲染层绘制图片
+ *   _origEl  指向原始 DOM 元素，供后处理（如 mergeRTLTextNodes）判断父元素边界
+ */
 
 function parseElement(origEl, measEl, rootRect, win) {
   const rect = measEl.getBoundingClientRect();
@@ -55,12 +98,20 @@ function parseElement(origEl, measEl, rootRect, win) {
 }
 
 /**
- * 解析文本节点，按单词粒度拆分，每个 token 单独用 Range 获取浏览器坐标
- * 核心思路（参考 dompdf）：
- *   - 不手动推算换行、不处理 RTL/BiDi，坐标完全来自浏览器
- *   - 每个 token (word/space) 单独 createRange → getClientRects()
- *   - 直接用 rect.left 作为渲染 x 坐标，天然支持 RTL/BiDi/换行
- *   - 支持多行文本渲染：当 token 跨行时，逐字符分析定位到每一行
+ * 解析单个文本节点，按单词粒度拆分，每个 token 用 Range.getClientRects() 获取浏览器坐标
+ *
+ * 核心设计原则：坐标完全来自浏览器，不手动推算换行或 RTL/BiDi 方向
+ *   - 按单词/连字符 tokenize，每个 token 单独 createRange → getClientRects()
+ *   - rect.left 直接作为渲染 x 坐标，天然支持 RTL、BiDi、自动换行
+ *   - token 跨行时（rects.length > 1），逐字符定位，将字符按行分组后各自输出节点
+ *
+ * @param {Object}  params
+ * @param {Text}    params.textNode   - 浏览器 Text 节点（在 measParent 下，用于 Range 操作）
+ * @param {Element} params.measParent - 文本节点的父元素（用于 getComputedStyle 获取样式）
+ * @param {DOMRect} params.rootRect   - 根元素的 BoundingClientRect，坐标原点
+ * @param {Window}  params.win        - 测量窗口
+ * @param {Element} params.origParent - 原始 DOM 中对应的父元素，赋给输出节点的 _origEl 字段
+ * @returns {Array<{ type:'text', text, x, y, width, height, style, _origEl }>}
  */
 function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   const raw = textNode.textContent;
@@ -109,7 +160,7 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
     // 需要逐字符分析，确定每个字符属于哪一行
     if (rects.length > 1) {
       // 按字符分析并按行分组
-      const lineGroups = []; // [{top, left, right, bottom, height, chars: [char1, char2, ...], charIndices: [0, 1, 2...]}]
+      const lineGroups = []; // [{top, left, right, bottom, height, chars: [char1, char2, ...]}]
 
       for (let charIdx = 0; charIdx < token.text.length; charIdx++) {
         docRange.setStart(textNode, token.offset + charIdx);
@@ -133,7 +184,6 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
             bottom: charRect.bottom,
             height: charRect.height,
             chars: [],
-            charIndices: [],
           };
           lineGroups.push(lineGroup);
         } else {
@@ -145,7 +195,6 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
         }
 
         lineGroup.chars.push(token.text[charIdx]);
-        lineGroup.charIndices.push(charIdx);
       }
 
       // 为每一行创建文本节点
@@ -189,11 +238,20 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
 }
 
 /**
- * 递归遍历 DOM 树，返回扁平化的节点列表（按文档顺序）
+ * 递归遍历 DOM 树，返回扁平化的渲染节点列表（按文档顺序）
  *
- * @param {Element} element     - 原始根元素
- * @param {Element} [cloneRoot] - iframe 内的克隆根元素（传入时在 clone 上测量）
- * @returns {Array} nodes
+ * 输出节点类型：
+ *   - { type:'element' }  对应每个可见 HTML 元素，包含坐标、尺寸、样式
+ *   - { type:'text' }     对应文本内容，每个单词/连字符片段为一个节点
+ *                         多行文本会按行拆分为多个节点
+ *
+ * 后处理：walk 完成后调用 mergeRTLTextNodes()，将同行同父的 RTL token
+ * 合并为整句节点，使 jsPDF BiDi 引擎能正确处理阿拉伯语混合方向文本。
+ *
+ * @param {Element}  element    - 原始根元素（作为坐标原点和遍历起点）
+ * @param {Element} [cloneRoot] - iframe 内的克隆根元素；传入时坐标测量在 clone 上进行，
+ *                                避免影响原始页面布局；不传则直接在原始 DOM 上测量
+ * @returns {Array<{ type:'element'|'text', ... }>} 扁平化节点列表
  */
 export function collectNodes(element, cloneRoot) {
   const useClone = !!cloneRoot;
@@ -246,15 +304,29 @@ export function collectNodes(element, cloneRoot) {
 }
 
 /**
- * 合并同一行、相同样式、同一父元素内的 RTL 文本节点
- * 目的：让 jsPDF 的 BiDi 引擎能看到完整的段落上下文，正确处理 "100%" 等混合方向文本
+ * 后处理：将同行、同父元素、同样式的 RTL 文本节点合并为一个整句节点
  *
- * 合并条件：
- * 1. 都是 text 节点
- * 2. direction 都是 rtl
- * 3. 在同一行（y 坐标相近，容差 2px）
- * 4. 样式完全相同（fontSize, fontFamily, fontWeight, fontStyle, color）
- * 5. 同一个父元素（_origEl 相同）← 关键：确保不跨越单元格/段落边界
+ * ## 为什么需要合并
+ *
+ * 浏览器将一行阿拉伯文本按单词拆成多个独立 token，例如：
+ *   "مرحبا بالعالم 100%" → ["مرحبا", "بالعالم", "100%"]（三个独立节点）
+ * jsPDF 的 BiDi 引擎需要看到完整句子才能正确判断混合方向字符的顺序：
+ *   - 单独传入 "100%" 时，BiDi 引擎判断为 LTR 数字，不做处理
+ *   - 传入完整 "مرحبا بالعالم 100%" 时，BiDi 引擎识别阿拉伯上下文，输出 "%001 ملاعلاب ابحرم"
+ *
+ * ## 合并条件（所有条件均需满足）
+ * 1. 都是 type:'text' 节点
+ * 2. style.direction 都是 'rtl'
+ * 3. 在同一行（与组内最后一个节点的 y 坐标相差 < 2px）
+ * 4. 样式完全相同（fontSize / fontFamily / fontWeight / fontStyle / color / textDecoration）
+ * 5. 同一个父元素（_origEl 相同）—— 防止跨单元格、跨段落合并
+ *
+ * ## 合并后节点的特殊字段
+ * - _isRTLMerged: true    标记供 text.js 路径 2 识别，走整体渲染而非分段渲染
+ * - _rightEdge: number    最右侧单词的右边界 px，作为 doc.text(align:'right') 的基准点
+ *
+ * @param {Array} nodes - collectNodes walk 阶段产出的原始节点列表
+ * @returns {Array} 合并后的节点列表，非 RTL 或不满足条件的节点保持原样
  */
 function mergeRTLTextNodes(nodes) {
   const result = [];
@@ -276,18 +348,20 @@ function mergeRTLTextNodes(nodes) {
 
     while (j < nodes.length) {
       const next = nodes[j];
+      const last = group[group.length - 1]; // 与组内最后一个节点比较，而不是第一个
 
       // 检查是否可以合并
       if (
         next.type === 'text' &&
         next.style.direction === 'rtl' &&
         next._origEl === node._origEl && // ← 关键：必须是同一个父元素
-        Math.abs(next.y - node.y) < 2 && // 同一行
+        Math.abs(next.y - last.y) < 2 && // 同一行（与最后一个比较）
         next.style.fontSize === node.style.fontSize &&
         next.style.fontFamily === node.style.fontFamily &&
         next.style.fontWeight === node.style.fontWeight &&
         next.style.fontStyle === node.style.fontStyle &&
-        next.style.color === node.style.color
+        next.style.color === node.style.color &&
+        next.style.textDecoration === node.style.textDecoration
       ) {
         group.push(next);
         j++;

@@ -291,7 +291,9 @@ export function streamPaginate({
         // normal 页码更小，先放 normal
         mergedPlacements.push(nodePlacements[i++]);
       } else {
-        // 同页：spill 优先（背景在下，内容在上）
+        // 同页：先消耗所有 spill，再消耗 normal（背景/边框在下，内容在上）
+        // 注意：这里只推进 j 不推进 i，下一轮循环继续比较同一个 normal，
+        // 直到该页的 spill 全部消耗完，i 才会继续前进。
         mergedPlacements.push(spillPlacements[j++]);
       }
     }

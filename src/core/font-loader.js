@@ -82,6 +82,15 @@ export async function loadFontsToJsPDF(doc, fonts) {
 
 /**
  * 在克隆的 iframe 文档中注入字体样式
+ *
+ * 目的：让 iframe 内 getComputedStyle 返回正确的 fontFamily，以及让
+ * getClientRects() 的宽度测量与真实渲染一致（依赖正确字体 + unicode-range）。
+ *
+ * 注入完整 @font-face（含 base64 src + unicode-range），等 fonts.ready 后
+ * 字体已可用于布局测量。iframe 销毁时未完成的 fetch 显示为 canceled，这是
+ * 浏览器的正常清理行为，不影响功能——字体数据已通过 fontCache 缓存，
+ * loadFontsToJsPDF 复用同一份 base64，不会重复 fetch。
+ *
  * @param {Document} iframeDoc - iframe 的 document
  * @param {Array} fonts - 字体配置数组
  * @returns {Promise<void>}

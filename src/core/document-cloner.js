@@ -104,9 +104,11 @@ export async function preloadImages(nodes) {
       // IMG 标签 src → base64（同步操作，图片在 waitForImages 时已加载完毕）
       if (e.tag === 'IMG' && e._el?.src) {
         const imgEl = e._el;
+        const natW = imgEl.naturalWidth || imgEl.width;
+        const natH = imgEl.naturalHeight || imgEl.height;
         const canvas = document.createElement('canvas');
-        canvas.width = imgEl.naturalWidth || imgEl.width;
-        canvas.height = imgEl.naturalHeight || imgEl.height;
+        canvas.width = natW;
+        canvas.height = natH;
         canvas.getContext('2d').drawImage(imgEl, 0, 0);
         e.src = canvas.toDataURL('image/jpeg', 0.92);
       }
@@ -182,7 +184,7 @@ export async function createClonedDocument(element, fonts = []) {
     iframeDoc.documentElement,
   );
 
-  // Step 3.5: 注入字体样式（新增）
+  // Step 3.5: 注入字体样式，等待字体加载完成后布局才稳定
   await injectFontsToDocument(iframeDoc, fonts);
 
   // Step 4: 等待 layout 稳定 + 图片加载

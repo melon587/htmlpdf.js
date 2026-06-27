@@ -1,4 +1,4 @@
-﻿import { drawBackground } from './background';
+import { drawBackground } from './background';
 import { drawBorder } from './border';
 import { drawImage } from './image';
 import { drawText } from './text';

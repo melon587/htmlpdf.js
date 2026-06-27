@@ -1,5 +1,10 @@
 /**
- * 绘制图片（只在第一页渲染，图片不做跨页裁剪）
+ * 渲染图片节点到 PDF
+ *
+ * @param {Object} doc     - jsPDF 实例
+ * @param {Object} node    - 图片节点
+ * @param {Object} ctx     - 渲染上下文
+ * @param {number} clipTop - 裁剪顶部（mm），节点 y 坐标小于此值时跳过
  */
 function drawImage({ doc, node, ctx, clipTop }) {
   if (!node.src) return;
