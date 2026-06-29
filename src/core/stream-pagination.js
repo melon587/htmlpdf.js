@@ -181,7 +181,37 @@ export function expandSpillPlacements(
 }
 
 /**
- * 流式分页计算：返回节点的分页方案和 repeat-header 渲染计划
+ * 归并两个页码递增的 placement 数组（O(n) 双指针）
+ * 同页时 spill 优先：背景/边框先渲染，normal placement 后覆盖在上面
+ *
+ * @param {Array} normal - nodePlacements
+ * @param {Array} spill  - spillPlacements
+ * @returns {Array} 合并后的 placements
+ */
+function mergePlacements(normal, spill) {
+  const result = [];
+  let i = 0;
+  let j = 0;
+
+  while (i < normal.length && j < spill.length) {
+    if (spill[j].page < normal[i].page) {
+      result.push(spill[j++]);
+    } else if (normal[i].page < spill[j].page) {
+      result.push(normal[i++]);
+    } else {
+      // 同页：先消耗所有 spill，再消耗 normal
+      // 只推进 j，下一轮继续比较同一个 normal，直到该页 spill 全部消耗完
+      result.push(spill[j++]);
+    }
+  }
+
+  while (i < normal.length) result.push(normal[i++]);
+  while (j < spill.length) result.push(spill[j++]);
+
+  return result;
+}
+
+/**
  * @param {Object} params
  * @param {Array} params.nodes - 节点数组
  * @param {Object} params.ctx - 渲染上下文
@@ -298,32 +328,8 @@ export function streamPaginate({
     totalPagesCount,
   );
 
-  // 归并 nodePlacements（页码递增）与 spillPlacements（spill 页也递增）
-  // O(n) 替代 O(n log n) sort，避免临时大数组
-  // 同页时 spill placement 优先：背景/边框 spill 先渲染，normal placement 后覆盖在上面
-  const mergedPlacements = [];
-  {
-    let i = 0;
-    let j = 0;
-    while (i < nodePlacements.length && j < spillPlacements.length) {
-      if (spillPlacements[j].page < nodePlacements[i].page) {
-        // spill 页码更小，先放 spill
-        mergedPlacements.push(spillPlacements[j++]);
-      } else if (nodePlacements[i].page < spillPlacements[j].page) {
-        // normal 页码更小，先放 normal
-        mergedPlacements.push(nodePlacements[i++]);
-      } else {
-        // 同页：先消耗所有 spill，再消耗 normal（背景/边框在下，内容在上）
-        // 注意：这里只推进 j 不推进 i，下一轮循环继续比较同一个 normal，
-        // 直到该页的 spill 全部消耗完，i 才会继续前进。
-        mergedPlacements.push(spillPlacements[j++]);
-      }
-    }
-    while (i < nodePlacements.length)
-      mergedPlacements.push(nodePlacements[i++]);
-    while (j < spillPlacements.length)
-      mergedPlacements.push(spillPlacements[j++]);
-  }
+  // 归并 nodePlacements 与 spillPlacements（O(n) 双指针，同页 spill 优先）
+  const mergedPlacements = mergePlacements(nodePlacements, spillPlacements);
 
   // 返回分页方案
   return {
