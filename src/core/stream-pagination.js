@@ -1,5 +1,76 @@
 /**
- * 流式分页策略：动态决策分页，支持 page-break
+ * @file stream-pagination.js
+ * 流式分页策略：动态决策分页，支持 page-break、repeat-header、跨页元素
+ *
+ * ## 整体流程
+ *
+ * streamPaginate({ nodes, ctx, contentHeight, fonts, repeatHeaderManager })
+ * │
+ * ├─ needsNewPage()           判断节点是否需要换页
+ * │  ├─ 自然溢出              node.y >= currentPageBottom
+ * │  ├─ text 节点保护          node.y + height > currentPageBottom（避免文本被切割）
+ * │  ├─ page-break: avoid     整体推到下一页
+ * │  └─ page-break: before    强制换页
+ * │
+ * ├─ calcNextPageStart()      计算换页后的新页起点（accumulatedYpx）
+ * │  ├─ 自然溢出 → currentPageBottom（连续不留空隙）
+ * │  └─ 节点整体推到新页 → node.y（节点顶部对齐新页顶部）
+ * │
+ * ├─ repeat-header 处理
+ * │  ├─ headerRendered=false  首次遇到表头，不生成副本（原始表头会渲染）
+ * │  ├─ headerRendered=true   换页时生成表头副本，跳过原始表头节点
+ * │  └─ currentPageContentOffsetPx  维护表头高度偏移，用于计算内容区起点
+ * │
+ * ├─ 生成 nodePlacements      每个节点的渲染计划 { page, node, offsetYpx, type }
+ * │
+ * ├─ expandSpillPlacements()  跨页展开：为溢出节点在后续页生成 spill placement
+ * │  ├─ buildNodeLastPageMap() 建立"节点及子孙出现的最大页码"映射（避免坐标误判）
+ * │  ├─ 检测节点是否溢出        nodeBottom > pageBottom
+ * │  └─ 生成 spill placement   为每个溢出页生成 { page, node, offsetYpx, clipTopPx, type: 'spill' }
+ * │
+ * └─ mergePlacements()        归并 normal 和 spill，同页时 spill 优先（背景先渲染）
+ *
+ * ## 核心概念
+ *
+ * ### accumulatedYpx
+ * 全局 Y 坐标累积值（px），表示当前页的"换页点"（即新页的原始顶部）。
+ * - 初始值为 0（第一页从顶部开始）
+ * - 换页时更新为 calcNextPageStart() 的返回值
+ * - 自然溢出时 = currentPageBottom（连续不留空隙）
+ * - 节点整体推到新页时 = node.y（节点顶部对齐新页顶部）
+ *
+ * ### currentPageContentOffsetPx
+ * 当前页的表头高度偏移（px），用于 repeat-header。
+ * - 无 repeat-header 或首次遇到表头时 = 0
+ * - 生成表头副本后 = headerHeightPx
+ * - 用于计算 effectiveOffsetYpx = accumulatedYpx - currentPageContentOffsetPx
+ *
+ * ### pageStartOffsets
+ * Map<页码, { pageRawTopPx, pageContentTopPx }>
+ * - pageRawTopPx: 换页点的全局 px（含表头高度，即 accumulatedYpx）
+ * - pageContentTopPx: 内容区起点的全局 px（已减去表头高度）
+ * - 用于跨页展开时计算溢出页的 offsetYpx
+ *
+ * ### placement
+ * 渲染计划对象，包含：
+ * - page: 页码（1-based）
+ * - node: 要渲染的节点
+ * - offsetYpx: 该页内容区起点的全局 px（用于计算 relativeY = node.y - offsetYpx）
+ * - type: 'normal' | 'spill' | 'repeat-header' | 'repeat-header-child'
+ * - isLastSpill: 是否是最后一页的 spill（用于渲染底部边框）
+ * - clipTopPx: spill 专用，表头高度（用于裁剪顶部）
+ *
+ * ## 使用约定
+ *
+ * ### 行级容器的 page-break
+ * 对于 flex row、grid row、table row 等"行级容器"，用户应该设置：page-break
+ *
+ * 否则，容器内的 text 节点可能单独触发换页，导致同一行的其他列（特别是居中/底部对齐的列）
+ * 被推到新页后位置错乱（Y 坐标小于换页点，可能盖住 repeat-header）。
+ *
+ * ### text 节点保护
+ * 为了避免文本被页面切割（上半行在旧页底部，下半行在新页顶部），默认对 text 节点启用
+ * 换页保护：只要 text 被切割就推到下一页。这意味着用户无需手动给每个 text 加 page-break。
  */
 
 import {
@@ -8,7 +79,12 @@ import {
 } from './repeat-header-manager';
 
 /**
- * 准备字体配置：排序 + 获取 fallback 字体
+ * 准备字体配置：按优先级排序 + 获取 fallback 字体
+ *
+ * @param {Array} fonts - 字体配置数组，每项包含 { fontFamily, priority, isDefault, ... }
+ * @returns {Object}
+ * @returns {Array} .sortedFontConfig - 按 priority 降序排列的字体配置（用于字体匹配）
+ * @returns {string} .fallbackFontFamily - 默认字体（isDefault=true 的字体，或 'helvetica'）
  */
 function getFontConfig(fonts) {
   const sortedFontConfig = fonts
@@ -23,10 +99,16 @@ function getFontConfig(fonts) {
 /**
  * 判断节点是否需要换页
  *
- * 换页的三种情况：
- * 1. 自然溢出：节点起始位置超出当前页底部
- * 2. page-break: avoid - 节点无法完整放入当前页，整体推到下一页
- * 3. page-break: before - 节点设置了强制换页，且不在当前页起始位置
+ * 换页的四种情况：
+ * 1. 自然溢出：节点起始位置超出当前页底部（node.y >= currentPageBottom）
+ * 2. text 节点保护：text 节点被切割时推到下一页（避免文本被页面切成两半）
+ * 3. page-break: avoid - 节点无法完整放入当前页，整体推到下一页
+ * 4. page-break: before - 节点设置了强制换页，且不在当前页起始位置
+ *
+ * @param {Object} node - 当前节点
+ * @param {number} currentPageBottom - 当前页底部的全局 Y 坐标（px）
+ * @param {number} accumulatedYpx - 当前页的换页点（全局 Y 坐标，px）
+ * @returns {boolean} 是否需要换页
  */
 function needsNewPage(node, currentPageBottom, accumulatedYpx) {
   if (node.y >= currentPageBottom) return true;
@@ -46,9 +128,16 @@ function needsNewPage(node, currentPageBottom, accumulatedYpx) {
 /**
  * 计算换页后 accumulatedYpx 的新起始位置（px）
  *
- * - 自然溢出（node.y 超出页底）：从当前页底部开始，保证连续不留空隙
- * - page-break:avoid / page-break:before：节点被整体推到新页，
- *   以 node.y 作为新页起点，使节点在新页顶部对齐
+ * 两种策略：
+ * 1. 自然溢出（node.y >= currentPageBottom）：
+ *    返回 currentPageBottom，从当前页底部开始，保证连续不留空隙
+ *
+ * 2. 节点整体推到新页（page-break: avoid / before / text 保护）：
+ *    返回 node.y，以节点顶部作为新页起点，使节点在新页顶部对齐
+ *
+ * @param {Object} node - 触发换页的节点
+ * @param {number} currentPageBottom - 当前页底部的全局 Y 坐标（px）
+ * @returns {number} 新页的 accumulatedYpx
  */
 function calcNextPageStart(node, currentPageBottom) {
   return node.y >= currentPageBottom ? currentPageBottom : node.y;
@@ -216,12 +305,30 @@ function mergePlacements(normal, spill) {
 }
 
 /**
+ * 流式分页主函数：单次遍历 nodes，动态决策换页，生成渲染计划
+ *
+ * 算法流程：
+ * 1. 遍历所有节点，检查是否需要换页（needsNewPage）
+ * 2. 换页时更新 accumulatedYpx 和 currentPage，处理 repeat-header
+ * 3. 跳过原始表头节点（当前页已有 repeat-header 副本时）
+ * 4. 生成节点渲染计划（nodePlacements）
+ * 5. 跨页展开：为溢出节点生成 spill placement（expandSpillPlacements）
+ * 6. 归并 normal 和 spill，同页时 spill 优先（mergePlacements）
+ *
+ * 时间复杂度：O(N)，其中 N 是节点数量
+ *
  * @param {Object} params
- * @param {Array} params.nodes - 节点数组
- * @param {Object} params.ctx - 渲染上下文
- * @param {number} params.contentHeight - 内容高度（mm）
- * @param {Array} params.fonts - 字体配置
- * @param {Object} params.repeatHeaderManager - repeat-header 管理器实例
+ * @param {Array} params.nodes - 节点数组（由 collectNodes 生成）
+ * @param {Object} params.ctx - 渲染上下文（包含 scale、doc 等）
+ * @param {number} params.contentHeight - 单页内容区高度（mm）
+ * @param {Array} params.fonts - 字体配置数组
+ * @param {Object} params.repeatHeaderManager - repeat-header 管理器实例（可选，无配置时为 null）
+ * @returns {Object} 分页方案
+ * @returns {number} .totalPages - 总页数
+ * @returns {Array} .nodePlacements - 合并后的渲染计划（含 normal + spill，按页码和类型排序）
+ * @returns {Array} .headerPlacements - repeat-header 渲染计划
+ * @returns {Array} .sortedFontConfig - 按优先级排序的字体配置
+ * @returns {string} .fallbackFontFamily - 默认字体（用于未配置字体的文本）
  */
 export function streamPaginate({
   nodes,

@@ -1,3 +1,72 @@
+/**
+ * @file main.js
+ * htmlpdf 主入口：HTML → PDF 转换流程编排
+ *
+ * ## 整体流程
+ *
+ * htmlpdf(element, options)
+ * │
+ * ├─ 1. 创建上下文                      createContext() - 初始化 jsPDF、计算页面尺寸
+ * │
+ * ├─ 2. 克隆 DOM                        createClonedDocument() - 克隆到 iframe，注入字体
+ * │
+ * ├─ 3. 解析节点树                      collectNodes() - DOM → 节点树（带坐标、样式）
+ * │   └─ 预加载图片                      preloadImages() - 确保图片加载完成
+ * │
+ * ├─ 4. 销毁克隆文档                    destroyClonedDocument() - 释放 iframe
+ * │
+ * ├─ 5. 加载字体到 jsPDF                loadFontsToJsPDF() - 注册自定义字体
+ * │
+ * ├─ 6. tables 配置预处理
+ * │   ├─ createRepeatHeaderManager()    建立 repeat-header 管理器
+ * │   └─ buildPageBreakBorderMap()      建立 pageBreakBorder 映射
+ * │
+ * ├─ 7. 流式分页                        streamPaginate() - 计算分页方案
+ * │   └─ 返回 { nodePlacements, headerPlacements, totalPages, ... }
+ * │
+ * ├─ 8. 归并排序 placements             按页码、类型排序（spill < repeat-header < normal）
+ * │
+ * ├─ 9. 收集 spill 闭合线               collectPageBreakLines() - 跨页元素的底部边框
+ * │
+ * ├─ 10. 渲染所有节点                   逐个 placement 调用 renderNode()
+ * │
+ * ├─ 11. 绘制 spill 闭合线              drawSpillClosingLines() - 在页面底部绘制边框
+ * │
+ * ├─ 12. 渲染 header/footer             renderHeaderFooter() - 用户自定义页眉页脚
+ * │
+ * └─ 13. 输出                           doc.output() - 返回 Blob/DataURL/ArrayBuffer
+ *
+ * ## 核心概念
+ *
+ * ### placement（渲染计划）
+ * 分页策略输出的渲染计划，每个 placement 描述"在哪一页、用什么偏移、渲染哪个节点"：
+ * - type: 'normal' | 'spill' | 'repeat-header' | 'repeat-header-child'
+ * - page: 页码（1-based）
+ * - node: 要渲染的节点
+ * - offsetYpx: 该页内容区起点的全局 Y 坐标（px）
+ * - isLastSpill: 是否是最后一页的 spill（用于渲染底部边框）
+ *
+ * ### 渲染顺序（同页内）
+ * spill(0) < repeat-header(1) < normal(2)
+ * - spill 最先渲染：背景/边框垫底
+ * - repeat-header 次之：表头在背景之上
+ * - normal 最后渲染：内容覆盖在最上层
+ *
+ * ### spill 闭合线（pageBreakBorder）
+ * 跨页元素在页面出口处的底部边框（视觉上"封闭"容器），避免内容看起来像被截断。
+ * 在所有节点渲染完后绘制，避免被后续内容覆盖。
+ *
+ * ## 进度追踪
+ *
+ * 通过 tick(stage, progress) 函数报告进度：
+ * - 0.2: clone - DOM 克隆完成
+ * - 0.4: images - 图片预加载完成
+ * - 0.5: fonts - 字体加载完成
+ * - 0.7: paginate - 分页计算完成
+ * - 0.9: render - 节点渲染完成
+ * - 1.0: output - 输出完成
+ */
+
 import {
   createContext,
   createClonedDocument,
@@ -17,8 +86,17 @@ import {
 import { matchesSelector } from './utils';
 
 /**
- * 同页内渲染顺序权重：spill(0) < repeat-header(1) < normal(2)
- * spill 最先渲染，背景/边框垫底；repeat-header 次之；normal 内容最后覆盖在上面
+ * 计算 placement 的渲染顺序权重（同页内）
+ *
+ * 权重规则：
+ * - spill: 0（背景/边框，最先渲染）
+ * - repeat-header / repeat-header-child: 1（表头，次之）
+ * - normal: 2（正常内容，最后渲染）
+ *
+ * 目的：确保背景垫底，表头在背景之上，内容覆盖在最上层
+ *
+ * @param {Object} p - placement 对象
+ * @returns {number} 权重值（0-2）
  */
 function placementOrder(p) {
   if (p.type === 'spill') return 0;
@@ -29,7 +107,15 @@ function placementOrder(p) {
 }
 
 /**
- * placement 排序比较函数：先按页码升序，同页内按 placementOrder 升序
+ * placement 排序比较函数
+ *
+ * 排序规则：
+ * 1. 先按页码升序排列（第1页 → 第2页 → ...）
+ * 2. 同页内按 placementOrder 升序排列（spill → repeat-header → normal）
+ *
+ * @param {Object} a - placement A
+ * @param {Object} b - placement B
+ * @returns {number} 比较结果（负数/0/正数）
  */
 function comparePlacements(a, b) {
   if (a.page !== b.page) return a.page - b.page;
@@ -38,8 +124,14 @@ function comparePlacements(a, b) {
 }
 
 /**
+ * 构建 pageBreakBorder 映射（表格容器 → 边框样式）
+ *
  * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并建立映射。
- * 返回 WeakMap<node, borderStyle>，不污染 node 对象。
+ * 使用 WeakMap 避免污染 node 对象。
+ *
+ * @param {Array} nodes - 节点数组
+ * @param {Array} tables - 表格配置数组，例如: [{ selector: '.my-table', pageBreakBorder: '1px solid #ccc' }]
+ * @returns {WeakMap<node, borderStyle>} 容器节点 → 边框样式的映射
  */
 function buildPageBreakBorderMap(nodes, tables) {
   const borderMap = new WeakMap();
@@ -59,10 +151,17 @@ function buildPageBreakBorderMap(nodes, tables) {
 }
 
 /**
- * 创建进度追踪器，返回 tick(stage, progress) 函数。
- * 每次调用时输出分段计时日志（debug 模式）并触发 onProgress 回调。
- * @param {Object} options   - htmlpdf 选项（读取 debug / onProgress）
+ * 创建进度追踪器
+ *
+ * 返回 tick(stage, progress) 函数，每次调用时：
+ * 1. 输出分段计时日志（debug 模式下）：[htmlpdf] stage: totalMs (+deltaMs)
+ * 2. 触发 onProgress 回调（如果有）
+ *
+ * @param {Object} options - htmlpdf 选项
+ * @param {boolean} options.debug - 是否输出计时日志
+ * @param {Function} options.onProgress - 进度回调 ({ stage, progress }) => void
  * @param {number} startTime - performance.now() 起点
+ * @returns {Function} tick(stage, progress) - 进度报告函数
  */
 function createProgressTracker(options, startTime) {
   const { debug = false, onProgress } = options;
@@ -84,6 +183,16 @@ function createProgressTracker(options, startTime) {
 
 /**
  * 确保 PDF 文档有指定页，并切换到该页
+ *
+ * 逻辑：
+ * - targetPage <= currentPage：直接 setPage（页面已存在）
+ * - targetPage > currentPage：先 addPage 创建缺失页，再 setPage
+ *
+ * 注意：第一页由 jsPDF 自动创建，pagesToAdd 计算时需要考虑
+ *
+ * @param {Object} doc - jsPDF 实例
+ * @param {number} targetPage - 目标页码（1-based）
+ * @param {number} currentPage - 当前页码（0 表示还没渲染任何页）
  */
 function ensurePage(doc, targetPage, currentPage) {
   if (targetPage <= currentPage) {
@@ -101,20 +210,41 @@ function ensurePage(doc, targetPage, currentPage) {
 
 /**
  * 主函数：将 HTML 元素转换为 PDF
+ *
+ * 完整流程参见文件头部的流程图。
+ *
  * @param {Element} element - 要转换的 DOM 元素
  * @param {Object} options - 配置选项
- * @param {string} [options.output='blob'] - 输出格式：'blob' | 'dataurl' | 'arraybuffer'
- * @param {string} [options.format='a4'] - 页面格式（jsPDF 支持的任意格式）
- * @param {string} [options.orientation='portrait'] - 页面方向：'portrait' | 'landscape'
+ *
+ * @param {string} [options.output='blob'] - 输出格式
+ *   - 'blob': Blob 对象（默认）
+ *   - 'dataurl': Data URI 字符串
+ *   - 'arraybuffer': ArrayBuffer
+ *
+ * @param {string} [options.format='a4'] - 页面格式（jsPDF 支持的任意格式，如 'a4', 'letter', [width, height]）
+ * @param {string} [options.orientation='portrait'] - 页面方向（'portrait' | 'landscape'）
  * @param {number} [options.margin=0] - 页边距（px，默认 0 无边距）
  * @param {boolean} [options.compress=true] - 是否启用 PDF 压缩
- * @param {Object} [options.header] - 页眉配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
- * @param {Object} [options.footer] - 页脚配置 { height: mm, render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) }
- * @param {Array}  [options.fonts] - 字体配置数组
- * @param {Array}  [options.tables] - 表格配置数组，例如: [{ selector: '.my-table', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]
+ *
+ * @param {Object} [options.header] - 页眉配置
+ *   - height: number (mm) - 页眉高度
+ *   - render: (doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) => void
+ *
+ * @param {Object} [options.footer] - 页脚配置
+ *   - height: number (mm) - 页脚高度
+ *   - render: (doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) => void
+ *
+ * @param {Array} [options.fonts] - 字体配置数组
+ *   每项包含：{ fontFamily, url, format, priority, isDefault, unicodeRange }
+ *
+ * @param {Array} [options.tables] - 表格配置数组
+ *   每项包含：{ selector, repeatHeader, pageBreakBorder }
+ *   例如: [{ selector: '.my-table', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]
+ *
  * @param {boolean} [options.debug=false] - 是否输出分段计时日志
  * @param {Function} [options.onProgress] - 进度回调 ({ stage, progress: 0~1 }) => void
- * @returns {Promise<Blob|string|ArrayBuffer>}
+ *
+ * @returns {Promise<Blob|string|ArrayBuffer>} PDF 输出（格式由 options.output 决定）
  */
 export async function htmlpdf(element, options = {}) {
   const startTime = performance.now();
