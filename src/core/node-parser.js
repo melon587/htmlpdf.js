@@ -142,11 +142,12 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   // 按单词、连字符、空格拆分，让长文本可以在连字符后换行
   // 例如："61212562-IOM11X-English" → ["61212562-", "IOM11X-", "English"]
   // 匹配逻辑：
-  // 1. [^\s-]+-  匹配非空白、非连字符的字符 + 一个连字符（保留连字符）
+  // 1. [^\s-]+-  匹配非空白、非连字符的字符 + 一个连字符（保留连字符，用于换行点）
   // 2. [^\s-]+   匹配非空白、非连字符的字符（末尾单词，无连字符）
-  // 3. \s+       匹配空白字符（独立成 token 以保持间距）
+  // 3. -         匹配独立连字符（如 "VAT 15% - ضريبة" 中的分隔符 "-"）
+  // 4. \s+       匹配空白字符（独立成 token 以保持间距）
   const tokens = [];
-  const tokenRegex = /[^\s-]+-|[^\s-]+|\s+/g;
+  const tokenRegex = /[^\s-]+-|[^\s-]+|-|\s+/g;
   let match;
   while ((match = tokenRegex.exec(raw)) !== null) {
     tokens.push({ text: match[0], offset: match.index });
@@ -378,36 +379,41 @@ function mergeRTLTextNodes(nodes) {
       }
     }
 
-    // 如果只有一个节点，直接添加
+    // 如果只有一个节点，补上 _isRTLMerged 标记后直接添加
+    // 单个 RTL token 同样需要用 _rightEdge + align:'right' 渲染，否则 x 被当作左边界，位置偏左
     if (group.length === 1) {
-      result.push(node);
+      result.push({
+        ...node,
+        _isRTLMerged: true,
+        _rightEdge: node.x + node.width,
+      });
       i++;
       continue;
     }
 
-    // 合并：RTL 文本从右到左排列，需要按 x 坐标降序排列后再拼接
-    group.sort((a, b) => b.x - a.x); // 从右到左
-
-    // 拼接文本，用空格分隔（因为浏览器已经按单词拆分了）
+    // 合并：按文档顺序 join（即逻辑顺序），让 jsPDF BiDi 引擎处理视觉排列
+    // 不按 x 排序：sort 会把 LTR token（如 "Air-" "ECO"）反序，导致显示错误
     const mergedText = group.map((n) => n.text).join(' ');
 
-    // 使用最右边节点的 x 坐标和最右边节点的右边界
-    const rightmostNode = group[0]; // 排序后第一个就是最右边的
-    const leftmostNode = group[group.length - 1]; // 排序后最后一个是最左边的
+    // rightmost/leftmost 按 x 坐标 reduce 取（用于坐标计算，与 join 顺序无关）
+    const rightmostNode = group.reduce((a, b) =>
+      a.x + a.width > b.x + b.width ? a : b,
+    );
+    const leftmostNode = group.reduce((a, b) => (a.x < b.x ? a : b));
 
     // 合并后的节点
     result.push({
       type: 'text',
       tag: '#text',
       text: mergedText,
-      x: rightmostNode.x, // 最右边单词的左边界
+      x: rightmostNode.x, // 最右 token 的左边界（RTL 视觉起点）
       y: rightmostNode.y,
-      width: rightmostNode.x + rightmostNode.width - leftmostNode.x, // 从最左边到最右边的总宽度
+      width: rightmostNode.x + rightmostNode.width - leftmostNode.x,
       height: rightmostNode.height,
       style: rightmostNode.style,
       _origEl: rightmostNode._origEl,
-      _isRTLMerged: true, // 标记这是合并后的 RTL 节点
-      _rightEdge: rightmostNode.x + rightmostNode.width, // 保存最右边单词的右边界
+      _isRTLMerged: true,
+      _rightEdge: rightmostNode.x + rightmostNode.width, // 最右 token 的右边界，align:'right' 基准点
     });
 
     i = j; // 跳过已合并的节点

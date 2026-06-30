@@ -31,6 +31,10 @@ function getFontConfig(fonts) {
 function needsNewPage(node, currentPageBottom, accumulatedYpx) {
   if (node.y >= currentPageBottom) return true;
 
+  // text 节点：只要被切割就推到下一页（行级别保护）
+  if (node.type === 'text' && node.y + node.height > currentPageBottom)
+    return true;
+
   if (node.pageBreak === 'avoid' && node.y + node.height > currentPageBottom)
     return true;
 

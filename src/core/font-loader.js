@@ -96,39 +96,43 @@ export async function loadFontsToJsPDF(doc, fonts) {
  * @returns {Promise<void>}
  */
 export async function injectFontsToDocument(iframeDoc, fonts) {
-  if (!fonts || fonts.length === 0) {
-    return;
+  if (!fonts || fonts.length === 0) return;
+
+  // 1. 获取所有字体的 base64，过滤掉加载失败的
+  const allRules = await Promise.all(
+    fonts.map(async (config) => {
+      const base64 = await getFontBase64(config);
+
+      return base64 ? buildFontFaceRule(config, base64) : null;
+    }),
+  );
+  const rules = allRules.filter(Boolean);
+
+  if (rules.length === 0) return;
+
+  // 2. 注入 @font-face 样式到 iframe
+  const styleEl = iframeDoc.createElement('style');
+  styleEl.setAttribute('data-htmlpdf-fonts', '1');
+  styleEl.textContent = rules.join('\n');
+  iframeDoc.head.appendChild(styleEl);
+
+  // 3. 主动触发字体加载并等待完成
+  // unicode-range 字体是懒加载的——fonts.ready 在字体未被使用时会立即 resolve，
+  // 必须用 fonts.load() 强制加载，确保 getClientRects() 使用正确的字体 metrics
+  if (iframeDoc.fonts?.load) {
+    await Promise.all(
+      fonts.map((c) =>
+        iframeDoc.fonts.load(`${c.fontWeight || 400} 16px '${c.fontFamily}'`),
+      ),
+    );
   }
 
-  const fontFaceRules = (
-    await Promise.all(
-      fonts.map(async (config) => {
-        const fontBase64 = await getFontBase64(config);
-
-        return fontBase64 ? buildFontFaceRule(config, fontBase64) : null;
-      }),
-    )
-  ).filter(Boolean);
-
-  if (fontFaceRules.length > 0) {
-    const styleEl = iframeDoc.createElement('style');
-    styleEl.setAttribute('data-htmlpdf-fonts', '1');
-    styleEl.textContent = fontFaceRules.join('\n');
-    iframeDoc.head.appendChild(styleEl);
-
-    if (iframeDoc.fonts && iframeDoc.fonts.ready) {
-      await iframeDoc.fonts.ready;
-    }
-
-    // 修改 body 的 font-family，让它使用注入的字体（按顺序排列，优先使用注入字体）
-    const fontFamilies = fonts.map((c) => `'${c.fontFamily}'`).join(', ');
-    if (iframeDoc.body) {
-      const currentFontFamily = iframeDoc.defaultView.getComputedStyle(
-        iframeDoc.body,
-      ).fontFamily;
-
-      const newFontFamily = `${fontFamilies}, ${currentFontFamily}`;
-      iframeDoc.body.style.setProperty('font-family', newFontFamily);
-    }
+  // 4. 将注入字体前置到 body font-family，确保测量时优先命中注入字体
+  if (iframeDoc.body) {
+    const current = iframeDoc.defaultView.getComputedStyle(
+      iframeDoc.body,
+    ).fontFamily;
+    const injected = fonts.map((c) => `'${c.fontFamily}'`).join(', ');
+    iframeDoc.body.style.setProperty('font-family', `${injected}, ${current}`);
   }
 }
