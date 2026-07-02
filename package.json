@@ -28,7 +28,9 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "rollup -c",

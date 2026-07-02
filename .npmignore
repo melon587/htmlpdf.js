@@ -1,29 +1,57 @@
 # Source files
 src/
 
+# E2E 测试相关（开发阶段，不发布到 npm）
+e2e/
+E2E-*.md
+playwright.config.js
+playwright-report/
+test-results/
+
+# 单元测试
+tests/
+vitest.config.js
+*.test.js
+
 # Development files
 examples/
 .vscode/
+.idea/
 .git/
+.gitignore
+.gitattributes
 
 # Config files
 .eslintrc.cjs
 .eslintignore
+.prettierrc
 .prettierrc.cjs
 .prettierignore
 rollup.config.js
 
 # Dependencies
 node_modules/
+.npm/
+.yarn/
 
 # Logs
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS files
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*~
 
 # Temporary files
 *.tmp
 .cache/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
