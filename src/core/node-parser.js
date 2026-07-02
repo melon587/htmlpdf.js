@@ -10,6 +10,8 @@ import { isVisible, getPageBreak } from '../utils';
  *   │
  *   ├─ walk(origEl, measEl)          递归遍历 DOM 树
  *   │    ├─ parseElement()           元素节点 → { type:'element', x, y, width, height, style, ... }
+ *   │    │   └─ 识别物化伪元素      检测 data-pseudo 属性，标记 type:'pseudo-element'
+ *   │    │
  *   │    └─ parseTextNode()          文本节点 → [{ type:'text', text, x, y, ... }, ...]
  *   │         ├─ tokenize            按单词/连字符拆分原始文本
  *   │         ├─ Range.getClientRects()  获取每个 token 的浏览器坐标（支持 RTL/BiDi）
@@ -29,6 +31,17 @@ import { isVisible, getPageBreak } from '../utils';
  *
  * 所有 x/y 坐标均相对于根元素左上角（rootRect），单位 px。
  * 渲染层（text.js / element.js）再通过 ctx.toPdfX/toPdfY 转换为 PDF mm 坐标。
+ *
+ * ## 伪元素处理
+ *
+ * 物化的伪元素（由 document-cloner.js 创建）会被识别并标记为 pseudo-element 节点：
+ *   - 检测：measEl.hasAttribute('data-pseudo')
+ *   - 类型：type: 'pseudo-element'
+ *   - pseudoType：'before' | 'after'
+ *   - 位置：由浏览器自然布局决定（已在 cloner 阶段设置样式）
+ *
+ * walk() 函数遍历子节点时会跳过 iframe 中添加的伪元素 span，
+ * 单独处理（origEl = measChild），因为原始 DOM 中不存在对应节点。
  */
 
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
@@ -36,30 +49,47 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
 /**
  * 解析单个元素节点，提取坐标、尺寸和计算样式
  *
+ * ## 伪元素处理
+ *
+ * 物化的伪元素（由 document-cloner.js 的 materializePseudoElements 创建）
+ * 会被识别并标记为 pseudo-element 节点：
+ *   - 检测条件：measEl.hasAttribute('data-pseudo')
+ *   - 节点类型：type: 'pseudo-element'
+ *   - 伪元素类型：pseudoType: 'before' | 'after'
+ *   - 位置来源：浏览器自然布局（已在 cloner 阶段通过 copyPseudoStyles 设置样式）
+ *
  * @param {Element} origEl   - 原始 DOM 元素（用于读取 tagName、pageBreak 等）
  * @param {Element} measEl   - 测量用元素（用于 getBoundingClientRect / getComputedStyle）
  * @param {DOMRect} rootRect - 根元素的 BoundingClientRect，用于将坐标转为相对值
  * @param {Window}  win      - 测量窗口（可能是 iframe 的 contentWindow）
- * @returns {{ type:'element', tag, x, y, width, height, pageBreak, _el, _origEl, style }}
- *   _el      IMG 保存 iframe 内的 measEl（同源，可安全 drawImage 到 canvas）；
- *            CANVAS 保存原始 origEl（iframe 克隆的 canvas 像素为空，需读原始内容）
- *   _origEl  指向原始 DOM 元素，供后处理（如 mergeRTLTextNodes）判断父元素边界
+ * @returns {{ type:'element'|'pseudo-element', tag, x, y, width, height, pageBreak, _el, _origEl, style }}
+ *   type        'element' 或 'pseudo-element'（物化的伪元素）
+ *   pseudoType  伪元素类型（'before' | 'after'），仅 pseudo-element 有值
+ *   _el         IMG 保存 iframe 内的 measEl（同源，可安全 drawImage 到 canvas）；
+ *               CANVAS 保存原始 origEl（iframe 克隆的 canvas 像素为空，需读原始内容）
+ *   _origEl     指向原始 DOM 元素，供后处理（如 mergeRTLTextNodes）判断父元素边界
  */
 
 function parseElement(origEl, measEl, rootRect, win) {
-  const rect = measEl.getBoundingClientRect();
   const style = win.getComputedStyle(measEl);
 
+  // 检测是否是物化的伪元素
+  const isPseudo = measEl.hasAttribute && measEl.hasAttribute('data-pseudo');
+
+  // 测量位置（伪元素的位置由浏览器自然布局决定）
+  const rect = measEl.getBoundingClientRect();
+  const x = rect.left - rootRect.left;
+  const y = rect.top - rootRect.top;
+
   return {
-    type: 'element',
+    type: isPseudo ? 'pseudo-element' : 'element',
+    pseudoType: isPseudo ? measEl.getAttribute('data-pseudo') : undefined,
     tag: origEl.tagName,
-    x: rect.left - rootRect.left,
-    y: rect.top - rootRect.top,
+    x,
+    y,
     width: rect.width,
     height: rect.height,
     pageBreak: getPageBreak(origEl),
-    // IMG 用 measEl：iframe 内同源图片，可安全 drawImage 到 canvas（解决 CORS 问题）
-    // CANVAS 用 origEl：cloneNode 不复制 canvas 像素，需读原始元素内容
     _el:
       origEl.tagName === 'IMG'
         ? measEl
@@ -144,7 +174,7 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   // 匹配逻辑：
   // 1. [^\s-]+-  匹配非空白、非连字符的字符 + 一个连字符（保留连字符，用于换行点）
   // 2. [^\s-]+   匹配非空白、非连字符的字符（末尾单词，无连字符）
-  // 3. -         匹配独立连字符（如 "VAT 15% - ضريبة" 中的分隔符 "-"）
+  // 3. -         匹配独立连字符（如 "[111]-222" 中括号后的分隔符 "-"）
   // 4. \s+       匹配空白字符（独立成 token 以保持间距）
   const tokens = [];
   const tokenRegex = /[^\s-]+-|[^\s-]+|-|\s+/g;
@@ -276,23 +306,48 @@ export function collectNodes(element, cloneRoot) {
     const style = measWin.getComputedStyle(measEl);
     if (!isVisible(style)) return;
 
+    // 元素本身（包括物化的伪元素）
     nodes.push(parseElement(origEl, measEl, rootRect, measWin));
 
-    const origChildren = origEl.childNodes;
     const measChildren = measEl.childNodes;
+    const origChildren = origEl.childNodes;
 
-    for (let i = 0; i < origChildren.length; i++) {
-      const origChild = origChildren[i];
+    // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
+    let origIndex = 0;
+
+    for (let i = 0; i < measChildren.length; i++) {
       const measChild = measChildren[i];
 
-      if (origChild.nodeType === Node.ELEMENT_NODE) {
-        if (measChild && measChild.nodeType === Node.ELEMENT_NODE) {
-          walk(origChild, measChild);
+      if (measChild.nodeType === Node.ELEMENT_NODE) {
+        // 检查是否是物化的伪元素
+        if (measChild.hasAttribute && measChild.hasAttribute('data-pseudo')) {
+          // 物化的伪元素：origEl 使用 measChild 自身（原始 DOM 中不存在）
+          walk(measChild, measChild);
+        } else {
+          // 普通元素：从 origChildren 中找对应节点
+          while (
+            origIndex < origChildren.length &&
+            origChildren[origIndex].nodeType !== Node.ELEMENT_NODE
+          ) {
+            origIndex++;
+          }
+
+          if (origIndex < origChildren.length) {
+            const origChild = origChildren[origIndex];
+            walk(origChild, measChild);
+            origIndex++;
+          }
         }
-      } else if (origChild.nodeType === Node.TEXT_NODE) {
-        if (measChild && measChild.nodeType === Node.TEXT_NODE) {
-          // parseTextNode 返回数组（多行时多个节点），逐个 push
-          // 传入 origEl 作为 _origEl，让 text 节点能参与祖先 height 更新
+      } else if (measChild.nodeType === Node.TEXT_NODE) {
+        // 文本节点：从 origChildren 中找对应节点
+        while (
+          origIndex < origChildren.length &&
+          origChildren[origIndex].nodeType !== Node.TEXT_NODE
+        ) {
+          origIndex++;
+        }
+
+        if (origIndex < origChildren.length) {
           const textNodes = parseTextNode({
             textNode: measChild,
             measParent: measEl,
@@ -301,6 +356,7 @@ export function collectNodes(element, cloneRoot) {
             origParent: origEl,
           });
           for (const n of textNodes) nodes.push(n);
+          origIndex++;
         }
       }
     }
