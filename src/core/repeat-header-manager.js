@@ -147,7 +147,7 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
     headerMeta.headerNode._origEl &&
     headerMeta.headerNode._origEl.contains(node._origEl);
 
-  return isHeaderChild;
+  return Boolean(isHeaderChild);
 }
 
 /**

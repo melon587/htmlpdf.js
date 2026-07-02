@@ -237,8 +237,10 @@ export function decodeCSSContent(content) {
   }
 
   // 处理转义序列
-  str = str.replace(/\\([0-9a-fA-F]{1,6})\s?/g, (match, hex) => {
-    return String.fromCharCode(parseInt(hex, 16));
+  // CSS 规范：Unicode 转义后可跟一个可选空格作为终止符（不包含在内容中）
+  // 使用 String.fromCodePoint 支持超过 0xFFFF 的 Unicode 字符（如 Emoji）
+  str = str.replace(/\\([0-9a-fA-F]{1,6})[ \t]?/g, (match, hex) => {
+    return String.fromCodePoint(parseInt(hex, 16));
   });
 
   // 处理其他转义字符
