@@ -194,11 +194,36 @@ export function canvasHasAlpha(canvasEl) {
 
 /**
  * 解码 CSS content 属性值（移除引号，处理转义）
+ *
+ * 支持的语法：
+ * - ✅ 字符串值：`"text"`, `'text'`
+ * - ✅ Unicode 转义：`"\2713"` → ✓
+ * - ✅ 转义字符：`"\n"`, `"\""` 等
+ *
+ * 不支持的语法（返回空字符串）：
+ * - ❌ counter()、counters()：CSS 计数器
+ * - ❌ attr()：元素属性值
+ * - ❌ url()：图片/图标
+ * - ❌ open-quote、close-quote：引号
+ *
  * @param {string} content - CSS content 属性值（如 '"Hello"' 或 '"\f00d"'）
- * @returns {string} 解码后的文本内容
+ * @returns {string} 解码后的文本内容，不支持的语法返回空字符串
  */
 export function decodeCSSContent(content) {
   if (!content || content === 'none' || content === 'normal') {
+    return '';
+  }
+
+  // 检测不支持的语法，输出警告
+  if (
+    /counter\(|counters\(|attr\(|url\(|open-quote|close-quote/i.test(content)
+  ) {
+    console.warn(
+      `[htmlpdf] Unsupported CSS content syntax: ${content}. ` +
+        `Only string values and Unicode escapes are supported. ` +
+        `For counters or dynamic content, use JavaScript to generate real DOM elements.`,
+    );
+
     return '';
   }
 

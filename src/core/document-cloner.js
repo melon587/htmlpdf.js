@@ -48,6 +48,11 @@
  *   ```
  * - 标记 data-pseudo 属性，供 node-parser 识别为 pseudo-element 节点
  *
+ * **content 属性支持：**
+ * - ✅ 支持：字符串值（`"text"`）、Unicode 转义（`\2713`）
+ * - ❌ 不支持：counter()、counters()、attr()、url()、open-quote/close-quote
+ * - 替代方案：需要计数器或动态内容时，建议用 JavaScript 生成真实 DOM 元素
+ *
  * ## 图片预加载策略
  *
  * preloadImages(nodes)

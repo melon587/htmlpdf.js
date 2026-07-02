@@ -30,7 +30,7 @@
       } */
 
       body {
-        font-family: 'Roboto', Arial, sans-serif;
+        font-family: Arial, sans-serif;
         padding: 20px;
       }
       #export-btn {
@@ -88,6 +88,166 @@
       }
       tr:nth-child(even) td {
         background: #f5f5f5;
+      }
+
+      /* Arabic / RTL text styles */
+      .rtl-container {
+        margin-top: 16px;
+        padding: 16px;
+        background: #fff7e6;
+        border: 1px solid #ffd591;
+        border-radius: 4px;
+        direction: rtl;
+        text-align: right;
+      }
+      .rtl-container h3 {
+        color: #fa8c16;
+        font-size: 18px;
+        margin-bottom: 8px;
+      }
+      .rtl-container p {
+        font-size: 14px;
+        line-height: 1.8;
+        color: #333;
+      }
+
+      /* Pseudo-element test styles */
+      .pseudo-section {
+        margin-top: 24px;
+        padding: 16px;
+        background: #f6ffed;
+        border: 1px solid #b7eb8f;
+        border-radius: 4px;
+      }
+      .pseudo-section h3 {
+        color: #52c41a;
+        font-size: 18px;
+        margin-bottom: 12px;
+      }
+
+      /* ::before content insertion */
+      .icon-before::before {
+        content: '✓ ';
+        color: #52c41a;
+        font-weight: bold;
+        font-size: 16px;
+      }
+
+      /* ::after content with styling */
+      .badge::after {
+        content: 'NEW';
+        margin-left: 8px;
+        padding: 2px 6px;
+        background: #ff4d4f;
+        color: #fff;
+        font-size: 10px;
+        border-radius: 3px;
+        font-weight: bold;
+      }
+
+      /* Positioned pseudo-element (absolute) */
+      .corner-mark {
+        position: relative;
+        padding: 12px;
+        background: #e6f7ff;
+        border: 1px solid #91d5ff;
+        border-radius: 4px;
+        margin-top: 8px;
+      }
+      .corner-mark::before {
+        content: '★';
+        position: absolute;
+        top: -8px;
+        left: -8px;
+        width: 24px;
+        height: 24px;
+        background: #1677ff;
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        line-height: 24px;
+        text-align: center;
+      }
+
+      /* Decorative pseudo-elements with borders */
+      .quote-box {
+        position: relative;
+        padding: 16px 16px 16px 24px;
+        background: #fff;
+        border-left: 4px solid #722ed1;
+        margin-top: 8px;
+        font-style: italic;
+        color: #555;
+      }
+      .quote-box::before {
+        content: '"';
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        font-size: 32px;
+        color: #722ed1;
+        opacity: 0.3;
+        font-style: normal;
+      }
+      .quote-box::after {
+        content: '"';
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+        font-size: 32px;
+        color: #722ed1;
+        opacity: 0.3;
+        font-style: normal;
+      }
+
+      /* Simple numbered list with ::before */
+      .step-list {
+        margin-top: 8px;
+        padding-left: 0;
+        list-style: none;
+      }
+      .step-list li {
+        position: relative;
+        padding: 8px 8px 8px 40px;
+        margin-bottom: 8px;
+        background: #fff;
+        border: 1px solid #d9d9d9;
+        border-radius: 4px;
+      }
+      .step-list li:nth-child(1)::before {
+        content: '1';
+      }
+      .step-list li:nth-child(2)::before {
+        content: '2';
+      }
+      .step-list li:nth-child(3)::before {
+        content: '3';
+      }
+      .step-list li:nth-child(4)::before {
+        content: '4';
+      }
+      .step-list li:nth-child(5)::before {
+        content: '5';
+      }
+      .step-list li::before {
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        width: 24px;
+        height: 24px;
+        background: #1677ff;
+        color: #fff;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        line-height: 24px;
+        text-align: center;
       }
     </style>
   </head>
@@ -367,6 +527,131 @@
         </tbody>
       </table>
 
+      <!-- 图片跨页裁切测试：图片足够高，预期在第一页显示上半部分，第二页显示下半部分 -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Image cross-page cropping test (tall image):
+        </p>
+        <img
+          page-break
+          src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
+          crossorigin="anonymous"
+          style="
+            width: 800px;
+            height: 1200px;
+            display: block;
+            border: 2px solid red;
+          "
+          alt="cross-page test"
+        />
+      </div>
+
+      <!-- linear-gradient 渐变背景测试 -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Gradient background tests:
+        </p>
+        <!-- to right -->
+        <div
+          style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #1677ff, #69b1ff);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 13px;
+          "
+        >
+          linear-gradient(to right, #1677ff, #69b1ff)
+        </div>
+        <!-- 135deg + 3 stops -->
+        <div
+          style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(
+              135deg,
+              #ff4d4f 0%,
+              #ffc53d 50%,
+              #73d13d 100%
+            );
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 13px;
+          "
+        >
+          linear-gradient(135deg, #ff4d4f 0%, #ffc53d 50%, #73d13d 100%)
+        </div>
+        <!-- rgba transparent -->
+        <div
+          style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(
+              to bottom,
+              rgba(22, 119, 255, 0.9),
+              rgba(22, 119, 255, 0.1)
+            );
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #1677ff;
+            font-size: 13px;
+          "
+        >
+          linear-gradient(to bottom, rgba(22,119,255,0.9), rgba(22,119,255,0.1))
+        </div>
+        <!-- default direction (to bottom) -->
+        <div
+          style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(#9254de, #f759ab);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 13px;
+          "
+        >
+          linear-gradient(#9254de, #f759ab) — default to bottom
+        </div>
+      </div>
+
+      <!-- Canvas 渲染测试：普通 canvas（在页内） -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Canvas rendering test (normal):
+        </p>
+        <canvas
+          id="canvas-normal"
+          width="760"
+          height="200"
+          style="display: block; border: 2px solid #1677ff"
+        ></canvas>
+      </div>
+
+      <!-- Canvas 跨页裁切测试：canvas 足够高，预期跨页裁切显示 -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Canvas cross-page cropping test (tall canvas):
+        </p>
+        <canvas
+          id="canvas-tall"
+          width="760"
+          height="900"
+          style="display: block; border: 2px solid green"
+        ></canvas>
+      </div>
+
       <!-- page-break="true": force a new page before this element -->
       <div
         class="card"
@@ -384,76 +669,256 @@
         <strong>No Break:</strong> This card has page-break="avoid", so it will
         move to the next page if it does not fit.
       </div>
+
+      <!-- Arabic / RTL text test -->
+      <div class="rtl-container">
+        <h3>اختبار النص العربي (Arabic Text Test)</h3>
+        <p>
+          مرحبا بكم في اختبار htmlpdf! هذا النص مكتوب باللغة العربية لاختبار عرض
+          النصوص من اليمين إلى اليسار (RTL). يدعم htmlpdf عرض اللغات العربية
+          والعبرية والفارسية وغيرها من اللغات التي تُكتب من اليمين إلى اليسار.
+        </p>
+        <p>
+          <strong>التحديات الرئيسية:</strong> ترتيب الأحرف، محاذاة النص، دعم
+          الخطوط، والتنسيقات المختلطة (LTR + RTL).
+        </p>
+        <p
+          style="direction: ltr; text-align: left; color: #888; font-size: 12px"
+        >
+          Note: This paragraph demonstrates mixed directionality - English text
+          in an RTL container with LTR direction override.
+        </p>
+      </div>
+
+      <!-- Pseudo-element comprehensive tests -->
+      <div class="pseudo-section">
+        <h3>Pseudo-element Tests (::before & ::after)</h3>
+
+        <!-- Simple content insertion -->
+        <div style="margin-bottom: 12px">
+          <p class="icon-before">
+            This text has a checkmark icon inserted via ::before
+          </p>
+          <p class="icon-before">
+            Multiple paragraphs with the same pseudo-element style
+          </p>
+        </div>
+
+        <!-- Badge with ::after -->
+        <div style="margin-bottom: 12px">
+          <span
+            class="badge"
+            style="font-size: 14px; color: #333"
+            >Latest Feature</span
+          >
+          <br />
+          <span
+            class="badge"
+            style="
+              font-size: 14px;
+              color: #333;
+              margin-top: 8px;
+              display: inline-block;
+            "
+            >Special Offer</span
+          >
+        </div>
+
+        <!-- Positioned pseudo-element (absolute) -->
+        <div class="corner-mark">
+          <strong>Positioned ::before test:</strong> This box has an absolutely
+          positioned star icon (★) at the top-left corner created with ::before.
+          The pseudo-element uses absolute positioning.
+        </div>
+
+        <!-- Decorative quote box with both ::before and ::after -->
+        <div class="quote-box">
+          The best way to predict the future is to invent it. This quote box
+          uses both ::before and ::after pseudo-elements to add decorative
+          quotation marks with absolute positioning and transparency.
+        </div>
+
+        <!-- Counter list with ::before -->
+        <p
+          style="
+            margin-top: 16px;
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #333;
+          "
+        >
+          Step-by-step guide (numbered with ::before):
+        </p>
+        <ul class="step-list">
+          <li>Initialize your project with npm init</li>
+          <li>Install dependencies using npm install</li>
+          <li>Run the development server with npm run dev</li>
+          <li>Build for production using npm run build</li>
+          <li>Deploy your application to the server</li>
+        </ul>
+
+        <p style="margin-top: 12px; font-size: 12px; color: #888">
+          These pseudo-elements test content insertion, positioning (static,
+          relative, absolute), styling (colors, backgrounds, borders), and
+          numbered lists. All should be correctly materialized and rendered in
+          the PDF output.
+        </p>
+      </div>
     </div>
-    <script type="module">
-      import { htmlpdf } from '../dist/htmlpdf.esm.js';
+    <script src="../dist/htmlpdf.js"></script>
+    <script>
+      // 绘制普通 canvas：渐变背景 + 文字 + 折线图
+      const ctxNormal = document
+        .getElementById('canvas-normal')
+        .getContext('2d');
+      const grad = ctxNormal.createLinearGradient(0, 0, 760, 0);
+      grad.addColorStop(0, '#1677ff');
+      grad.addColorStop(1, '#69b1ff');
+      ctxNormal.fillStyle = grad;
+      ctxNormal.fillRect(0, 0, 760, 200);
+      ctxNormal.fillStyle = '#fff';
+      ctxNormal.font = 'bold 20px Arial';
+      ctxNormal.fillText(
+        'Canvas Normal Test — gradient + text + chart',
+        20,
+        40,
+      );
+      ctxNormal.strokeStyle = '#fff';
+      ctxNormal.lineWidth = 2;
+      ctxNormal.beginPath();
+      [60, 120, 90, 150, 80, 160, 100, 130, 110].forEach((y, i) => {
+        i === 0
+          ? ctxNormal.moveTo(30 + i * 80, y)
+          : ctxNormal.lineTo(30 + i * 80, y);
+      });
+      ctxNormal.stroke();
+
+      // 绘制高 canvas：彩色横条 + 刻度标注，用于测试跨页裁切
+      const ctxTall = document.getElementById('canvas-tall').getContext('2d');
+      const colors = [
+        '#ff4d4f',
+        '#ff7a45',
+        '#ffc53d',
+        '#73d13d',
+        '#40a9ff',
+        '#9254de',
+        '#f759ab',
+      ];
+      const rowH = Math.floor(900 / colors.length);
+      colors.forEach((color, i) => {
+        ctxTall.fillStyle = color;
+        ctxTall.fillRect(0, i * rowH, 760, rowH);
+        ctxTall.fillStyle = '#fff';
+        ctxTall.font = 'bold 18px Arial';
+        ctxTall.fillText(
+          `Row ${i + 1}  y=${i * rowH}px`,
+          20,
+          i * rowH + rowH / 2 + 6,
+        );
+      });
+      // 右侧刻度线
+      ctxTall.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctxTall.lineWidth = 1;
+      for (let y = 0; y <= 900; y += 100) {
+        ctxTall.beginPath();
+        ctxTall.moveTo(700, y);
+        ctxTall.lineTo(760, y);
+        ctxTall.stroke();
+        ctxTall.fillStyle = '#fff';
+        ctxTall.font = '12px Arial';
+        ctxTall.fillText(`${y}px`, 705, y + 12);
+      }
+
       document
         .getElementById('export-btn')
         .addEventListener('click', async () => {
-          const blob = await htmlpdf(document.getElementById('content'), {
-            margin: 5,
-            compress: false,
-            fontConfig: [
-              {
-                fontFamily: 'roboto',
-                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf`,
-                fontWeight: 400,
-                fontStyle: 'normal',
-                isDefault: true,
+          const blob = await htmlpdf.htmlpdf(
+            document.getElementById('content'),
+            {
+              margin: 5,
+              compress: false,
+              fonts: [
+                {
+                  fontFamily: 'roboto',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf`,
+                  fontWeight: 400,
+                  fontStyle: 'normal',
+                  isDefault: true,
+                },
+                {
+                  fontFamily: 'roboto',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf`,
+                  fontWeight: 700,
+                  fontStyle: 'normal',
+                  isDefault: true,
+                },
+                {
+                  fontFamily: 'roboto',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf`,
+                  fontWeight: 400,
+                  fontStyle: 'italic',
+                  isDefault: true,
+                },
+                {
+                  fontFamily: 'roboto',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf`,
+                  fontWeight: 700,
+                  fontStyle: 'italic',
+                  isDefault: true,
+                },
+                {
+                  fontFamily: 'noto-sans-arabic',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
+                  fontWeight: 400,
+                  fontStyle: 'normal',
+                  charRanges: [
+                    [0x0600, 0x06ff], // 阿拉伯语基本区
+                    [0x0750, 0x077f], // 阿拉伯语补充区
+                  ],
+                },
+                {
+                  fontFamily: 'noto-sans-arabic',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
+                  fontWeight: 700,
+                  fontStyle: 'normal',
+                  charRanges: [
+                    [0x0600, 0x06ff], // 阿拉伯语基本区
+                    [0x0750, 0x077f], // 阿拉伯语补充区
+                  ],
+                },
+              ],
+              header: {
+                height: 10,
+                render(doc, { pageNumber, totalPages, pageWidth, margin }) {
+                  doc.setFontSize(9);
+                  doc.setTextColor(100);
+                  doc.text('htmlpdf Export Test', margin, margin - 2);
+                  doc.text(
+                    `${pageNumber} / ${totalPages}`,
+                    pageWidth - margin,
+                    margin - 2,
+                    { align: 'right' },
+                  );
+                },
               },
-              {
-                fontFamily: 'roboto',
-                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf`,
-                fontWeight: 700,
-                fontStyle: 'normal',
-                isDefault: true,
-              },
-              {
-                fontFamily: 'roboto',
-                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf`,
-                fontWeight: 400,
-                fontStyle: 'italic',
-                isDefault: true,
-              },
-              {
-                fontFamily: 'roboto',
-                fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf`,
-                fontWeight: 700,
-                fontStyle: 'italic',
-                isDefault: true,
-              },
-            ],
-            header: {
-              height: 10,
-              render(doc, { pageNumber, totalPages, pageWidth, margin }) {
-                doc.setFontSize(9);
-                doc.setTextColor(100);
-                doc.text('htmlpdf Export Test', margin, margin - 2);
-                doc.text(
-                  `${pageNumber} / ${totalPages}`,
-                  pageWidth - margin,
-                  margin - 2,
-                  { align: 'right' },
-                );
+              footer: {
+                height: 8,
+                render(
+                  doc,
+                  { pageNumber, totalPages, pageWidth, pageHeight, margin },
+                ) {
+                  doc.setFontSize(8);
+                  doc.setTextColor(150);
+                  doc.text(
+                    `${pageNumber}  /  ${totalPages} `,
+                    pageWidth / 2,
+                    pageHeight - margin + 4,
+                    { align: 'center' },
+                  );
+                },
               },
             },
-            footer: {
-              height: 8,
-              render(
-                doc,
-                { pageNumber, totalPages, pageWidth, pageHeight, margin },
-              ) {
-                doc.setFontSize(8);
-                doc.setTextColor(150);
-                doc.text(
-                  `${pageNumber}  /  ${totalPages} `,
-                  pageWidth / 2,
-                  pageHeight - margin + 4,
-                  { align: 'center' },
-                );
-              },
-            },
-          });
+          );
 
           console.log(blob, 'blob');
           const a = Object.assign(document.createElement('a'), {
