@@ -1,5 +1,5 @@
 {
-  "name": "htmlpdf.js",
+  "name": "htmlpdfx.js",
   "version": "1.0.0",
   "description": "A lightweight HTML to PDF converter library based on jsPDF, supporting custom fonts, page breaks, repeat headers, and multi-page rendering",
   "main": "dist/htmlpdf.js",
@@ -40,9 +40,13 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write src",
-    "prepublishOnly": "npm run build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm run test",
+    "publish:check": "npm pack --dry-run",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major"
   },
   "dependencies": {
     "jspdf": "4.2.1"

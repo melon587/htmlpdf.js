@@ -1,6 +1,6 @@
-# htmlpdf.js
+# htmlpdfx.js
 
-[![npm version](https://img.shields.io/npm/v/htmlpdf.js.svg)](https://www.npmjs.com/package/htmlpdf.js) [![license](https://img.shields.io/npm/l/htmlpdf.js.svg)](https://github.com/melon587/htmlpdf.js/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/htmlpdfx.js.svg)](https://www.npmjs.com/package/htmlpdfx.js) [![license](https://img.shields.io/npm/l/htmlpdfx.js.svg)](https://github.com/melon587/htmlpdf.js/blob/main/LICENSE)
 
 [English](./README.md) | [中文文档](./README.zh-CN.md)
 
@@ -23,13 +23,13 @@ A lightweight HTML to PDF converter library based on jsPDF, supporting custom fo
 ## 📦 Installation
 
 ```bash
-npm install htmlpdf.js
+npm install htmlpdfx.js
 ```
 
 ## 🚀 Quick Start
 
 ```javascript
-import { htmlpdf } from 'htmlpdf.js';
+import { htmlpdf } from 'htmlpdfx.js';
 
 // Basic usage
 const element = document.getElementById('content');

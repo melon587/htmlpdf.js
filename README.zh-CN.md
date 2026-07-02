@@ -1,6 +1,6 @@
-# htmlpdf.js
+# htmlpdfx.js
 
-[![npm version](https://img.shields.io/npm/v/htmlpdf.js.svg)](https://www.npmjs.com/package/htmlpdf.js) [![license](https://img.shields.io/npm/l/htmlpdf.js.svg)](https://github.com/melon587/htmlpdf.js/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/htmlpdfx.js.svg)](https://www.npmjs.com/package/htmlpdfx.js) [![license](https://img.shields.io/npm/l/htmlpdfx.js.svg)](https://github.com/melon587/htmlpdf.js/blob/main/LICENSE)
 
 [English](./README.md) | [中文文档](./README.zh-CN.md)
 
@@ -23,13 +23,13 @@
 ## 📦 安装
 
 ```bash
-npm install htmlpdf.js
+npm install htmlpdfx.js
 ```
 
 ## 🚀 快速开始
 
 ```javascript
-import { htmlpdf } from 'htmlpdf.js';
+import { htmlpdf } from 'htmlpdfx.js';
 
 // 基础用法
 const element = document.getElementById('content');
