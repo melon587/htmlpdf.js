@@ -250,6 +250,35 @@ export function decodeCSSContent(content) {
 }
 
 /**
+ * 复制边框样式到元素
+ * @param {HTMLSpanElement} span - 目标元素
+ * @param {CSSStyleDeclaration} pseudoStyle - 伪元素的计算样式
+ */
+function copyBorderStyles(span, pseudoStyle) {
+  const { style } = span;
+
+  if (pseudoStyle.borderTopWidth !== '0px') {
+    style.borderTop = `${pseudoStyle.borderTopWidth} ${pseudoStyle.borderTopStyle} ${pseudoStyle.borderTopColor}`;
+  }
+
+  if (pseudoStyle.borderRightWidth !== '0px') {
+    style.borderRight = `${pseudoStyle.borderRightWidth} ${pseudoStyle.borderRightStyle} ${pseudoStyle.borderRightColor}`;
+  }
+
+  if (pseudoStyle.borderBottomWidth !== '0px') {
+    style.borderBottom = `${pseudoStyle.borderBottomWidth} ${pseudoStyle.borderBottomStyle} ${pseudoStyle.borderBottomColor}`;
+  }
+
+  if (pseudoStyle.borderLeftWidth !== '0px') {
+    style.borderLeft = `${pseudoStyle.borderLeftWidth} ${pseudoStyle.borderLeftStyle} ${pseudoStyle.borderLeftColor}`;
+  }
+
+  if (pseudoStyle.borderRadius && pseudoStyle.borderRadius !== '0px') {
+    style.borderRadius = pseudoStyle.borderRadius;
+  }
+}
+
+/**
  * 复制伪元素样式到 span 元素
  *
  * ## 功能说明
@@ -268,11 +297,12 @@ export function decodeCSSContent(content) {
  *    - 使用局部变量 spanStyle，避免 ESLint no-param-reassign 警告
  *
  * 3. **样式覆盖范围**：
- *    - 文本样式：color, fontSize, fontWeight, fontStyle, fontFamily, lineHeight
+ *    - 文本样式：color, fontSize, fontWeight, fontStyle, fontFamily, lineHeight, textAlign
  *    - 盒模型：width, height, padding, margin
  *    - 背景：backgroundColor（跳过透明背景）
  *    - 边框：borderWidth, borderStyle, borderColor, borderRadius
  *    - 定位：position, top, left, right, bottom（仅限绝对/固定定位）
+ *    - Flexbox：alignItems, justifyContent, flexDirection, flexWrap
  *
  * ## 使用场景
  *
@@ -307,6 +337,7 @@ export function copyPseudoStyles(span, pseudoStyle) {
     fontFamily: pseudoStyle.fontFamily,
     lineHeight: pseudoStyle.lineHeight,
     verticalAlign: pseudoStyle.verticalAlign,
+    textAlign: pseudoStyle.textAlign,
 
     // 盒模型
     width: pseudoStyle.width !== 'auto' ? pseudoStyle.width : null,
@@ -332,6 +363,20 @@ export function copyPseudoStyles(span, pseudoStyle) {
     left: isPositioned ? pseudoStyle.left : null,
     right: isPositioned ? pseudoStyle.right : null,
     bottom: isPositioned ? pseudoStyle.bottom : null,
+
+    // 注意：opacity 暂不支持（jsPDF 需要 GState，渲染层未实现）
+    // TODO: 未来可通过 doc.setGState(new doc.GState({ opacity: ... })) 实现
+
+    // Flexbox 属性
+    alignItems:
+      pseudoStyle.alignItems !== 'normal' ? pseudoStyle.alignItems : null,
+    justifyContent:
+      pseudoStyle.justifyContent !== 'normal'
+        ? pseudoStyle.justifyContent
+        : null,
+    flexDirection:
+      pseudoStyle.flexDirection !== 'row' ? pseudoStyle.flexDirection : null,
+    flexWrap: pseudoStyle.flexWrap !== 'nowrap' ? pseudoStyle.flexWrap : null,
   };
 
   const spanStyle = span.style;
@@ -343,25 +388,6 @@ export function copyPseudoStyles(span, pseudoStyle) {
     }
   });
 
-  // 边框（需要组合属性）
-  if (pseudoStyle.borderTopWidth !== '0px') {
-    spanStyle.borderTop = `${pseudoStyle.borderTopWidth} ${pseudoStyle.borderTopStyle} ${pseudoStyle.borderTopColor}`;
-  }
-
-  if (pseudoStyle.borderRightWidth !== '0px') {
-    spanStyle.borderRight = `${pseudoStyle.borderRightWidth} ${pseudoStyle.borderRightStyle} ${pseudoStyle.borderRightColor}`;
-  }
-
-  if (pseudoStyle.borderBottomWidth !== '0px') {
-    spanStyle.borderBottom = `${pseudoStyle.borderBottomWidth} ${pseudoStyle.borderBottomStyle} ${pseudoStyle.borderBottomColor}`;
-  }
-
-  if (pseudoStyle.borderLeftWidth !== '0px') {
-    spanStyle.borderLeft = `${pseudoStyle.borderLeftWidth} ${pseudoStyle.borderLeftStyle} ${pseudoStyle.borderLeftColor}`;
-  }
-
-  // 边框圆角
-  if (pseudoStyle.borderRadius && pseudoStyle.borderRadius !== '0px') {
-    spanStyle.borderRadius = pseudoStyle.borderRadius;
-  }
+  // 边框样式（提取到辅助函数降低复杂度）
+  copyBorderStyles(span, pseudoStyle);
 }

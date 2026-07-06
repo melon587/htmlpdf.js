@@ -105,6 +105,96 @@ async function waitForImages(iframeDoc) {
 }
 
 /**
+ * 等待 iframe 内的样式表全部加载完成
+ *
+ * 关键修复：克隆后的 <link rel="stylesheet"> 需要重新加载 CSS 文件。
+ * 如果不等待加载完成，getComputedStyle() 会返回浏览器默认样式，导致 PDF 样式丢失。
+ *
+ * @param {Document} iframeDoc - iframe 的 document
+ * @param {number} timeout - 单个样式表超时时间（毫秒），默认 10000ms
+ * @returns {Promise<void>}
+ */
+async function waitForStyleSheets(iframeDoc, timeout = 10000) {
+  const linkTags = Array.from(
+    iframeDoc.querySelectorAll('link[rel="stylesheet"]'),
+  );
+
+  if (linkTags.length === 0) return;
+
+  await Promise.all(
+    linkTags.map((link) => waitForSingleStyleSheet(link, timeout)),
+  );
+}
+
+/**
+ * 等待单个样式表加载完成
+ * @param {HTMLLinkElement} link - link 标签元素
+ * @param {number} timeout - 超时时间（毫秒）
+ * @returns {Promise<void>}
+ */
+function waitForSingleStyleSheet(link, timeout) {
+  return new Promise((resolve) => {
+    let timeoutId = null;
+
+    // 清理函数：取消定时器和事件监听器
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+
+    // 检查样式表是否已经加载
+    // 注意：跨域 CSS 无法访问 cssRules，但 link.sheet 存在说明已加载
+    const isLoaded = () => {
+      if (!link.sheet) return false;
+
+      try {
+        // 同域 CSS：尝试访问 cssRules 确认加载完成
+        return link.sheet.cssRules && link.sheet.cssRules.length >= 0;
+      } catch (e) {
+        // 跨域 CSS：link.sheet 存在但无法访问 cssRules（CORS 限制）
+        // 这说明样式表已经加载完成
+        return true;
+      }
+    };
+
+    // 如果已经加载，直接 resolve
+    if (isLoaded()) {
+      resolve();
+
+      return;
+    }
+
+    // 设置超时
+    timeoutId = setTimeout(() => {
+      cleanup();
+      console.warn(
+        `[htmlpdf] Stylesheet load timeout (${timeout}ms): ${link.href}`,
+      );
+      resolve();
+    }, timeout);
+
+    // 监听加载事件
+    link.addEventListener(
+      'load',
+      () => {
+        cleanup();
+        resolve();
+      },
+      { once: true },
+    );
+
+    link.addEventListener(
+      'error',
+      () => {
+        cleanup();
+        console.warn(`[htmlpdf] Stylesheet load error: ${link.href}`);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
  * 从 CSS backgroundImage 字符串中提取第一个 url() 的地址
  */
 function parseBgImageUrl(bgImage) {
@@ -386,6 +476,15 @@ export async function createClonedDocument(element, fonts = []) {
       iframeDoc.documentElement,
     );
 
+    // 设置 base URL，确保 CSS 和资源路径正确（修复 iframe 嵌套 + 相对路径问题）
+    // 必须在 replaceChild 之后添加，否则会被覆盖
+    const baseEl = iframeDoc.createElement('base');
+    baseEl.href = ownerDoc.baseURI || ownerDoc.location.href;
+    // 插入到 <head> 的最前面，让所有后续的 <link> 标签使用正确的 base URL
+    if (iframeDoc.head) {
+      iframeDoc.head.insertBefore(baseEl, iframeDoc.head.firstChild);
+    }
+
     // Step 3.5: 注入字体样式，等待字体加载完成后布局才稳定
     await injectFontsToDocument(iframeDoc, fonts);
 
@@ -397,7 +496,10 @@ export async function createClonedDocument(element, fonts = []) {
 
     materializePseudoElements(cloneRoot);
 
-    // Step 4: 等待 layout 稳定 + 图片加载
+    // Step 4: 等待样式表加载（关键修复：确保外部 CSS 加载完成）
+    await waitForStyleSheets(iframeDoc);
+
+    // Step 5: 等待 layout 稳定 + 图片加载
     await waitForLayout();
     await waitForImages(iframeDoc);
 
