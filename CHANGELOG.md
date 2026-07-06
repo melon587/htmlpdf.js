@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-07-06
+
+### 🐛 Bug Fixes
+
+#### External CSS Loading
+
+- **Fixed external stylesheet loading in cloned iframes** - Added `waitForStyleSheets()` function to ensure all `<link rel="stylesheet">` tags are fully loaded before rendering
+  - External CSS (e.g., Bootstrap CDN) is now correctly applied to PDF output
+  - Handles both same-origin and cross-origin (CORS) stylesheets
+  - Added `<base>` tag to cloned iframe to fix relative URL resolution in nested iframe scenarios
+  - Implements 10-second timeout per stylesheet to prevent indefinite blocking
+
+#### Pseudo-element Styles
+
+- **Enhanced pseudo-element style copying** - Improved `copyPseudoStyles()` to include missing CSS properties
+  - Added support for `textAlign` - ensures text alignment is preserved
+  - Added support for Flexbox properties (`alignItems`, `justifyContent`, `flexDirection`, `flexWrap`)
+  - Extracted `copyBorderStyles()` helper function to reduce code complexity and pass ESLint checks
+  - Note: `opacity` is not yet supported (requires jsPDF GState API implementation)
+
+### 🔧 Code Quality
+
+- **Reduced cyclomatic complexity** - Refactored `copyPseudoStyles()` to meet ESLint complexity threshold (<20)
+- **Fixed ESLint violations** - Resolved `no-param-reassign` warnings in border style copying
+- **Added debug logging** - Implemented detailed logging in `findFontForChar()` for font selection debugging (can be removed in production)
+
+### 📝 Documentation
+
+- **Updated Unicode range examples** - Clarified that special symbols (★ ✓ ● ➤) require proper `charRanges` configuration:
+  - `U+2600-U+26FF` - Miscellaneous Symbols (★ ☀ ☁ ☂)
+  - `U+2700-U+27BF` - Dingbats (✓ ✗ ➤ ✈)
+  - Added examples for configuring symbol fonts with `charRanges`
+
+### 🧪 Testing
+
+- All 158 unit tests pass
+- Manual testing confirms external CSS and pseudo-element fixes work correctly
+
+### ⚠️ Known Limitations
+
+- **Opacity not supported** - Pseudo-elements with `opacity` will render at full opacity (requires future implementation of jsPDF GState API)
+- **Symbol fonts** - Special characters (★ ✓) require explicit font configuration with appropriate `charRanges`
+
+### 📦 Migration Guide
+
+No breaking changes - this release is fully backward compatible with v1.0.0.
+
+If you experience missing styles in PDF output:
+
+1. Ensure external CSS files are accessible (CORS-enabled for cross-origin stylesheets)
+2. Check that relative URLs in CSS are correct (now handled automatically via `<base>` tag)
+3. Configure symbol fonts if using special characters in pseudo-element `content`
+
+---
+
 ## [1.0.0] - 2026-07-02
 
 ### 🎉 Initial Release
@@ -108,8 +163,8 @@ Built with:
 - [jsPDF](https://github.com/parallax/jsPDF) - PDF generation library
 - [Rollup](https://rollupjs.org/) - Module bundler
 - [Vitest](https://vitest.dev/) - Unit testing framework
-- [Playwright](https://playwright.dev/) - E2E testing framework
 
 ---
 
+[1.0.1]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.1
 [1.0.0]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.0
