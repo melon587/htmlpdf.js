@@ -187,7 +187,10 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   const docRange = win.document.createRange();
 
   for (const token of tokens) {
-    if (!token.text.trim()) continue; // 跳过纯空白 token
+    // 跳过空白 token 和空字符串
+    // RTL 文本（阿拉伯语等）的空格会在合并时用 join(' ') 恢复
+    // LTR 文本的空格由浏览器的 letter-spacing 和字体度量自动处理
+    if (!token.text.trim()) continue;
 
     docRange.setStart(textNode, token.offset);
     docRange.setEnd(textNode, token.offset + token.text.length);
@@ -262,7 +265,7 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
       nodes.push({
         type: 'text',
         tag: '#text',
-        text: token.text.trim(),
+        text: token.text, // 保留原始文本，包括空格
         x: r.left - rootRect.left,
         y: r.top - rootRect.top,
         width: r.width,
@@ -449,6 +452,7 @@ function mergeRTLTextNodes(nodes) {
 
     // 合并：按文档顺序 join（即逻辑顺序），让 jsPDF BiDi 引擎处理视觉排列
     // 不按 x 排序：sort 会把 LTR token（如 "Air-" "ECO"）反序，导致显示错误
+    // 用空格 join：因为我们在 tokenize 时跳过了空格 token（避免破坏阿拉伯语连体字）
     const mergedText = group.map((n) => n.text).join(' ');
 
     // rightmost/leftmost 按 x 坐标 reduce 取（用于坐标计算，与 join 顺序无关）
