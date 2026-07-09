@@ -253,7 +253,10 @@
   </head>
   <body>
     <button id="export-btn">Export PDF</button>
-    <div id="content">
+    <div
+      id="content"
+      pdf-font="roboto"
+    >
       <h1>htmlpdf Export Test</h1>
       <p>
         This is a plain text paragraph for testing text rendering. It includes
@@ -291,6 +294,10 @@
           <li>License: [LIC-PRO]-(2024-2025) Annual Subscription</li>
           <li>Config: {server}-(production):[port-8080]</li>
           <li>Path: /usr/local/bin/app-[v2.0]-( stable )</li>
+          <li>
+            > Garanzia Tipo A: 12 months commissioning date, 18 monthsbilling
+            date
+          </li>
         </ul>
       </div>
       <div class="card">
@@ -314,9 +321,9 @@
         </thead>
         <tbody>
           <tr>
-            <td>Alice</td>
-            <td>Engineering</td>
-            <td>Frontend Engineer</td>
+            <td>[87022201] - HIDTCXNX</td>
+            <td>> PPA-Air flow test</td>
+            <td>Kit giunti di connessione ad Yper unità interne VRF</td>
             <td>A001</td>
             <td>2019</td>
           </tr>
@@ -705,7 +712,10 @@
       </div>
 
       <!-- Arabic / RTL text test -->
-      <div class="rtl-container">
+      <div
+        class="rtl-container"
+        pdf-font="noto-sans-arabic"
+      >
         <h3>اختبار النص العربي (Arabic Text Test)</h3>
         <p>
           مرحبا بكم في اختبار htmlpdf! هذا النص مكتوب باللغة العربية لاختبار عرض
@@ -716,8 +726,39 @@
           <strong>التحديات الرئيسية:</strong> ترتيب الأحرف، محاذاة النص، دعم
           الخطوط، والتنسيقات المختلطة (LTR + RTL).
         </p>
+
+        <!-- Mixed Arabic + parentheses numbers test -->
         <p
-          style="direction: ltr; text-align: left; color: #888; font-size: 12px"
+          style="
+            margin-top: 12px;
+            border-top: 1px dashed #ffd591;
+            padding-top: 12px;
+          "
+        >
+          <strong style="color: #fa8c16"
+            >اختبار الأرقام بين قوسين (Mixed with parentheses):</strong
+          >
+        </p>
+        <p>(1) الخطوة الأولى: تثبيت المكتبة باستخدام npm install htmlpdfx.js</p>
+        <p>(2) الخطوة الثانية: استيراد المكتبة في ملف JavaScript الخاص بك</p>
+        <p>
+          (3) الخطوة الثالثة: استدعاء دالة htmlpdf.htmlpdf() مع العنصر المطلوب
+        </p>
+        <p>
+          النتيجة (Result): ستحصل على ملف PDF (بتنسيق عالي الجودة) يحتوي على
+          [المحتوى-123] بشكل صحيح.
+        </p>
+        <p
+          style="
+            direction: ltr;
+            text-align: left;
+            color: #888;
+            font-size: 12px;
+            margin-top: 12px;
+            border-top: 1px dashed #ffd591;
+            padding-top: 12px;
+          "
+          pdf-font="roboto"
         >
           Note: This paragraph demonstrates mixed directionality - English text
           in an RTL container with LTR direction override.
@@ -905,20 +946,20 @@
                   fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
                   fontWeight: 400,
                   fontStyle: 'normal',
-                  charRanges: [
-                    [0x0600, 0x06ff], // 阿拉伯语基本区
-                    [0x0750, 0x077f], // 阿拉伯语补充区
-                  ],
+                  // charRanges: [
+                  //   [0x0600, 0x06ff], // 阿拉伯语基本区（用于纯阿拉伯语自动匹配）
+                  //   [0x0750, 0x077f], // 阿拉伯语补充区
+                  // ],
                 },
                 {
                   fontFamily: 'noto-sans-arabic',
                   fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
                   fontWeight: 700,
                   fontStyle: 'normal',
-                  charRanges: [
-                    [0x0600, 0x06ff], // 阿拉伯语基本区
-                    [0x0750, 0x077f], // 阿拉伯语补充区
-                  ],
+                  // charRanges: [
+                  //   [0x0600, 0x06ff], // 阿拉伯语基本区（用于纯阿拉伯语自动匹配）
+                  //   [0x0750, 0x077f], // 阿拉伯语补充区
+                  // ],
                 },
               ],
               header: {

@@ -75,7 +75,7 @@ function parsePdfFontNames(pdfFont) {
  *
  * 完整优先级链（对每个字符独立决策）：
  * 1. pdf-font 数组中有 charRanges 的字体 → 按声明顺序插到最前，精确匹配优先
- * 2. pdf-font 数组中最后一个无 charRanges 的字体 → 作为本节点的 isDefault 兜底
+ * 2. pdf-font 数组中第一个无 charRanges 的字体 → 作为本节点的 isDefault 兜底
  * 3. 全局 charRanges 匹配
  * 4. 全局 isDefault 字体
  * 5. helvetica（渲染层兜底，不在此处理）
@@ -223,16 +223,15 @@ function drawRTLMerged({
   ctx,
   y,
   fontStyle,
-  sortedFontConfig,
+  effectiveFontConfig,
   fallbackFontFamily,
 }) {
   const rightEdge = ctx.toPdfX(node._rightEdge);
 
-  // 字体选择：用 buildEffectiveFontConfig 融入 pdf-font 优先级，再取第一个匹配的字体
-  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
-  const segments = segmentTextByFont(node.text, effectiveFontConfig);
+  // 字体选择：取 isDefault（用户为本节点指定的兜底字体），找不到再取列表第一个
   const selectedFontFamily =
-    segments.find((s) => s.font?.fontFamily)?.font?.fontFamily ??
+    effectiveFontConfig.find((f) => f.isDefault)?.fontFamily ??
+    effectiveFontConfig[0]?.fontFamily ??
     fallbackFontFamily;
 
   setFont(doc, selectedFontFamily, fontStyle, fallbackFontFamily);
@@ -251,58 +250,20 @@ function drawRTLMerged({
 /**
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
- * drawText(doc, node, ctx, clipTop, sortedFontConfig, fallbackFontFamily)
- * │
- * ├─ 坐标系
- * │ ├─ 输入坐标（node.x / node.y）
- * │ │ ├─ 来源：node-parser.js 的 collectNodes() 输出
- * │ │ ├─ 坐标系：相对于克隆根元素左上角（iframe 内的独立坐标系）
- * │ │ └─ 单位：px（浏览器像素）
- * │ ├─ 坐标转换（通过 ctx）
- * │ │ ├─ ctx.toPdfX(node.x) → PDF X 坐标（mm，相对于 PDF 页面左边缘）
- * │ │ ├─ ctx.toPdfY(node.y) → PDF Y 坐标（mm，相对于 PDF 页面顶边缘）
- * │ │ └─ ctx.toMM(fontSize) → 字号转换为 mm（基线偏移）
- * │ └─ 最终 PDF 坐标
- * │   ├─ x = ctx.toPdfX(node.x)                       // PDF X 坐标（mm）
- * │   └─ y = ctx.toPdfY(node.y) + ctx.toMM(fontSize)  // PDF Y 坐标（mm）+ 基线偏移
- * │
- * ├─ 路径 1：无自定义字体配置（sortedFontConfig.length === 0）
- * │ ├─ 字体：helvetica（兜底字体）
- * │ ├─ RTL 处理：附加 jsPDF BiDi 选项（isInputRtl/isOutputVisual 等）
- * │ └─ 适用场景：用户未传 fonts 配置，或纯 LTR 英文文档
- * │
- * ├─ 路径 2：合并后的 RTL 节点（isRTL && node._isRTLMerged）
- * │ ├─ 来源：node-parser 的 mergeRTLTextNodes() 合并同行、同父、同样式的 RTL 单词
- * │ │ └─ 记录 _rightEdge（最右单词的右边界 px）
- * │ ├─ 原因：jsPDF BiDi 引擎需要完整句子上下文
- * │ │ ├─ 处理 "100%"→"%100" 的字符重排序
- * │ │ ├─ 处理括号镜像 "(" → ")"
- * │ │ └─ 单独的 "100%" token 没有阿拉伯上下文，BiDi 引擎无法判断方向
- * │ ├─ 字体选择：pdf-font > charRanges > fallback
- * │ ├─ 渲染方式：整体文本一次性传给 doc.text()
- * │ │ ├─ 使用 align:'right' + rightEdge 作为右对齐基准点
- * │ │ └─ 让 jsPDF BiDi 引擎处理字符重排序
- * │ └─ 注意：不能走 segmentTextByFont 逐段渲染
- * │   └─ 每段都 align:right 会导致所有段叠在同一个 x 坐标上，产生文字重叠
- * │
- * └─ 路径 3：普通分段渲染（LTR 或未合并的单个 RTL 单词）
- *   ├─ 步骤 1：字体选择（selectFont）
- *   │ ├─ 优先级 1：pdf-font 属性匹配
- *   │ │ └─ 如果匹配成功，整个节点用该字体渲染（不分段）→ return
- *   │ └─ 优先级 2：pdf-font 未匹配 → 走 charRanges 自动分段
- *   ├─ 步骤 2：自动分段（segmentTextByFont）
- *   │ ├─ 按字体配置拆分文本
- *   │ │ └─ 例如 "VAT 15% ضريبة" → [{text:"VAT 15% ", font:null}, {text:"ضريبة", font:arabicFont}]
- *   │ └─ 每段独立设置字体后渲染，curX 从 node.x 向右累积
- *   ├─ 步骤 3：逐段渲染
- *   │ ├─ RTL 单词段：使用浏览器已计算好的 curX 坐标 + RTL 引擎处理字符顺序
- *   │ └─ LTR 段：普通 doc.text() 渲染
- *   └─ 适用场景：英阿混排的单行文本、表格标题等
+ * 渲染路径：
+ * - 路径 1：无自定义字体配置 → helvetica 直接渲染
+ * - 路径 2：合并后的 RTL 节点（_isRTLMerged）→ 整体一次性渲染（不可分段，否则 align:right 重叠）
+ * - 路径 3：其余节点 → buildEffectiveFontConfig 融入 pdf-font 优先级后，segmentTextByFont 分段渲染
+ *
+ * 字体优先级（路径 2/3）：
+ *   pdf-font+charRanges > pdf-font(无charRanges 作 isDefault) > 全局 charRanges > isDefault > helvetica
+ *
+ * 坐标系：node.x/node.y 为相对克隆根元素左上角的 px 值，经 ctx 转换为 PDF mm 坐标。
  *
  * @param {Object} doc - jsPDF 实例
- * @param {Object} node - 文本节点，包含 text/x/y/style/pdfFont/_isRTLMerged/_rightEdge 等字段
- * @param {Object} ctx - 渲染上下文，提供 toMM/toPt/toPdfX/toPdfY 等坐标转换方法
- * @param {number} clipTop - 裁剪顶部（mm），节点顶部低于此值时跳过（用于分页边界）
+ * @param {Object} node - 文本节点
+ * @param {Object} ctx - 坐标转换上下文（toMM / toPt / toPdfX / toPdfY）
+ * @param {number} clipTop - 裁剪顶部（mm），节点顶部低于此值时跳过
  * @param {Array}  sortedFontConfig - 已按 priority 排好序的字体配置数组
  * @param {string} fallbackFontFamily - 兜底字体名（默认 'helvetica'）
  */
@@ -354,6 +315,9 @@ function drawText({
     return;
   }
 
+  // 路径 2/3 共用：融入 pdf-font 优先级，只算一次
+  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
+
   // ── 路径 2：合并后的 RTL 节点 → 整体渲染，提前 return ──────────────────────
   // 不走 segmentTextByFont，避免逐 segment 右对齐导致重叠
   if (isRTL && node._isRTLMerged) {
@@ -363,7 +327,7 @@ function drawText({
       ctx,
       y,
       fontStyle,
-      sortedFontConfig,
+      effectiveFontConfig,
       fallbackFontFamily,
     });
 
@@ -371,9 +335,7 @@ function drawText({
   }
 
   // ── 路径 3：分 segment 渲染（LTR + RTL 单词混合）──────────────────────────
-  // pdf-font（若有）已融入 effectiveFontConfig 的优先级，统一走 segmentTextByFont
   // 优先级：pdf-font+charRanges > pdf-font(无charRanges,作isDefault) > 全局charRanges > isDefault > fallback
-  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
   const segments = segmentTextByFont(node.text, effectiveFontConfig);
   let curX = x;
 
