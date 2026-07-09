@@ -56,6 +56,80 @@ const blob = await htmlpdf(element, {
 });
 ```
 
+### Per-element Font Override (`pdf-font`)
+
+Use the `pdf-font` attribute to specify which font(s) to use for a specific element, without changing the global font configuration. This is useful when different parts of your document need different fonts.
+
+> **Prerequisite**: The font name used in `pdf-font` must already be registered in the global `fonts` config. If it is not found, the font will be skipped and a warning will be printed to the console.
+
+**Basic usage — assign a single font to an element:**
+
+```javascript
+// Step 1: Register fonts in the global fonts config
+const blob = await htmlpdf(element, {
+  fonts: [
+    {
+      fontFamily: 'Roboto',
+      fontUrl: '/fonts/Roboto-Regular.ttf',
+      isDefault: true,
+    },
+    {
+      fontFamily: 'NotoSansCJK',
+      fontUrl: '/fonts/NotoSansCJK-Regular.ttf',
+      charRanges: [[0x4e00, 0x9fff]],
+    },
+  ],
+});
+```
+
+```html
+<!-- Step 2: Use pdf-font in HTML to assign a registered font to this element -->
+<!-- This paragraph uses NotoSansCJK regardless of the global default -->
+<p pdf-font="NotoSansCJK">你好世界</p>
+```
+
+**Multiple fonts — for mixed-language text within a single element:**
+
+```html
+<!-- Static attribute (comma-separated) -->
+<p pdf-font="Roboto,NotoSansCJK">Hello 你好</p>
+
+<!-- Vue dynamic binding (array) -->
+<p :pdf-font="['Roboto', 'NotoSansCJK']">Hello 你好</p>
+```
+
+When multiple fonts are listed, fonts with `charRanges` configured will match their respective character ranges precisely. The first font without `charRanges` acts as the default fallback for that element.
+
+**Priority chain for `pdf-font` elements:**
+
+```
+pdf-font fonts (with charRanges)
+  → pdf-font fonts (without charRanges, as element default)
+    → global charRanges fonts
+      → global isDefault font
+        → helvetica
+```
+
+**Fine-grained control — combine `pdf-font` with `charRanges`:**
+
+If the global config uses Roboto as default, but a specific paragraph is all Chinese and you want NotoSansCJK to render it directly without per-character `charRanges` matching:
+
+```javascript
+// Global config
+fonts: [
+  { fontFamily: 'Roboto', isDefault: true },
+  { fontFamily: 'NotoSansCJK', charRanges: [[0x4e00, 0x9fff]] },
+];
+```
+
+```html
+<!-- This paragraph uses NotoSansCJK as its element default,
+     skipping per-character charRanges matching -->
+<p pdf-font="NotoSansCJK">全中文段落，直接用 NotoSansCJK 渲染</p>
+```
+
+---
+
 ### Custom Fonts
 
 ```javascript

@@ -56,6 +56,79 @@ const blob = await htmlpdf(element, {
 });
 ```
 
+### 元素级字体覆盖（`pdf-font`）
+
+使用 `pdf-font` 属性为特定元素指定字体，不影响全局字体配置。适合文档中不同区域需要使用不同字体的场景。
+
+> **前提**：`pdf-font` 中填写的字体名必须已在全局 `fonts` 配置中注册，否则该字体会被跳过并打印警告。
+
+**基础用法 — 为单个元素指定字体：**
+
+```javascript
+// 第一步：在全局 fonts 中注册字体
+const blob = await htmlpdf(element, {
+  fonts: [
+    {
+      fontFamily: 'Roboto',
+      fontUrl: '/fonts/Roboto-Regular.ttf',
+      isDefault: true,
+    },
+    {
+      fontFamily: 'NotoSansCJK',
+      fontUrl: '/fonts/NotoSansCJK-Regular.ttf',
+      charRanges: [[0x4e00, 0x9fff]],
+    },
+  ],
+});
+```
+
+```html
+<!-- 第二步：在 HTML 中通过 pdf-font 指定该元素使用哪个已注册字体 -->
+<!-- 该段落强制使用 NotoSansCJK，不受全局默认字体影响 -->
+<p pdf-font="NotoSansCJK">你好世界</p>
+```
+
+**多字体 — 用于单个元素内的多语言混排：**
+
+```html
+<!-- 静态属性（逗号分隔） -->
+<p pdf-font="Roboto,NotoSansCJK">Hello 你好</p>
+
+<!-- Vue 动态绑定（数组） -->
+<p :pdf-font="['Roboto', 'NotoSansCJK']">Hello 你好</p>
+```
+
+当指定多个字体时，配置了 `charRanges` 的字体会按字符范围精确匹配，第一个未配置 `charRanges` 的字体作为该元素的默认兜底字体。
+
+**`pdf-font` 元素的优先级链：**
+
+```
+pdf-font 字体（有 charRanges）
+  → pdf-font 字体（无 charRanges，作元素默认）
+    → 全局 charRanges 字体
+      → 全局 isDefault 字体
+        → helvetica
+```
+
+**精细控制 — 结合 `pdf-font` 与 `charRanges`：**
+
+全局配置使用 Roboto 作为默认字体，但某个段落全部是中文，希望直接用 NotoSansCJK 渲染而不走 charRanges 匹配：
+
+```javascript
+// 全局配置
+fonts: [
+  { fontFamily: 'Roboto', isDefault: true },
+  { fontFamily: 'NotoSansCJK', charRanges: [[0x4e00, 0x9fff]] },
+];
+```
+
+```html
+<!-- 该段落以 NotoSansCJK 作为默认字体（无需每个字符走 charRanges 匹配） -->
+<p pdf-font="NotoSansCJK">全中文段落，直接用 NotoSansCJK 渲染</p>
+```
+
+---
+
 ### 自定义字体
 
 ```javascript

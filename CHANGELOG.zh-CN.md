@@ -4,6 +4,28 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [1.0.3] - 2026-07-09
+
+### ✨ 新功能
+
+#### 元素级字体覆盖（`pdf-font`）
+
+- **新增 `pdf-font` 属性** - 允许对单个元素覆盖字体，不影响全局字体配置
+  - 支持单字体：`pdf-font="roboto"`
+  - 支持多字体（逗号分隔）：`pdf-font="roboto,notoSansArabic"`
+  - 支持 Vue 动态绑定（数组）：`:pdf-font="['roboto', 'notoSansArabic']"`
+  - 配置了 `charRanges` 的字体按字符范围精确匹配；未配置 `charRanges` 的字体作为该元素的默认兜底字体
+  - 优先级链：`pdf-font`（有 charRanges）> `pdf-font`（无 charRanges，作元素默认）> 全局 charRanges > 全局默认 > helvetica
+
+### 🐛 Bug 修复
+
+#### 文本渲染 - 多行文本坐标偏移
+
+- **修复多行文本字符坐标偏移问题** - `processMultilineText` 之前将规范化后的文本传入 Range 作为下标，但 `textNode` 的 offset 对应的是原始文本，导致坐标测量偏差
+  - 解决方案：将原始文本（`raw`）传入 Range，提取各行文本后再做规范化处理
+
+---
+
 ## [1.0.2] - 2026-07-07
 
 ### 🐛 Bug 修复
@@ -207,6 +229,7 @@ htmlpdf(element, {
 
 ---
 
+[1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
 [1.0.2]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.2
 [1.0.1]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.1
 [1.0.0]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.0

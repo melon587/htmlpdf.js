@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-07-09
+
+### ✨ Features
+
+#### Per-element Font Override (`pdf-font`)
+
+- **Added `pdf-font` attribute** - Allows overriding the font for a specific element without affecting global font configuration
+  - Supports single font: `pdf-font="roboto"`
+  - Supports multiple fonts (comma-separated): `pdf-font="roboto,notoSansArabic"`
+  - Supports Vue dynamic binding (array): `:pdf-font="['roboto', 'notoSansArabic']"`
+  - Fonts with `charRanges` are applied as character-level matchers; fonts without `charRanges` act as the element's default fallback
+  - Priority chain: `pdf-font` (with charRanges) > `pdf-font` (without charRanges, as element default) > global charRanges > global default > helvetica
+
+### 🐛 Bug Fixes
+
+#### Text Rendering - Multiline Text Coordinate Offset
+
+- **Fixed character coordinate offset in multiline text** - `processMultilineText` was passing the normalized text as the Range index, but `textNode` offsets correspond to the raw text, causing misaligned coordinates
+  - Solution: Pass `raw` text to Range, then normalize each line after extraction
+
+---
+
 ## [1.0.2] - 2026-07-07
 
 ### 🐛 Bug Fixes
@@ -207,6 +229,7 @@ Built with:
 
 ---
 
+[1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
 [1.0.2]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.2
 [1.0.1]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.1
 [1.0.0]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.0
