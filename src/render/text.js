@@ -47,28 +47,89 @@ function findFontByFamily(cssFontFamily, sortedFontConfig) {
 }
 
 /**
- * 统一字体选择逻辑（pdf-font 优先级 > charRanges 自动匹配）
- * @param {Object} node - 文本节点，包含 pdfFont 和 text 字段
- * @param {Array} sortedFontConfig - 已排序的字体配置数组
- * @returns {Object|null} 匹配的字体配置，无匹配返回 null
+ * 解析 pdf-font 属性值为字体名数组
+ * 支持：
+ * - JS 数组（:pdf-font="['roboto','notoSansArabic']" Vue 动态绑定）
+ * - 逗号分隔字符串 "roboto,notoSansArabic"（静态 attribute）
+ * - 单字符串 "roboto"
+ * @param {string|string[]} pdfFont - pdf-font 属性值
+ * @returns {string[]} 字体名数组，按用户声明的优先级排列
  */
-function selectFont(node, sortedFontConfig) {
-  // 优先级 1: 检查 pdf-font 属性（最高优先级）
-  if (node.pdfFont) {
-    const pdfFont = findFontByFamily(node.pdfFont, sortedFontConfig);
-    if (pdfFont) {
-      return pdfFont;
-    }
+function parsePdfFontNames(pdfFont) {
+  if (!pdfFont) return [];
 
-    console.warn(
-      `[htmlpdf] pdf-font="${node.pdfFont}" not found in config, falling back to charRanges`,
-    );
+  // 已经是数组（Vue :pdf-font 动态绑定传入）
+  if (Array.isArray(pdfFont)) {
+    return pdfFont.map((s) => String(s).trim()).filter(Boolean);
   }
 
-  // 优先级 2: 如果 pdf-font 未匹配，用 charRanges 自动匹配
-  const segments = segmentTextByFont(node.text, sortedFontConfig);
+  // 字符串：按逗号分割，支持 "roboto" 和 "roboto,notoSansArabic"
+  return String(pdfFont)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
-  return segments.find((s) => s.font?.fontFamily)?.font || null;
+/**
+ * 根据节点的 pdf-font 属性，构造本节点实际使用的字体优先级列表（仅对当前节点生效）
+ *
+ * 完整优先级链（对每个字符独立决策）：
+ * 1. pdf-font 数组中有 charRanges 的字体 → 按声明顺序插到最前，精确匹配优先
+ * 2. pdf-font 数组中最后一个无 charRanges 的字体 → 作为本节点的 isDefault 兜底
+ * 3. 全局 charRanges 匹配
+ * 4. 全局 isDefault 字体
+ * 5. helvetica（渲染层兜底，不在此处理）
+ *
+ * 用法示例：
+ *   pdf-font="roboto"                      → 单字体，无 charRanges 时作为本节点 isDefault
+ *   :pdf-font="['roboto','notoSansArabic']"  → roboto 精确匹配其 charRanges 范围，
+ *                                             notoSansArabic 精确匹配其 charRanges 范围，
+ *                                             若两者都无 charRanges，第一个作为 isDefault
+ *
+ * @param {Object} node - 文本节点，包含 pdfFont 字段
+ * @param {Array} sortedFontConfig - 全局已排序字体配置数组
+ * @returns {Array} 用于本节点分段渲染的字体配置数组
+ */
+function buildEffectiveFontConfig(node, sortedFontConfig) {
+  if (!node.pdfFont) return sortedFontConfig;
+
+  const fontNames = parsePdfFontNames(node.pdfFont);
+  if (fontNames.length === 0) return sortedFontConfig;
+
+  // 按声明顺序找到各字体的 config
+  const resolvedConfigs = fontNames
+    .map((name) => {
+      const config = findFontByFamily(name, sortedFontConfig);
+      if (!config) {
+        console.warn(
+          `[htmlpdf] pdf-font: "${name}" not found in config, skipping`,
+        );
+      }
+
+      return config;
+    })
+    .filter(Boolean);
+
+  if (resolvedConfigs.length === 0) return sortedFontConfig;
+
+  // 有 charRanges 的字体：按顺序插到最前（精确匹配）
+  const withRanges = resolvedConfigs.filter((c) => c.charRanges);
+  // 无 charRanges 的字体：取最后一个作为本节点 isDefault（用户声明的最低优先级兜底）
+  const withoutRanges = resolvedConfigs.filter((c) => !c.charRanges);
+  // 取第一个无 charRanges 的字体作为 isDefault（声明顺序即优先级）
+  const nodeDefault = withoutRanges[0] ?? null;
+
+  // 从全局配置中移除已被 pdf-font 占据的位置，避免重复
+  const resolvedSet = new Set(resolvedConfigs);
+  let rest = sortedFontConfig.filter((f) => !resolvedSet.has(f));
+
+  // 如果有 nodeDefault，替换掉全局 isDefault 的兜底位置
+  if (nodeDefault) {
+    rest = rest.filter((f) => !f.isDefault);
+    rest = [...rest, { ...nodeDefault, isDefault: true }];
+  }
+
+  return [...withRanges, ...rest];
 }
 
 /**
@@ -167,15 +228,14 @@ function drawRTLMerged({
 }) {
   const rightEdge = ctx.toPdfX(node._rightEdge);
 
-  // 字体选择：pdf-font 优先级 > charRanges 自动匹配 > fallback
-  const selectedFont = selectFont(node, sortedFontConfig);
+  // 字体选择：用 buildEffectiveFontConfig 融入 pdf-font 优先级，再取第一个匹配的字体
+  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
+  const segments = segmentTextByFont(node.text, effectiveFontConfig);
+  const selectedFontFamily =
+    segments.find((s) => s.font?.fontFamily)?.font?.fontFamily ??
+    fallbackFontFamily;
 
-  setFont(
-    doc,
-    selectedFont?.fontFamily ?? fallbackFontFamily,
-    fontStyle,
-    fallbackFontFamily,
-  );
+  setFont(doc, selectedFontFamily, fontStyle, fallbackFontFamily);
 
   doc.text(node.text, rightEdge, y, {
     baseline: 'alphabetic',
@@ -311,28 +371,10 @@ function drawText({
   }
 
   // ── 路径 3：分 segment 渲染（LTR + RTL 单词混合）──────────────────────────
-  // 字体选择：pdf-font 优先级 > charRanges 自动匹配 > fallback
-  const selectedFont = selectFont(node, sortedFontConfig);
-
-  // 如果 pdf-font 匹配成功，整个节点用该字体渲染（不分段）
-  if (selectedFont?.fontFamily) {
-    setFont(doc, selectedFont.fontFamily, fontStyle, fallbackFontFamily);
-    doc.text(node.text, x, y, {
-      baseline: 'alphabetic',
-      ...(isRTL && {
-        isInputVisual: false,
-        isOutputVisual: true,
-        isInputRtl: true,
-        isOutputRtl: false,
-        isSymmetricSwapping: true,
-      }),
-    });
-
-    return;
-  }
-
-  // pdf-font 未匹配，走 charRanges 自动分段
-  const segments = segmentTextByFont(node.text, sortedFontConfig);
+  // pdf-font（若有）已融入 effectiveFontConfig 的优先级，统一走 segmentTextByFont
+  // 优先级：pdf-font+charRanges > pdf-font(无charRanges,作isDefault) > 全局charRanges > isDefault > fallback
+  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
+  const segments = segmentTextByFont(node.text, effectiveFontConfig);
   let curX = x;
 
   for (const segment of segments) {
