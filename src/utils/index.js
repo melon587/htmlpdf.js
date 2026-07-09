@@ -99,6 +99,31 @@ export function getPageBreak(el) {
 }
 
 /**
+ * 获取元素的 pdf-font 属性值（向上遍历 DOM 树找最近的祖先）
+ * 支持继承：如果当前元素没有 pdf-font，查找父元素的 pdf-font
+ * @param {Element} el - 当前元素
+ * @param {Element} rootEl - 根元素（停止遍历的边界）
+ * @returns {string|null} pdf-font 属性值，无则返回 null
+ */
+export function getPdfFont(el, rootEl) {
+  let current = el;
+  // 向上遍历 DOM 树，直到根元素或找到 pdf-font 属性
+  while (current && current !== rootEl && current.parentElement) {
+    if (current.hasAttribute && current.hasAttribute('pdf-font')) {
+      return current.getAttribute('pdf-font');
+    }
+
+    current = current.parentElement;
+  }
+  // 检查根元素自己是否有 pdf-font
+  if (rootEl && rootEl.hasAttribute && rootEl.hasAttribute('pdf-font')) {
+    return rootEl.getAttribute('pdf-font');
+  }
+
+  return null;
+}
+
+/**
  * 解析 background-size 的单个分量值（百分比 / px），不处理 auto
  * @param {string} val   - 分量字符串，如 '50%' / '200px'
  * @param {number} ref   - 对应方向的元素尺寸（mm），用于百分比计算

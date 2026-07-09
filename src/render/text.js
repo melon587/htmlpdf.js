@@ -20,6 +20,58 @@ function getCombinedFontStyle(fontStyle, fontWeight) {
 }
 
 /**
+ * 根据 CSS font-family 查找匹配的字体配置
+ * @param {string} cssFontFamily - CSS font-family 值（已规范化，去除引号）
+ * @param {Array} sortedFontConfig - 已排序的字体配置数组
+ * @returns {Object|null} 匹配的字体配置，无匹配返回 null
+ */
+function findFontByFamily(cssFontFamily, sortedFontConfig) {
+  if (!cssFontFamily || !sortedFontConfig) return null;
+
+  // 规范化：转小写、去除引号和空格
+  const normalizedFamily = cssFontFamily
+    .toLowerCase()
+    .replace(/["']/g, '')
+    .trim();
+
+  for (const config of sortedFontConfig) {
+    if (
+      config.fontFamily &&
+      config.fontFamily.toLowerCase().trim() === normalizedFamily
+    ) {
+      return config;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 统一字体选择逻辑（pdf-font 优先级 > charRanges 自动匹配）
+ * @param {Object} node - 文本节点，包含 pdfFont 和 text 字段
+ * @param {Array} sortedFontConfig - 已排序的字体配置数组
+ * @returns {Object|null} 匹配的字体配置，无匹配返回 null
+ */
+function selectFont(node, sortedFontConfig) {
+  // 优先级 1: 检查 pdf-font 属性（最高优先级）
+  if (node.pdfFont) {
+    const pdfFont = findFontByFamily(node.pdfFont, sortedFontConfig);
+    if (pdfFont) {
+      return pdfFont;
+    }
+
+    console.warn(
+      `[htmlpdf] pdf-font="${node.pdfFont}" not found in config, falling back to charRanges`,
+    );
+  }
+
+  // 优先级 2: 如果 pdf-font 未匹配，用 charRanges 自动匹配
+  const segments = segmentTextByFont(node.text, sortedFontConfig);
+
+  return segments.find((s) => s.font?.fontFamily)?.font || null;
+}
+
+/**
  * 根据字符码点找到对应的字体配置
  * 优先级：charRanges 精确匹配 > isDefault 字体 > null
  * 返回 null 表示用户配置中无匹配，由渲染层用 fallbackFontFamily（默认 helvetica）兜底
@@ -115,13 +167,12 @@ function drawRTLMerged({
 }) {
   const rightEdge = ctx.toPdfX(node._rightEdge);
 
-  // 用 segmentTextByFont 找到文本中第一个匹配的自定义字体，避免手写字符范围判断
-  const segments = segmentTextByFont(node.text, sortedFontConfig);
-  const matchedFont = segments.find((s) => s.font?.fontFamily)?.font;
+  // 字体选择：pdf-font 优先级 > charRanges 自动匹配 > fallback
+  const selectedFont = selectFont(node, sortedFontConfig);
 
   setFont(
     doc,
-    matchedFont?.fontFamily ?? fallbackFontFamily,
+    selectedFont?.fontFamily ?? fallbackFontFamily,
     fontStyle,
     fallbackFontFamily,
   );
@@ -140,39 +191,56 @@ function drawRTLMerged({
 /**
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
- * ## 整体渲染流程
- *
- * 每个文本节点（node）由 node-parser 解析自浏览器 DOM，坐标（x/y）直接来自
- * getBoundingClientRect()，单位为 px，渲染时通过 ctx 转换为 PDF mm/pt 坐标。
- *
- * 节点分三条渲染路径：
- *
- * ### 路径 1：无自定义字体配置
- *   - 使用 helvetica 兜底字体渲染
- *   - RTL 文本附加 jsPDF BiDi 选项（isInputRtl/isOutputVisual 等）
- *   - 适用场景：用户未传 fonts 配置，或纯 LTR 英文文档
- *
- * ### 路径 2：合并后的 RTL 节点（node._isRTLMerged = true）
- *   - 由 node-parser 的 mergeRTLTextNodes() 将同行、同父元素的多个 RTL 单词
- *     合并为一个节点，并记录 _rightEdge（最右单词的右边界 px）
- *   - 原因：jsPDF BiDi 引擎需要完整句子上下文才能正确处理 "100%"→"%100"、
- *     括号镜像等；单独的 "100%" token 没有阿拉伯上下文，BiDi 引擎无法判断方向
- *   - 渲染方式：整体文本一次性传给 doc.text()，使用 align:'right' + rightEdge
- *     作为右对齐基准点，让 jsPDF BiDi 引擎处理字符重排序
- *   - 注意：不能走 segmentTextByFont 逐段渲染——每段都 align:right 会导致
- *     所有段叠在同一个 x 坐标上，产生文字重叠
- *   - 字体选择：通过 segmentTextByFont 匹配文本中第一个有自定义字体的 segment
- *
- * ### 路径 3：普通分段渲染（LTR 或未合并的单个 RTL 单词）
- *   - 通过 segmentTextByFont() 将文本按字体配置拆分为多段
- *     例如 "VAT 15% ضريبة" → [{text:"VAT 15% ", font:null}, {text:"ضريبة", font:arabicFont}]
- *   - 每段独立设置字体后渲染，curX 从 node.x 向右累积
- *   - RTL 单词段：使用浏览器已计算好的 curX 坐标 + RTL 引擎处理字符顺序
- *   - LTR 段：普通 doc.text() 渲染
- *   - 适用场景：英阿混排的单行文本、表格标题等
+ * drawText(doc, node, ctx, clipTop, sortedFontConfig, fallbackFontFamily)
+ * │
+ * ├─ 坐标系
+ * │ ├─ 输入坐标（node.x / node.y）
+ * │ │ ├─ 来源：node-parser.js 的 collectNodes() 输出
+ * │ │ ├─ 坐标系：相对于克隆根元素左上角（iframe 内的独立坐标系）
+ * │ │ └─ 单位：px（浏览器像素）
+ * │ ├─ 坐标转换（通过 ctx）
+ * │ │ ├─ ctx.toPdfX(node.x) → PDF X 坐标（mm，相对于 PDF 页面左边缘）
+ * │ │ ├─ ctx.toPdfY(node.y) → PDF Y 坐标（mm，相对于 PDF 页面顶边缘）
+ * │ │ └─ ctx.toMM(fontSize) → 字号转换为 mm（基线偏移）
+ * │ └─ 最终 PDF 坐标
+ * │   ├─ x = ctx.toPdfX(node.x)                       // PDF X 坐标（mm）
+ * │   └─ y = ctx.toPdfY(node.y) + ctx.toMM(fontSize)  // PDF Y 坐标（mm）+ 基线偏移
+ * │
+ * ├─ 路径 1：无自定义字体配置（sortedFontConfig.length === 0）
+ * │ ├─ 字体：helvetica（兜底字体）
+ * │ ├─ RTL 处理：附加 jsPDF BiDi 选项（isInputRtl/isOutputVisual 等）
+ * │ └─ 适用场景：用户未传 fonts 配置，或纯 LTR 英文文档
+ * │
+ * ├─ 路径 2：合并后的 RTL 节点（isRTL && node._isRTLMerged）
+ * │ ├─ 来源：node-parser 的 mergeRTLTextNodes() 合并同行、同父、同样式的 RTL 单词
+ * │ │ └─ 记录 _rightEdge（最右单词的右边界 px）
+ * │ ├─ 原因：jsPDF BiDi 引擎需要完整句子上下文
+ * │ │ ├─ 处理 "100%"→"%100" 的字符重排序
+ * │ │ ├─ 处理括号镜像 "(" → ")"
+ * │ │ └─ 单独的 "100%" token 没有阿拉伯上下文，BiDi 引擎无法判断方向
+ * │ ├─ 字体选择：pdf-font > charRanges > fallback
+ * │ ├─ 渲染方式：整体文本一次性传给 doc.text()
+ * │ │ ├─ 使用 align:'right' + rightEdge 作为右对齐基准点
+ * │ │ └─ 让 jsPDF BiDi 引擎处理字符重排序
+ * │ └─ 注意：不能走 segmentTextByFont 逐段渲染
+ * │   └─ 每段都 align:right 会导致所有段叠在同一个 x 坐标上，产生文字重叠
+ * │
+ * └─ 路径 3：普通分段渲染（LTR 或未合并的单个 RTL 单词）
+ *   ├─ 步骤 1：字体选择（selectFont）
+ *   │ ├─ 优先级 1：pdf-font 属性匹配
+ *   │ │ └─ 如果匹配成功，整个节点用该字体渲染（不分段）→ return
+ *   │ └─ 优先级 2：pdf-font 未匹配 → 走 charRanges 自动分段
+ *   ├─ 步骤 2：自动分段（segmentTextByFont）
+ *   │ ├─ 按字体配置拆分文本
+ *   │ │ └─ 例如 "VAT 15% ضريبة" → [{text:"VAT 15% ", font:null}, {text:"ضريبة", font:arabicFont}]
+ *   │ └─ 每段独立设置字体后渲染，curX 从 node.x 向右累积
+ *   ├─ 步骤 3：逐段渲染
+ *   │ ├─ RTL 单词段：使用浏览器已计算好的 curX 坐标 + RTL 引擎处理字符顺序
+ *   │ └─ LTR 段：普通 doc.text() 渲染
+ *   └─ 适用场景：英阿混排的单行文本、表格标题等
  *
  * @param {Object} doc - jsPDF 实例
- * @param {Object} node - 文本节点，包含 text/x/y/style/_isRTLMerged/_rightEdge 等字段
+ * @param {Object} node - 文本节点，包含 text/x/y/style/pdfFont/_isRTLMerged/_rightEdge 等字段
  * @param {Object} ctx - 渲染上下文，提供 toMM/toPt/toPdfX/toPdfY 等坐标转换方法
  * @param {number} clipTop - 裁剪顶部（mm），节点顶部低于此值时跳过（用于分页边界）
  * @param {Array}  sortedFontConfig - 已按 priority 排好序的字体配置数组
@@ -189,7 +257,9 @@ function drawText({
   if (!node.text) return;
 
   const nodeTop = ctx.toMM(node.y);
-  if (nodeTop < clipTop) return;
+  if (nodeTop < clipTop) {
+    return;
+  }
 
   const { style } = node;
   const fontSize = parsePx(style.fontSize);
@@ -241,6 +311,27 @@ function drawText({
   }
 
   // ── 路径 3：分 segment 渲染（LTR + RTL 单词混合）──────────────────────────
+  // 字体选择：pdf-font 优先级 > charRanges 自动匹配 > fallback
+  const selectedFont = selectFont(node, sortedFontConfig);
+
+  // 如果 pdf-font 匹配成功，整个节点用该字体渲染（不分段）
+  if (selectedFont?.fontFamily) {
+    setFont(doc, selectedFont.fontFamily, fontStyle, fallbackFontFamily);
+    doc.text(node.text, x, y, {
+      baseline: 'alphabetic',
+      ...(isRTL && {
+        isInputVisual: false,
+        isOutputVisual: true,
+        isInputRtl: true,
+        isOutputRtl: false,
+        isSymmetricSwapping: true,
+      }),
+    });
+
+    return;
+  }
+
+  // pdf-font 未匹配，走 charRanges 自动分段
   const segments = segmentTextByFont(node.text, sortedFontConfig);
   let curX = x;
 
