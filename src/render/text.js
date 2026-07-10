@@ -366,4 +366,4 @@ function drawText({
   }
 }
 
-export { drawText };
+export { drawText, parsePdfFontNames, buildEffectiveFontConfig };
