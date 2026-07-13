@@ -121,22 +121,33 @@ function comparePlacements(a, b) {
  * 1. 自然溢出：节点起始位置超出当前页底部（node.y >= currentPageBottom）
  * 2. text 节点保护：text 节点被切割时推到下一页（避免文本被页面切成两半）
  * 3. page-break: avoid - 节点无法完整放入当前页，整体推到下一页
+ *    豁免：节点高度超过一整页时，avoid 无法生效，降级为自然 spill（避免无限换页）
  * 4. page-break: before - 节点设置了强制换页，且不在当前页起始位置
  *
  * @param {Object} node - 当前节点
  * @param {number} currentPageBottom - 当前页底部的全局 Y 坐标（px）
  * @param {number} accumulatedYpx - 当前页的换页点（全局 Y 坐标，px）
+ * @param {number} contentHeightPx - 单页内容区高度（px），用于 avoid 豁免判断
  * @returns {boolean} 是否需要换页
  */
-function needsNewPage(node, currentPageBottom, accumulatedYpx) {
+function needsNewPage(
+  node,
+  currentPageBottom,
+  accumulatedYpx,
+  contentHeightPx,
+) {
   if (node.y >= currentPageBottom) return true;
 
   // text 节点：只要被切割就推到下一页（行级别保护）
   if (node.type === 'text' && node.y + node.height > currentPageBottom)
     return true;
 
-  if (node.pageBreak === 'avoid' && node.y + node.height > currentPageBottom)
+  if (node.pageBreak === 'avoid' && node.y + node.height > currentPageBottom) {
+    // 豁免：节点本身比一页还高，推到下一页也放不下，让其自然 spill，避免无限换页
+    if (node.height > contentHeightPx) return false;
+
     return true;
+  }
 
   if (node.pageBreak === 'before' && node.y > accumulatedYpx) return true;
 
@@ -379,7 +390,9 @@ export function streamPaginate({
       accumulatedYpx + contentHeightPx - currentPageContentOffsetPx;
 
     // 检查是否需要换页
-    if (needsNewPage(node, currentPageBottom, accumulatedYpx)) {
+    if (
+      needsNewPage(node, currentPageBottom, accumulatedYpx, contentHeightPx)
+    ) {
       accumulatedYpx = calcNextPageStart(node, currentPageBottom);
       currentPage++;
 
