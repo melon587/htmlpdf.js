@@ -70,10 +70,11 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
  *   - true（默认）：背景色只画到节点实际底部
  *   - false（中间 spill 页）：背景色延伸到整页高度（clipBottom），后续内容会覆盖在上面
  */
-function drawBackground({ doc, node, ctx, clipBottom, isLastSpill = true }) {
+function drawBackground({ node, ctx, clipBottom, isLastSpill = true }) {
+  const { doc, toMM, toPdfX, toPdfYmm } = ctx;
   const { style } = node;
-  const nodeTop = ctx.toMM(node.y);
-  const nodeBottom = ctx.toMM(node.y + node.height);
+  const nodeTop = toMM(node.y);
+  const nodeBottom = toMM(node.y + node.height);
 
   // clipTop 固定为 0（页面顶部），背景从页面顶部开始
   const drawTop = Math.max(nodeTop, 0);
@@ -83,9 +84,9 @@ function drawBackground({ doc, node, ctx, clipBottom, isLastSpill = true }) {
     : clipBottom;
   if (drawBottom <= drawTop) return;
 
-  const x = ctx.toPdfX(node.x);
-  const y = ctx.toPdfYmm(drawTop);
-  const w = ctx.toMM(node.width);
+  const x = toPdfX(node.x);
+  const y = toPdfYmm(drawTop);
+  const w = toMM(node.width);
   const h = drawBottom - drawTop;
 
   // 1. 先画背景色
@@ -130,8 +131,8 @@ function drawBackground({ doc, node, ctx, clipBottom, isLastSpill = true }) {
 
   // 3. 再画背景图（叠加在背景色/渐变上）
   if (node.bgSrc) {
-    const elW = ctx.toMM(node.width);
-    const elH = ctx.toMM(node.height);
+    const elW = toMM(node.width);
+    const elH = toMM(node.height);
     const natW = node.bgNaturalWidth;
     const natH = node.bgNaturalHeight;
 
@@ -152,8 +153,8 @@ function drawBackground({ doc, node, ctx, clipBottom, isLastSpill = true }) {
       });
 
       // 背景图左上角：基于节点原始顶部（nodeTop），跨页时可能在当前页之上
-      const imgX = ctx.toPdfX(node.x) + offX;
-      const imgY = ctx.toPdfYmm(nodeTop + offY);
+      const imgX = toPdfX(node.x) + offX;
+      const imgY = toPdfYmm(nodeTop + offY);
 
       try {
         // 用裁剪区域限制背景图只在当前页可见范围内绘制，防止跨页溢出

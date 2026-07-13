@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { getOutputType } from '../utils';
 
 // A4 尺寸（单位 mm）
 // jsPDF 内部使用 pt，但我们统一用 mm 操作
@@ -19,7 +20,7 @@ const PX_TO_MM = 25.4 / 96;
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render: fn }
  * @returns {Object} ctx
  */
-export function createContext(rootElement, options = {}) {
+export function initContext(rootElement, options = {}) {
   const {
     format = 'a4',
     orientation = 'portrait',
@@ -48,6 +49,9 @@ export function createContext(rootElement, options = {}) {
   const rootRect = rootElement.getBoundingClientRect();
   const scale = contentWidth / rootRect.width;
 
+  // 单页内容区高度（px），供内部模块直接使用，避免重复计算
+  const contentHeightPx = contentHeight / scale;
+
   return {
     doc,
     scale,
@@ -58,6 +62,7 @@ export function createContext(rootElement, options = {}) {
     pageHeight,
     contentWidth,
     contentHeight,
+    contentHeightPx,
 
     /** px → mm */
     toMM(px) {
@@ -93,6 +98,15 @@ export function createContext(rootElement, options = {}) {
      */
     toPt(px) {
       return px * scale * 2.8346;
+    },
+
+    /**
+     * 将 PDF 输出为指定格式
+     * @param {string} format - 输出格式（'blob' | 'dataurl' | 'arraybuffer'）
+     * @returns {Blob|string|ArrayBuffer}
+     */
+    output(format) {
+      return doc.output(getOutputType(format));
     },
   };
 }

@@ -30,8 +30,8 @@
  *
  * ## 跨页处理
  *
- * - contentHeight：单页内容区高度（mm），用于裁剪
  * - isLastSpill：标记是否是该节点的最后一页（影响边框渲染）
+ * - clipBottom 由 ctx.contentHeight 提供，无需外部传入
  */
 
 import { drawBackground } from './background';
@@ -45,28 +45,19 @@ import { drawText } from './text';
  * 用于减少重复代码，element 和 pseudo-element 都需要渲染背景和边框
  *
  * @param {Object} params - 渲染参数
- * @param {Object} params.doc - jsPDF 实例
  * @param {Object} params.node - 调整后的节点对象（y 为页内坐标）
  * @param {Object} params.ctx - 渲染上下文
- * @param {number} params.contentHeight - 单页内容区高度（mm）
  * @param {boolean} params.isLastSpill - 是否是最后一个 spill placement
  */
-function renderBackgroundAndBorder({
-  doc,
-  node,
-  ctx,
-  contentHeight,
-  isLastSpill,
-}) {
+function renderBackgroundAndBorder({ node, ctx, isLastSpill }) {
+  const { contentHeight } = ctx;
   drawBackground({
-    doc,
     node,
     ctx,
     clipBottom: contentHeight,
     isLastSpill,
   });
   drawBorder({
-    doc,
     node,
     ctx,
     clipBottom: contentHeight,
@@ -87,42 +78,35 @@ function renderBackgroundAndBorder({
  *    - text → 文本
  *
  * @param {Object} params - 渲染参数
- * @param {Object} params.doc - jsPDF 实例
  * @param {Object} params.node - 节点对象（y 为全局坐标）
- * @param {Object} params.ctx - 渲染上下文（包含 toMM/toPdfX/toPdfY 等方法）
+ * @param {Object} params.ctx - 渲染上下文（包含 doc/toMM/toPdfX/toPdfY/contentHeight 等）
  * @param {number} [params.offsetYpx=0] - 当前页内容区起始的全局 y 坐标（px）
- * @param {number} params.contentHeight - 单页内容区高度（mm），用于跨页裁剪
  * @param {Array} [params.sortedFontConfig=[]] - 排序后的字体配置（用于文本渲染）
- * @param {string} [params.fallbackFontFamily='helvetica'] - 回退字体
  * @param {boolean} [params.isLastSpill=true] - 是否是该节点的最后一个 spill placement
  *
  * @example
  * renderNode({
- *   doc,
  *   node: { type: 'element', y: 1000, height: 50, ... },
  *   ctx,
  *   offsetYpx: 800,
- *   contentHeight: 277,
  *   isLastSpill: true,
  * });
  */
 export function renderNode({
-  doc,
   node,
   ctx,
   offsetYpx = 0,
-  contentHeight,
   sortedFontConfig = [],
-  fallbackFontFamily = 'helvetica',
   isLastSpill = true,
 }) {
   // 1. 坐标转换：全局 → 页内
+  const { toMM } = ctx;
   const relativeYpx = node.y - offsetYpx;
-  const relativeYmm = ctx.toMM(relativeYpx);
+  const relativeYmm = toMM(relativeYpx);
 
   // 2. 边界检查：跳过完全在当前页之外的节点
   // 条件：节点顶部和底部都在页面顶部以上（负坐标且底部也是负数）
-  if (relativeYmm < 0 && relativeYmm + ctx.toMM(node.height) <= 0) {
+  if (relativeYmm < 0 && relativeYmm + toMM(node.height) <= 0) {
     return;
   }
 
@@ -131,10 +115,8 @@ export function renderNode({
 
   // 公共渲染参数
   const commonParams = {
-    doc,
     node: adjustedNode,
     ctx,
-    contentHeight,
     isLastSpill,
   };
 
@@ -144,7 +126,7 @@ export function renderNode({
     renderBackgroundAndBorder(commonParams);
 
     if (adjustedNode.tag === 'IMG' || adjustedNode.tag === 'CANVAS') {
-      drawImage({ doc, node: adjustedNode, ctx, offsetYpx, contentHeight });
+      drawImage({ node: adjustedNode, ctx, offsetYpx });
     }
   } else if (adjustedNode.type === 'pseudo-element') {
     // 伪元素：背景 + 边框 + (文本)
@@ -153,23 +135,19 @@ export function renderNode({
 
     if (adjustedNode.text) {
       drawText({
-        doc,
         node: adjustedNode,
         ctx,
         clipTop: 0,
         sortedFontConfig,
-        fallbackFontFamily,
       });
     }
   } else if (adjustedNode.type === 'text') {
     // 文本节点：直接渲染文本
     drawText({
-      doc,
       node: adjustedNode,
       ctx,
       clipTop: 0,
       sortedFontConfig,
-      fallbackFontFamily,
     });
   }
 }

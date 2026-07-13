@@ -4,7 +4,7 @@
  *
  * ## 整体流程
  *
- * streamPaginate({ nodes, ctx, contentHeight, fonts, repeatHeaderManager })
+ * streamPaginate({ nodes, ctx, fonts, repeatHeaderManager })
  * │
  * ├─ needsNewPage()           判断节点是否需要换页
  * │  ├─ 自然溢出              node.y >= currentPageBottom
@@ -79,21 +79,39 @@ import {
 } from './repeat-header-manager';
 
 /**
- * 准备字体配置：按优先级排序 + 获取 fallback 字体
+ * 准备字体配置：按优先级排序
  *
  * @param {Array} fonts - 字体配置数组，每项包含 { fontFamily, priority, isDefault, ... }
- * @returns {Object}
- * @returns {Array} .sortedFontConfig - 按 priority 降序排列的字体配置（用于字体匹配）
- * @returns {string} .fallbackFontFamily - 默认字体（isDefault=true 的字体，或 'helvetica'）
+ * @returns {Array} sortedFontConfig - 按 priority 降序排列的字体配置（用于字体匹配）
  */
 function getFontConfig(fonts) {
-  const sortedFontConfig = fonts
-    .slice()
-    .sort((a, b) => (b.priority || 0) - (a.priority || 0));
-  const defaultFont = fonts.find((f) => f.isDefault);
-  const fallbackFontFamily = defaultFont ? defaultFont.fontFamily : 'helvetica';
+  return fonts.slice().sort((a, b) => (b.priority || 0) - (a.priority || 0));
+}
 
-  return { sortedFontConfig, fallbackFontFamily };
+/**
+ * 计算 placement 的渲染顺序权重（同页内）
+ *
+ * - spill: 0（背景/边框，最先渲染）
+ * - repeat-header / repeat-header-child: 1（表头，次之）
+ * - normal: 2（正常内容，最后渲染）
+ */
+function placementOrder(p) {
+  if (p.type === 'spill') return 0;
+
+  if (p.type === 'repeat-header' || p.type === 'repeat-header-child') return 1;
+
+  return 2;
+}
+
+/**
+ * placement 排序比较函数
+ * 1. 先按页码升序
+ * 2. 同页内按 placementOrder 升序（spill → repeat-header → normal）
+ */
+function comparePlacements(a, b) {
+  if (a.page !== b.page) return a.page - b.page;
+
+  return placementOrder(a) - placementOrder(b);
 }
 
 /**
@@ -314,31 +332,28 @@ function mergePlacements(normal, spill) {
  * 4. 生成节点渲染计划（nodePlacements）
  * 5. 跨页展开：为溢出节点生成 spill placement（expandSpillPlacements）
  * 6. 归并 normal 和 spill，同页时 spill 优先（mergePlacements）
+ * 7. 合并 headerPlacements，按页码+类型排序，返回 allPlacements
  *
  * 时间复杂度：O(N)，其中 N 是节点数量
  *
  * @param {Object} params
  * @param {Array} params.nodes - 节点数组（由 collectNodes 生成）
- * @param {Object} params.ctx - 渲染上下文（包含 scale、doc 等）
- * @param {number} params.contentHeight - 单页内容区高度（mm）
+ * @param {Object} params.ctx - 渲染上下文（包含 scale、doc、contentHeight 等）
  * @param {Array} params.fonts - 字体配置数组
  * @param {Object} params.repeatHeaderManager - repeat-header 管理器实例（可选，无配置时为 null）
  * @returns {Object} 分页方案
  * @returns {number} .totalPages - 总页数
- * @returns {Array} .nodePlacements - 合并后的渲染计划（含 normal + spill，按页码和类型排序）
- * @returns {Array} .headerPlacements - repeat-header 渲染计划
+ * @returns {Array} .allPlacements - 所有渲染计划（spill + repeat-header + normal），按页码和类型排好序
  * @returns {Array} .sortedFontConfig - 按优先级排序的字体配置
- * @returns {string} .fallbackFontFamily - 默认字体（用于未配置字体的文本）
  */
 export function streamPaginate({
   nodes,
   ctx,
-  contentHeight,
   fonts = [],
   repeatHeaderManager = null,
 }) {
-  const { sortedFontConfig, fallbackFontFamily } = getFontConfig(fonts);
-  const contentHeightPx = contentHeight / ctx.scale;
+  const sortedFontConfig = getFontConfig(fonts);
+  const { contentHeightPx } = ctx;
 
   let currentPage = 1;
   let accumulatedYpx = 0;
@@ -442,12 +457,15 @@ export function streamPaginate({
   // 归并 nodePlacements 与 spillPlacements（O(n) 双指针，同页 spill 优先）
   const mergedPlacements = mergePlacements(nodePlacements, spillPlacements);
 
+  // 合并所有 placements 并按页码、类型排序（spill < repeat-header < normal）
+  const allPlacements = [...headerPlacements, ...mergedPlacements].sort(
+    comparePlacements,
+  );
+
   // 返回分页方案
   return {
     totalPages: totalPagesCount,
-    nodePlacements: mergedPlacements,
-    headerPlacements,
+    allPlacements,
     sortedFontConfig,
-    fallbackFontFamily,
   };
 }

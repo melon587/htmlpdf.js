@@ -36,27 +36,28 @@ function parseBorderString(borderStr) {
  *   - true（默认）：画到节点实际底部，可以画 bottom border
  *   - false（中间 spill 页）：左右边框延伸到整页高度，不画 bottom border
  */
-function drawBorder({ doc, node, ctx, clipBottom, isLastSpill = true }) {
+function drawBorder({ node, ctx, clipBottom, isLastSpill = true }) {
+  const { doc, toMM, toPdfX, toPdfYmm } = ctx;
   const { style } = node;
-  const nodeTop = ctx.toMM(node.y);
-  const nodeBottom = ctx.toMM(node.y + node.height);
+  const nodeTop = toMM(node.y);
+  const nodeBottom = toMM(node.y + node.height);
 
-  const x = ctx.toPdfX(node.x);
-  const w = ctx.toMM(node.width);
+  const x = toPdfX(node.x);
+  const w = toMM(node.width);
 
   // clipTop 固定为 0（页面顶部），背景/边框从页面顶部开始
   const drawTop = Math.max(nodeTop, 0);
   const drawBottom = Math.min(nodeBottom, clipBottom);
   if (drawBottom <= drawTop) return;
 
-  const yTop = ctx.toPdfYmm(drawTop);
-  const yBottom = ctx.toPdfYmm(drawBottom);
+  const yTop = toPdfYmm(drawTop);
+  const yBottom = toPdfYmm(drawBottom);
   // nodeTop >= 0：节点顶部在当前页内，即本页是节点的第一页
   const isFirstPage = nodeTop >= 0;
   // isLastSpill=false 说明是中间 spill 页，不能画 bottom border
   const isLastPage = isLastSpill && nodeBottom <= clipBottom;
   // 中间 spill 页：左右边框延伸到整页高度；最后一页：到节点实际底部
-  const leftRightBottom = isLastSpill ? yBottom : ctx.toPdfYmm(clipBottom);
+  const leftRightBottom = isLastSpill ? yBottom : toPdfYmm(clipBottom);
 
   const sides = [
     {
@@ -96,7 +97,7 @@ function drawBorder({ doc, node, ctx, clipBottom, isLastSpill = true }) {
     if (!c) continue;
 
     doc.setDrawColor(c[0], c[1], c[2]);
-    doc.setLineWidth(ctx.toMM(bw));
+    doc.setLineWidth(toMM(bw));
 
     if (side === 'top') {
       if (isFirstPage) doc.line(x, yTop, x + w, yTop);
@@ -117,22 +118,17 @@ function drawBorder({ doc, node, ctx, clipBottom, isLastSpill = true }) {
  * @param {string} pageBreakBorder - CSS border 简写，如 '1px solid #d9d9d9'
  * @param {number} clipBottom      - 出口线位置（mm，相对页面内容区顶部）
  */
-function drawSpillClosingLines({
-  doc,
-  node,
-  ctx,
-  clipBottom,
-  pageBreakBorder,
-}) {
+function drawSpillClosingLines({ node, ctx, clipBottom, pageBreakBorder }) {
+  const { doc, toMM, toPdfX, toPdfYmm } = ctx;
   const fb = parseBorderString(pageBreakBorder);
   if (!fb) return;
 
-  const x = ctx.toPdfX(node.x);
-  const w = ctx.toMM(node.width);
+  const x = toPdfX(node.x);
+  const w = toMM(node.width);
 
   doc.setDrawColor(fb.color[0], fb.color[1], fb.color[2]);
-  doc.setLineWidth(ctx.toMM(fb.bw));
-  doc.line(x, ctx.toPdfYmm(clipBottom), x + w, ctx.toPdfYmm(clipBottom));
+  doc.setLineWidth(toMM(fb.bw));
+  doc.line(x, toPdfYmm(clipBottom), x + w, toPdfYmm(clipBottom));
 }
 
 export { drawBorder, drawSpillClosingLines };

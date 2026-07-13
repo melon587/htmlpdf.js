@@ -18,7 +18,7 @@
  *
  * ## 整体流程
  *
- * collectPageBreakLines({ nodes, allPlacements, ctx, contentHeight, pageBreakBorderMap })
+ * collectPageBreakLines({ nodes, allPlacements, ctx, pageBreakBorderMap })
  *   │
  *   ├─ 1. 预处理（O(N)）
  *   │   ├─ trNodesByTable: tableEl → trNodes[]     建立表格→行节点映射
@@ -166,8 +166,7 @@ export function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
  * @param {Object}  options
  * @param {Array<Object>}   options.nodes - 所有解析后的节点（来自 collectNodes）
  * @param {Array<Object>}   options.allPlacements - 所有渲染计划（normal + spill + repeat-header）
- * @param {Object}  options.ctx - 渲染上下文（包含 scale 属性，用于 mm ↔ px 转换）
- * @param {number}  options.contentHeight - 单页内容区高度（mm）
+ * @param {Object}  options.ctx - 渲染上下文（包含 scale、contentHeight 属性，用于 mm ↔ px 转换）
  * @param {WeakMap<Object, string>} options.pageBreakBorderMap - 表格节点 → 边框样式映射
  *   由 main.js 的 buildPageBreakBorderMap() 构建
  *
@@ -196,10 +195,9 @@ export function collectPageBreakLines({
   nodes,
   allPlacements,
   ctx,
-  contentHeight,
   pageBreakBorderMap,
 }) {
-  const contentHeightPx = contentHeight / ctx.scale;
+  const { contentHeightPx } = ctx;
 
   // ── 预处理：O(N) 建立两个 Map，避免后续嵌套全量扫描 ──────────────────────
 

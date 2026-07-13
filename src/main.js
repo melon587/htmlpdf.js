@@ -68,7 +68,7 @@
  */
 
 import {
-  createContext,
+  initContext,
   createClonedDocument,
   collectNodes,
   preloadImages,
@@ -81,45 +81,6 @@ import {
   getPageBreakLinesMap,
 } from './core';
 import { renderNode, drawSpillClosingLines } from './render';
-import { getOutputType } from './utils';
-
-/**
- * 计算 placement 的渲染顺序权重（同页内）
- *
- * 权重规则：
- * - spill: 0（背景/边框，最先渲染）
- * - repeat-header / repeat-header-child: 1（表头，次之）
- * - normal: 2（正常内容，最后渲染）
- *
- * 目的：确保背景垫底，表头在背景之上，内容覆盖在最上层
- *
- * @param {Object} p - placement 对象
- * @returns {number} 权重值（0-2）
- */
-function placementOrder(p) {
-  if (p.type === 'spill') return 0;
-
-  if (p.type === 'repeat-header' || p.type === 'repeat-header-child') return 1;
-
-  return 2;
-}
-
-/**
- * placement 排序比较函数
- *
- * 排序规则：
- * 1. 先按页码升序排列（第1页 → 第2页 → ...）
- * 2. 同页内按 placementOrder 升序排列（spill → repeat-header → normal）
- *
- * @param {Object} a - placement A
- * @param {Object} b - placement B
- * @returns {number} 比较结果（负数/0/正数）
- */
-function comparePlacements(a, b) {
-  if (a.page !== b.page) return a.page - b.page;
-
-  return placementOrder(a) - placementOrder(b);
-}
 
 /**
  * 创建进度追踪器
@@ -218,13 +179,14 @@ function ensurePage(doc, targetPage, currentPage) {
  * @returns {Promise<Blob|string|ArrayBuffer>} PDF 输出（格式由 options.output 决定）
  */
 export async function htmlpdf(element, options = {}) {
+  // 初始化进度监控
   const tick = initProgressTracker(options);
 
   const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
 
-  // 创建上下文 用于调用jsPDF的api
-  const ctx = createContext(element, options);
-  const { doc, contentHeight } = ctx;
+  // 初始化jsPDF上下文 用于调用api
+  const ctx = initContext(element, options);
+  const { doc, toMM } = ctx;
 
   // 克隆目标元素（传入 fonts，注入字体到克隆文档）
   const { iframe, cloneRoot } = await createClonedDocument(element, fonts);
@@ -240,7 +202,7 @@ export async function htmlpdf(element, options = {}) {
   tick('images', 0.4);
 
   // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
-  await loadFontsToJsPDF(doc, fonts);
+  await loadFontsToJsPDF(ctx, fonts);
   tick('fonts', 0.5);
 
   // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────
@@ -250,24 +212,13 @@ export async function htmlpdf(element, options = {}) {
   const pageBreakBorderMap = getPageBreakLinesMap(nodes, tables);
 
   // 使用流式分页计算渲染方案
-  const {
-    totalPages,
-    nodePlacements,
-    headerPlacements,
-    sortedFontConfig,
-    fallbackFontFamily,
-  } = streamPaginate({
+  const { totalPages, allPlacements, sortedFontConfig } = streamPaginate({
     nodes,
     ctx,
-    contentHeight,
     fonts,
     repeatHeaderManager,
   });
 
-  // 合并所有 placement 并按页码、类型排序（spill < repeat-header < normal）
-  const allPlacements = [...headerPlacements, ...nodePlacements].sort(
-    comparePlacements,
-  );
   tick('paginate', 0.7);
 
   // 收集 spill 闭合线（按页分组）
@@ -275,7 +226,6 @@ export async function htmlpdf(element, options = {}) {
     nodes,
     allPlacements,
     ctx,
-    contentHeight,
     pageBreakBorderMap,
   });
 
@@ -288,32 +238,30 @@ export async function htmlpdf(element, options = {}) {
     }
 
     renderNode({
-      doc,
       node: placement.node,
       ctx,
       offsetYpx: placement.offsetYpx,
-      contentHeight,
       sortedFontConfig,
-      fallbackFontFamily,
       isLastSpill: placement.isLastSpill,
     });
   }
 
   // 逐页绘制出口闭合线（在所有节点渲染完后画，避免被覆盖）
-  for (let page = 1; page <= totalPages; page++) {
-    const spillLines = spillClosingLinesByPage.get(page);
-    if (!spillLines || spillLines.length === 0) continue;
+  if (spillClosingLinesByPage.size > 0) {
+    for (let page = 1; page <= totalPages; page++) {
+      const spillLines = spillClosingLinesByPage.get(page);
+      if (!spillLines || spillLines.length === 0) continue;
 
-    doc.setPage(page);
-    for (const { node, offsetYpx, exitAtPx } of spillLines) {
-      const clipBottomMM = ctx.toMM(exitAtPx - offsetYpx);
-      drawSpillClosingLines({
-        doc,
-        node,
-        ctx,
-        clipBottom: clipBottomMM,
-        pageBreakBorder: pageBreakBorderMap.get(node),
-      });
+      doc.setPage(page);
+      for (const { node, offsetYpx, exitAtPx } of spillLines) {
+        const clipBottomMM = toMM(exitAtPx - offsetYpx);
+        drawSpillClosingLines({
+          node,
+          ctx,
+          clipBottom: clipBottomMM,
+          pageBreakBorder: pageBreakBorderMap.get(node),
+        });
+      }
     }
   }
 
@@ -324,9 +272,7 @@ export async function htmlpdf(element, options = {}) {
 
   tick('render', 0.9);
 
-  const outputType = getOutputType(output);
-
-  const result = doc.output(outputType);
+  const result = ctx.output(output);
 
   tick('output', 1.0);
 

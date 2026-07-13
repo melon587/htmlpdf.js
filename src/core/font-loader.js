@@ -55,13 +55,15 @@ async function getFontBase64(config) {
 
 /**
  * 加载字体到 jsPDF
- * @param {Object} doc - jsPDF 实例
+ * @param {Object} ctx - ctx实例
  * @param {Array} fonts - 字体配置数组
  */
-export async function loadFontsToJsPDF(doc, fonts) {
+export async function loadFontsToJsPDF(ctx, fonts) {
   if (!fonts || fonts.length === 0) {
     return;
   }
+
+  const { doc } = ctx;
 
   await Promise.all(
     fonts.map(async (config) => {

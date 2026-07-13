@@ -14,13 +14,12 @@
  * 本函数内部通过加回 offsetYpx 还原全局坐标，再与页面边界取交集，
  * 得到当前页内可见的像素范围。
  *
- * @param {Object} doc           - jsPDF 实例
  * @param {Object} node          - 图片节点（node._srcCanvas 为全图 canvas，y 为页内相对坐标）
  * @param {Object} ctx           - 渲染上下文
  * @param {number} offsetYpx     - 当前页内容区起始全局 y（px）
- * @param {number} contentHeight - 单页内容区高度（mm）
  */
-function drawImage({ doc, node, ctx, offsetYpx = 0, contentHeight }) {
+function drawImage({ node, ctx, offsetYpx = 0 }) {
+  const { doc, contentHeightPx, toPdfX, toPdfY, toMM } = ctx;
   // node._srcCanvas 是 preloadImages 阶段预先绘制好的全图 canvas
   const srcCanvas = node._srcCanvas;
   if (!srcCanvas) return;
@@ -33,7 +32,6 @@ function drawImage({ doc, node, ctx, offsetYpx = 0, contentHeight }) {
   const globalNodeTopPx = node.y + offsetYpx;
   const globalNodeBottomPx = globalNodeTopPx + node.height;
 
-  const contentHeightPx = contentHeight / ctx.scale;
   const pageBottomGlobalPx = offsetYpx + contentHeightPx;
 
   // 当前页内可见的全局 px 范围
@@ -52,10 +50,10 @@ function drawImage({ doc, node, ctx, offsetYpx = 0, contentHeight }) {
   if (srcH <= 0) return;
 
   // PDF 目标坐标（可见区域在页面上的位置）
-  const pdfX = ctx.toPdfX(node.x);
-  const pdfY = ctx.toPdfY(visibleTopPx - offsetYpx);
-  const pdfW = ctx.toMM(node.width);
-  const pdfH = ctx.toMM(visibleBottomPx - visibleTopPx);
+  const pdfX = toPdfX(node.x);
+  const pdfY = toPdfY(visibleTopPx - offsetYpx);
+  const pdfW = toMM(node.width);
+  const pdfH = toMM(visibleBottomPx - visibleTopPx);
 
   // 从已预先绘制的全图 canvas 裁出当前页可见片段
   // IMG 用 JPEG（无透明，体积小）；CANVAS 用 PNG（保留透明通道，避免透明区域变黑）

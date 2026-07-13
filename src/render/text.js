@@ -135,7 +135,7 @@ function buildEffectiveFontConfig(node, sortedFontConfig) {
 /**
  * 根据字符码点找到对应的字体配置
  * 优先级：charRanges 精确匹配 > isDefault 字体 > null
- * 返回 null 表示用户配置中无匹配，由渲染层用 fallbackFontFamily（默认 helvetica）兜底
+ * 返回 null 表示用户配置中无匹配，由渲染层用 helvetica 兜底
  */
 function findFontForChar(code, sortedFontConfig) {
   for (const config of sortedFontConfig) {
@@ -202,14 +202,15 @@ function segmentTextByFont(text, sortedFontConfig) {
 }
 
 /**
- * 设置字体，失败则回退到 fallback
+ * 设置字体，失败则回退到 helvetica
  */
-function setFont(doc, fontFamily, fontStyle, fallbackFontFamily) {
+function setFont(ctx, fontFamily, fontStyle) {
+  const { doc } = ctx;
   try {
     doc.setFont(fontFamily, fontStyle);
   } catch (e) {
     // 字体未注册时静默回退；如遇渲染异常请检查 fontFamily 是否已通过 addFont 注册
-    doc.setFont(fallbackFontFamily, fontStyle);
+    doc.setFont('helvetica', fontStyle);
   }
 }
 
@@ -217,24 +218,17 @@ function setFont(doc, fontFamily, fontStyle, fallbackFontFamily) {
  * 渲染合并后的 RTL 节点（整体一次性渲染，使用 align:right + rightEdge）
  * 不走 segmentTextByFont，避免逐 segment 右对齐导致重叠
  */
-function drawRTLMerged({
-  doc,
-  node,
-  ctx,
-  y,
-  fontStyle,
-  effectiveFontConfig,
-  fallbackFontFamily,
-}) {
-  const rightEdge = ctx.toPdfX(node._rightEdge);
+function drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig }) {
+  const { doc, toPdfX } = ctx;
+  const rightEdge = toPdfX(node._rightEdge);
 
-  // 字体选择：取 isDefault（用户为本节点指定的兜底字体），找不到再取列表第一个
+  // 字体选择：取 isDefault（用户为本节点指定的兜底字体），找不到再取列表第一个，再回退 helvetica
   const selectedFontFamily =
     effectiveFontConfig.find((f) => f.isDefault)?.fontFamily ??
     effectiveFontConfig[0]?.fontFamily ??
-    fallbackFontFamily;
+    'helvetica';
 
-  setFont(doc, selectedFontFamily, fontStyle, fallbackFontFamily);
+  setFont(ctx, selectedFontFamily, fontStyle);
 
   doc.text(node.text, rightEdge, y, {
     baseline: 'alphabetic',
@@ -260,24 +254,16 @@ function drawRTLMerged({
  *
  * 坐标系：node.x/node.y 为相对克隆根元素左上角的 px 值，经 ctx 转换为 PDF mm 坐标。
  *
- * @param {Object} doc - jsPDF 实例
  * @param {Object} node - 文本节点
- * @param {Object} ctx - 坐标转换上下文（toMM / toPt / toPdfX / toPdfY）
+ * @param {Object} ctx - 坐标转换上下文（toMM / toPt / toPdfX / toPdfY / doc）
  * @param {number} clipTop - 裁剪顶部（mm），节点顶部低于此值时跳过
  * @param {Array}  sortedFontConfig - 已按 priority 排好序的字体配置数组
- * @param {string} fallbackFontFamily - 兜底字体名（默认 'helvetica'）
  */
-function drawText({
-  doc,
-  node,
-  ctx,
-  clipTop,
-  sortedFontConfig = [],
-  fallbackFontFamily = 'helvetica',
-}) {
+function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
   if (!node.text) return;
 
-  const nodeTop = ctx.toMM(node.y);
+  const { doc, toMM, toPt, toPdfX, toPdfY } = ctx;
+  const nodeTop = toMM(node.y);
   if (nodeTop < clipTop) {
     return;
   }
@@ -291,11 +277,11 @@ function drawText({
   if (color) doc.setTextColor(color[0], color[1], color[2]);
   else doc.setTextColor(0, 0, 0);
 
-  doc.setFontSize(ctx.toPt(fontSize));
+  doc.setFontSize(toPt(fontSize));
 
   const fontStyle = getCombinedFontStyle(style.fontStyle, style.fontWeight);
-  const x = ctx.toPdfX(node.x);
-  const y = ctx.toPdfY(node.y) + ctx.toMM(fontSize);
+  const x = toPdfX(node.x);
+  const y = toPdfY(node.y) + toMM(fontSize);
   const isRTL = style.direction === 'rtl';
 
   // ── 路径 1：无自定义字体配置 → 简单渲染 ────────────────────────────────────
@@ -322,13 +308,11 @@ function drawText({
   // 不走 segmentTextByFont，避免逐 segment 右对齐导致重叠
   if (isRTL && node._isRTLMerged) {
     drawRTLMerged({
-      doc,
       node,
       ctx,
       y,
       fontStyle,
       effectiveFontConfig,
-      fallbackFontFamily,
     });
 
     return;
@@ -342,9 +326,9 @@ function drawText({
   for (const segment of segments) {
     // 设置该 segment 的字体
     if (segment.font?.fontFamily) {
-      setFont(doc, segment.font.fontFamily, fontStyle, fallbackFontFamily);
+      setFont(ctx, segment.font.fontFamily, fontStyle);
     } else {
-      doc.setFont(fallbackFontFamily, fontStyle);
+      doc.setFont('helvetica', fontStyle);
     }
 
     if (isRTL && segment.font?.fontFamily) {
