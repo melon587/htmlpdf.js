@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findLastTrBottomPx } from '../src/render/page-break-lines.js';
+import { findLastTrBottomPx } from '../src/core/page-break-lines.js';
 
 describe('findLastTrBottomPx', () => {
   it('无 TR 在当前页范围内：返回 null', () => {

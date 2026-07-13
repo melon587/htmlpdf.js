@@ -77,12 +77,9 @@ import {
   renderHeaderFooter,
   createRepeatHeaderManager,
   streamPaginate,
-} from './core';
-import {
-  renderNode,
-  drawSpillClosingLines,
   collectPageBreakLines,
-} from './render';
+} from './core';
+import { renderNode, drawSpillClosingLines } from './render';
 import { matchesSelector, getOutputType } from './utils';
 
 /**

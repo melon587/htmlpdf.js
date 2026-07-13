@@ -6,3 +6,4 @@ export * from './node-parser';
 export * from './page';
 export * from './stream-pagination';
 export * from './repeat-header-manager';
+export * from './page-break-lines';
