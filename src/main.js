@@ -78,9 +78,10 @@ import {
   createRepeatHeaderManager,
   streamPaginate,
   collectPageBreakLines,
+  getPageBreakLinesMap,
 } from './core';
 import { renderNode, drawSpillClosingLines } from './render';
-import { matchesSelector, getOutputType } from './utils';
+import { getOutputType } from './utils';
 
 /**
  * 计算 placement 的渲染顺序权重（同页内）
@@ -121,33 +122,6 @@ function comparePlacements(a, b) {
 }
 
 /**
- * 构建 pageBreakBorder 映射（表格容器 → 边框样式）
- *
- * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并建立映射。
- * 使用 WeakMap 避免污染 node 对象。
- *
- * @param {Array} nodes - 节点数组
- * @param {Array} tables - 表格配置数组，例如: [{ selector: '.my-table', pageBreakBorder: '1px solid #ccc' }]
- * @returns {WeakMap<node, borderStyle>} 容器节点 → 边框样式的映射
- */
-function buildPageBreakBorderMap(nodes, tables) {
-  const borderMap = new WeakMap();
-
-  tables
-    .filter((t) => t.pageBreakBorder)
-    .forEach((tableConf) => {
-      // 找所有匹配的容器节点（同一 selector 可能匹配多个表格实例）
-      nodes
-        .filter((n) => matchesSelector(n._origEl, tableConf.selector))
-        .forEach((containerNode) => {
-          borderMap.set(containerNode, tableConf.pageBreakBorder);
-        });
-    });
-
-  return borderMap;
-}
-
-/**
  * 创建进度追踪器
  *
  * 返回 tick(stage, progress) 函数，每次调用时：
@@ -157,11 +131,11 @@ function buildPageBreakBorderMap(nodes, tables) {
  * @param {Object} options - htmlpdf 选项
  * @param {boolean} options.debug - 是否输出计时日志
  * @param {Function} options.onProgress - 进度回调 ({ stage, progress }) => void
- * @param {number} startTime - performance.now() 起点
  * @returns {Function} tick(stage, progress) - 进度报告函数
  */
-function createProgressTracker(options, startTime) {
+function initProgressTracker(options) {
   const { debug = false, onProgress } = options;
+  const startTime = performance.now();
   let lastT = startTime;
 
   return function tick(stage, progress) {
@@ -244,8 +218,7 @@ function ensurePage(doc, targetPage, currentPage) {
  * @returns {Promise<Blob|string|ArrayBuffer>} PDF 输出（格式由 options.output 决定）
  */
 export async function htmlpdf(element, options = {}) {
-  const startTime = performance.now();
-  const tick = createProgressTracker(options, startTime);
+  const tick = initProgressTracker(options);
 
   const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
 
@@ -273,8 +246,8 @@ export async function htmlpdf(element, options = {}) {
   // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────
   // 创建 repeat-header 管理器（无 repeatHeader 配置时返回 null）
   const repeatHeaderManager = createRepeatHeaderManager(nodes, tables);
-  // 构建 pageBreakBorder 映射（WeakMap，不污染 node）
-  const pageBreakBorderMap = buildPageBreakBorderMap(nodes, tables);
+  // 构建 pageBreakLines 映射（WeakMap，不污染 node）
+  const pageBreakBorderMap = getPageBreakLinesMap(nodes, tables);
 
   // 使用流式分页计算渲染方案
   const {

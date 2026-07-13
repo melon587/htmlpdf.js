@@ -79,6 +79,8 @@
  * ```
  */
 
+import { matchesSelector } from '../utils';
+
 /**
  * 在 linesByPage Map 中追加一条出口线记录
  *
@@ -263,4 +265,31 @@ export function collectPageBreakLines({
   }
 
   return linesByPage;
+}
+
+/**
+ * 构建 pageBreakBorder 映射（表格容器 → 边框样式）
+ *
+ * 对每个配置了 pageBreakBorder 的表格，找到对应的容器节点并建立映射。
+ * 使用 WeakMap 避免污染 node 对象。
+ *
+ * @param {Array} nodes - 节点数组
+ * @param {Array} tables - 表格配置数组，例如: [{ selector: '.my-table', pageBreakBorder: '1px solid #ccc' }]
+ * @returns {WeakMap<node, borderStyle>} 容器节点 → 边框样式的映射
+ */
+export function getPageBreakLinesMap(nodes, tables) {
+  const borderMap = new WeakMap();
+
+  tables
+    .filter((t) => t.pageBreakBorder)
+    .forEach((tableConf) => {
+      // 找所有匹配的容器节点（同一 selector 可能匹配多个表格实例）
+      nodes
+        .filter((n) => matchesSelector(n._origEl, tableConf.selector))
+        .forEach((containerNode) => {
+          borderMap.set(containerNode, tableConf.pageBreakBorder);
+        });
+    });
+
+  return borderMap;
 }
