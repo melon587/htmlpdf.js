@@ -83,7 +83,7 @@ import {
   drawSpillClosingLines,
   collectPageBreakLines,
 } from './render';
-import { matchesSelector } from './utils';
+import { matchesSelector, getOutputType } from './utils';
 
 /**
  * 计算 placement 的渲染顺序权重（同页内）
@@ -354,11 +354,9 @@ export async function htmlpdf(element, options = {}) {
 
   tick('render', 0.9);
 
-  // 输出
-  let result;
-  if (output === 'dataurl') result = doc.output('datauristring');
-  else if (output === 'arraybuffer') result = doc.output('arraybuffer');
-  else result = doc.output('blob');
+  const outputType = getOutputType(output);
+
+  const result = doc.output(outputType);
 
   tick('output', 1.0);
 

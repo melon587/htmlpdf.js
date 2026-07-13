@@ -416,3 +416,31 @@ export function copyPseudoStyles(span, pseudoStyle) {
   // 边框样式（提取到辅助函数降低复杂度）
   copyBorderStyles(span, pseudoStyle);
 }
+
+/**
+ * 将 output 选项映射为 jsPDF doc.output() 所需的类型字符串
+ * @param {string} output - 用户传入的 output 选项（'blob' | 'dataurl' | 'arraybuffer'）
+ * @returns {string} jsPDF output 类型（默认 'blob'）
+ */
+export function getOutputType(output) {
+  const outputMap = {
+    dataurl: 'datauristring',
+    arraybuffer: 'arraybuffer',
+    blob: 'blob',
+  };
+
+  return outputMap[output] ?? 'blob';
+}
+
+/**
+ * 从 CSS backgroundImage 字符串中提取第一个 url() 的地址
+ * @param {string} bgImage
+ * @returns {string|null}
+ */
+export function parseBgImageUrl(bgImage) {
+  if (!bgImage || bgImage === 'none') return null;
+
+  const m = bgImage.match(/url\(["']?([^"')]+)["']?\)/);
+
+  return m ? m[1] : null;
+}
