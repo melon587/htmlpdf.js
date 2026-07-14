@@ -117,7 +117,7 @@ function processMultilineText({
   const lineGroups = []; // [{top, left, right, bottom, height, chars: [char1, char2, ...]}]
 
   // 逐字符分析并按行分组（用 raw 的下标对应 textNode offset）
-  for (let charIdx = 0; charIdx < raw.length; charIdx++) {
+  for (let charIdx = 0; charIdx < raw.length; charIdx += 1) {
     docRange.setStart(textNode, charIdx);
     docRange.setEnd(textNode, charIdx + 1);
     const charRects = docRange.getClientRects();
@@ -280,7 +280,7 @@ export function collectNodes(element, cloneRoot) {
     // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
     let origIndex = 0;
 
-    for (let i = 0; i < measChildren.length; i++) {
+    for (let i = 0; i < measChildren.length; i += 1) {
       const measChild = measChildren[i];
 
       if (measChild.nodeType === Node.ELEMENT_NODE) {

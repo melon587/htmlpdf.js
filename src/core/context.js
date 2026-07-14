@@ -1,11 +1,7 @@
 import { jsPDF } from 'jspdf';
 import { getOutputType } from '../utils';
 
-// A4 尺寸（单位 mm）
-// jsPDF 内部使用 pt，但我们统一用 mm 操作
-// 屏幕 px → PDF mm 的转换比例：contentWidth(mm) / rootElement.width(px)
-
-// px 转 mm 的常量（96 DPI 标准）
+// px 转 mm 的常量（96 DPI）
 const PX_TO_MM = 25.4 / 96;
 
 /**
@@ -49,7 +45,7 @@ export function initContext(rootElement, options = {}) {
   const rootRect = rootElement.getBoundingClientRect();
   const scale = contentWidth / rootRect.width;
 
-  // 单页内容区高度（px），供内部模块直接使用，避免重复计算
+  // 单页内容区高度（px）
   const contentHeightPx = contentHeight / scale;
 
   return {
@@ -75,26 +71,23 @@ export function initContext(rootElement, options = {}) {
     },
 
     /**
-     * 节点 y(px) → PDF y(mm)
-     * 内容区顶部基准 = margin + headerHeight
-     * @param {number} y - 相对当前页顶部的 y（px），流式分页已将 offsetY 算入节点坐标
+     * 节点 y(px) → PDF y(mm)，内容区基准 = margin + headerHeight
+     * @param {number} y - 相对当前页顶部的 y（px）
      */
     toPdfY(y) {
       return marginMM + headerHeight + y * scale;
     },
 
     /**
-     * mm 值直接转 PDF y（已经是 mm，不需要 *scale）
-     * 内容区顶部基准 = margin + headerHeight
-     * @param {number} ymm - 相对当前页顶部的 mm 坐标，流式分页已将 offsetY 算入
+     * mm 值直接转 PDF y（无需 *scale），内容区基准 = margin + headerHeight
+     * @param {number} ymm - 相对当前页顶部的 mm 坐标
      */
     toPdfYmm(ymm) {
       return marginMM + headerHeight + ymm;
     },
 
     /**
-     * px 字体大小 → PDF pt
-     * jsPDF.setFontSize 使用 pt（1mm ≈ 2.8346pt）
+     * px 字体大小 → PDF pt（jsPDF.setFontSize 使用 pt，1mm ≈ 2.8346pt）
      */
     toPt(px) {
       return px * scale * 2.8346;

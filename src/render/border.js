@@ -27,14 +27,10 @@ function parseBorderString(borderStr) {
 
 /**
  * 绘制边框（跨页裁剪）
- *
  * - isFirstPage（nodeTop >= 0）→ 画 top border
  * - isLastPage（isLastSpill 且节点底部在页内）→ 画 bottom border
- * - left/right 每页都画
- *
- * @param {boolean} isLastSpill - 是否是该节点的最后一个 spill placement
- *   - true（默认）：画到节点实际底部，可以画 bottom border
- *   - false（中间 spill 页）：左右边框延伸到整页高度，不画 bottom border
+ * - left/right 每页都画（中间 spill 页延伸到整页高度）
+ * @param {boolean} isLastSpill - false 表示中间 spill 页，不画 bottom border
  */
 function drawBorder({ node, ctx, clipBottom, isLastSpill = true }) {
   const { doc, toMM, toPdfX, toPdfYmm } = ctx;
@@ -112,9 +108,7 @@ function drawBorder({ node, ctx, clipBottom, isLastSpill = true }) {
 }
 
 /**
- * 在表格跨页截断处画出口闭合线（贴着当前页最后一行 TR 底部）。
- * 在所有节点渲染完后调用，确保不被覆盖。
- *
+ * 在表格跨页截断处画出口闭合线（贴着当前页最后一行 TR 底部），所有节点渲染完后调用。
  * @param {string} pageBreakBorder - CSS border 简写，如 '1px solid #d9d9d9'
  * @param {number} clipBottom      - 出口线位置（mm，相对页面内容区顶部）
  */

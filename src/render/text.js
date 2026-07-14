@@ -20,10 +20,10 @@ function getCombinedFontStyle(fontStyle, fontWeight) {
 }
 
 /**
- * 根据 CSS font-family 查找匹配的字体配置
- * @param {string} cssFontFamily - CSS font-family 值（已规范化，去除引号）
- * @param {Array} sortedFontConfig - 已排序的字体配置数组
- * @returns {Object|null} 匹配的字体配置，无匹配返回 null
+ * 根据 css font-family 查找匹配的字体配置
+ * @param {string} cssFontFamily
+ * @param {Array} sortedFontConfig
+ * @returns {Object|null}
  */
 function findFontByFamily(cssFontFamily, sortedFontConfig) {
   if (!cssFontFamily || !sortedFontConfig) return null;
@@ -48,12 +48,9 @@ function findFontByFamily(cssFontFamily, sortedFontConfig) {
 
 /**
  * 解析 pdf-font 属性值为字体名数组
- * 支持：
- * - JS 数组（:pdf-font="['roboto','notoSansArabic']" Vue 动态绑定）
- * - 逗号分隔字符串 "roboto,notoSansArabic"（静态 attribute）
- * - 单字符串 "roboto"
- * @param {string|string[]} pdfFont - pdf-font 属性值
- * @returns {string[]} 字体名数组，按用户声明的优先级排列
+ * 支持数组（Vue 动态绑定）、逗号分隔字符串、单字符串
+ * @param {string|string[]} pdfFont
+ * @returns {string[]}
  */
 function parsePdfFontNames(pdfFont) {
   if (!pdfFont) return [];
@@ -71,24 +68,13 @@ function parsePdfFontNames(pdfFont) {
 }
 
 /**
- * 根据节点的 pdf-font 属性，构造本节点实际使用的字体优先级列表（仅对当前节点生效）
+ * 根据节点的 pdf-font 属性，构造本节点实际使用的字体优先级列表
  *
- * 完整优先级链（对每个字符独立决策）：
- * 1. pdf-font 数组中有 charRanges 的字体 → 按声明顺序插到最前，精确匹配优先
- * 2. pdf-font 数组中第一个无 charRanges 的字体 → 作为本节点的 isDefault 兜底
- * 3. 全局 charRanges 匹配
- * 4. 全局 isDefault 字体
- * 5. helvetica（渲染层兜底，不在此处理）
+ * 优先级链：pdf-font+charRanges > pdf-font(无charRanges 作 isDefault) > 全局 charRanges > isDefault > helvetica
  *
- * 用法示例：
- *   pdf-font="roboto"                      → 单字体，无 charRanges 时作为本节点 isDefault
- *   :pdf-font="['roboto','notoSansArabic']"  → roboto 精确匹配其 charRanges 范围，
- *                                             notoSansArabic 精确匹配其 charRanges 范围，
- *                                             若两者都无 charRanges，第一个作为 isDefault
- *
- * @param {Object} node - 文本节点，包含 pdfFont 字段
- * @param {Array} sortedFontConfig - 全局已排序字体配置数组
- * @returns {Array} 用于本节点分段渲染的字体配置数组
+ * @param {Object} node            - 文本节点，包含 pdfFont 字段
+ * @param {Array}  sortedFontConfig - 全局已排序字体配置数组
+ * @returns {Array}
  */
 function buildEffectiveFontConfig(node, sortedFontConfig) {
   if (!node.pdfFont) return sortedFontConfig;
@@ -112,11 +98,9 @@ function buildEffectiveFontConfig(node, sortedFontConfig) {
 
   if (resolvedConfigs.length === 0) return sortedFontConfig;
 
-  // 有 charRanges 的字体：按顺序插到最前（精确匹配）
+  // 有 charRanges → 插到最前（精确匹配）；无 charRanges → 第一个作为 isDefault
   const withRanges = resolvedConfigs.filter((c) => c.charRanges);
-  // 无 charRanges 的字体：取最后一个作为本节点 isDefault（用户声明的最低优先级兜底）
   const withoutRanges = resolvedConfigs.filter((c) => !c.charRanges);
-  // 取第一个无 charRanges 的字体作为 isDefault（声明顺序即优先级）
   const nodeDefault = withoutRanges[0] ?? null;
 
   // 从全局配置中移除已被 pdf-font 占据的位置，避免重复
@@ -245,19 +229,14 @@ function drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig }) {
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
  * 渲染路径：
- * - 路径 1：无自定义字体配置 → helvetica 直接渲染
- * - 路径 2：合并后的 RTL 节点（_isRTLMerged）→ 整体一次性渲染（不可分段，否则 align:right 重叠）
- * - 路径 3：其余节点 → buildEffectiveFontConfig 融入 pdf-font 优先级后，segmentTextByFont 分段渲染
+ * 1. 无自定义字体 → helvetica 直接渲染
+ * 2. _isRTLMerged → drawRTLMerged 整体渲染（不可分段，否则 align:right 重叠）
+ * 3. 其余 → buildEffectiveFontConfig 融入 pdf-font 优先级后 segmentTextByFont 分段渲染
  *
- * 字体优先级（路径 2/3）：
- *   pdf-font+charRanges > pdf-font(无charRanges 作 isDefault) > 全局 charRanges > isDefault > helvetica
- *
- * 坐标系：node.x/node.y 为相对克隆根元素左上角的 px 值，经 ctx 转换为 PDF mm 坐标。
- *
- * @param {Object} node - 文本节点
- * @param {Object} ctx - 坐标转换上下文（toMM / toPt / toPdfX / toPdfY / doc）
- * @param {number} clipTop - 裁剪顶部（mm），节点顶部低于此值时跳过
- * @param {Array}  sortedFontConfig - 已按 priority 排好序的字体配置数组
+ * @param {Object} node           - 文本节点
+ * @param {Object} ctx            - 渲染上下文
+ * @param {number} clipTop        - 裁剪顶部（mm），节点顶部低于此值时跳过
+ * @param {Array}  sortedFontConfig - 已排序字体配置
  */
 function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
   if (!node.text) return;
@@ -304,8 +283,7 @@ function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
   // 路径 2/3 共用：融入 pdf-font 优先级，只算一次
   const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
 
-  // ── 路径 2：合并后的 RTL 节点 → 整体渲染，提前 return ──────────────────────
-  // 不走 segmentTextByFont，避免逐 segment 右对齐导致重叠
+  // ── 路径 2：_isRTLMerged → 整体渲染（不可分段，否则 align:right 重叠）──────
   if (isRTL && node._isRTLMerged) {
     drawRTLMerged({
       node,
@@ -319,12 +297,10 @@ function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
   }
 
   // ── 路径 3：分 segment 渲染（LTR + RTL 单词混合）──────────────────────────
-  // 优先级：pdf-font+charRanges > pdf-font(无charRanges,作isDefault) > 全局charRanges > isDefault > fallback
   const segments = segmentTextByFont(node.text, effectiveFontConfig);
   let curX = x;
 
   for (const segment of segments) {
-    // 设置该 segment 的字体
     if (segment.font?.fontFamily) {
       setFont(ctx, segment.font.fontFamily, fontStyle);
     } else {

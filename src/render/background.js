@@ -4,14 +4,8 @@ import { parseLinearGradient, renderGradientSlice } from './gradient';
 // ─── 背景图尺寸/位置计算 ─────────────────────────────────────────────────────
 
 /**
- * 根据 backgroundSize / 元素尺寸 / 图片原始尺寸，计算实际渲染的 imgW/imgH（单位 mm）
- *
- * CSS background-size 语义：
- * - cover / contain：按比例缩放覆盖/包含
- * - auto auto（或单值 auto）：图片保持原始尺寸
- * - auto <length>：高度固定，宽度按原始比例等比
- * - <length> auto：宽度固定，高度按原始比例等比
- * - <length> <length>：两个方向独立指定
+ * 根据 backgroundSize / 元素尺寸 / 图片原始尺寸，计算实际渲染的 imgW/imgH（mm）
+ * 支持 cover / contain / auto / 固定值
  */
 function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
   const parts = (bgSize || 'auto').trim().split(/\s+/);
@@ -99,7 +93,7 @@ function drawBackground({ node, ctx, clipBottom, isLastSpill = true }) {
   // 2. 渐变背景（linear-gradient）：解析 → 直接绘制当前页片段 canvas → addImage
   const gradient = parseLinearGradient(style?.backgroundImage);
   if (gradient) {
-    // canvas 尺寸使用节点的 CSS 像素尺寸（width/height 已是 px）
+    // canvas 尺寸使用节点 CSS 像素尺寸
     const natW = Math.round(node.width);
     const natH = Math.round(node.height);
     const nodeHeightMM = nodeBottom - nodeTop;
@@ -157,9 +151,8 @@ function drawBackground({ node, ctx, clipBottom, isLastSpill = true }) {
       const imgY = toPdfYmm(nodeTop + offY);
 
       try {
-        // 用裁剪区域限制背景图只在当前页可见范围内绘制，防止跨页溢出
-        // style=null：putStyle(null) 直接 return，只建路径不执行 stroke/fill，
-        // 避免 style=undefined 时走 defaultPathOperation="S" 产生意外描边
+        // 用裁剪区域限制背景图只在当前页可见范围内绘制
+        // style=null：只建路径不执行 stroke/fill，避免意外描边
         doc.saveGraphicsState();
         doc.rect(x, y, w, h, null);
         doc.clip();

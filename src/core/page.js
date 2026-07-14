@@ -5,7 +5,7 @@ export function renderHeaderFooter(doc, { totalPages, ctx, header, footer }) {
   const { margin, pageWidth, pageHeight } = ctx;
   const info = { totalPages, pageWidth, pageHeight, margin };
 
-  for (let p = 1; p <= totalPages; p++) {
+  for (let p = 1; p <= totalPages; p += 1) {
     doc.setPage(p);
 
     if (header && typeof header.render === 'function') {

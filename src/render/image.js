@@ -1,26 +1,14 @@
 /**
  * 渲染图片节点到 PDF，支持跨页裁切
+ * node._srcCanvas 为 preloadImages 阶段预绘的全图 canvas；
+ * 内部通过加回 offsetYpx 还原全局坐标，裁出当前页可见片段写入 PDF。
  *
- * ## 工作原理
- *
- * preloadImages 阶段（iframe 销毁前）已将图片同步绘制到 canvas 并保存到 node._srcCanvas，
- * 同时记录原始像素尺寸（node.naturalWidth / node.naturalHeight）。
- * 渲染时直接从 node._srcCanvas 裁出当前页可见区域的像素片段写入 PDF，
- * 无需重新创建 Image 对象或等待异步解码。
- *
- * ## 坐标约定（进入本函数时）
- *
- * node.y 已由 renderNode 转换为页内相对坐标（全局 y − offsetYpx）。
- * 本函数内部通过加回 offsetYpx 还原全局坐标，再与页面边界取交集，
- * 得到当前页内可见的像素范围。
- *
- * @param {Object} node          - 图片节点（node._srcCanvas 为全图 canvas，y 为页内相对坐标）
- * @param {Object} ctx           - 渲染上下文
- * @param {number} offsetYpx     - 当前页内容区起始全局 y（px）
+ * @param {Object} node      - 图片节点（y 为页内相对坐标）
+ * @param {Object} ctx       - 渲染上下文
+ * @param {number} offsetYpx - 当前页内容区起始全局 y（px）
  */
 function drawImage({ node, ctx, offsetYpx = 0 }) {
   const { doc, contentHeightPx, toPdfX, toPdfY, toMM } = ctx;
-  // node._srcCanvas 是 preloadImages 阶段预先绘制好的全图 canvas
   const srcCanvas = node._srcCanvas;
   if (!srcCanvas) return;
 
@@ -28,7 +16,7 @@ function drawImage({ node, ctx, offsetYpx = 0 }) {
   const natH = node.naturalHeight;
   if (!natW || !natH) return;
 
-  // 还原全局坐标（node.y 是页内相对值，加回 offsetYpx 得到全局 px）
+  // 还原全局坐标
   const globalNodeTopPx = node.y + offsetYpx;
   const globalNodeBottomPx = globalNodeTopPx + node.height;
 
@@ -55,8 +43,7 @@ function drawImage({ node, ctx, offsetYpx = 0 }) {
   const pdfW = toMM(node.width);
   const pdfH = toMM(visibleBottomPx - visibleTopPx);
 
-  // 从已预先绘制的全图 canvas 裁出当前页可见片段
-  // IMG 用 JPEG（无透明，体积小）；CANVAS 用 PNG（保留透明通道，避免透明区域变黑）
+  // 从全图 canvas 裁出当前页可见片段（IMG→JPEG，CANVAS→PNG 保留透明通道）
   const format = node._srcFormat || 'JPEG';
   const cropCanvas = document.createElement('canvas');
   cropCanvas.width = natW;

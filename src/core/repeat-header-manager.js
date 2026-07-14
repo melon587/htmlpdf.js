@@ -1,7 +1,6 @@
 /**
  * Repeat-Header 管理器
- * 接收 tables 配置格式：
- * [{ selector, repeatHeader, pageBreakBorder }]
+ * tables 配置格式：[{ selector, repeatHeader, pageBreakBorder }]
  */
 
 import { matchesSelector } from '../utils';
@@ -23,13 +22,13 @@ function collectHeaderMetas(nodes, tables) {
     // 找所有匹配的表格容器节点（同一 selector 可能匹配多个表格实例）
     let foundAny = false;
 
-    for (let tableNodeIdx = 0; tableNodeIdx < nodes.length; tableNodeIdx++) {
+    for (let tableNodeIdx = 0; tableNodeIdx < nodes.length; tableNodeIdx += 1) {
       const tableNode = nodes[tableNodeIdx];
       if (!matchesSelector(tableNode._origEl, selector)) continue;
 
       foundAny = true;
 
-      // 2. 查找表头节点（只在容器节点之后的范围内查找，DOM 顺序保证子节点在容器后）
+      // 在容器节点之后查找表头节点（DOM 顺序保证子节点在容器后）
       let headerNode = null;
       let headerNodeIdx = -1;
 
@@ -52,10 +51,10 @@ function collectHeaderMetas(nodes, tables) {
         continue;
       }
 
-      // 3. 找到表头的所有子节点（只在表头节点之后查找）
+      // 找表头的所有子节点
       const headerChildren = [];
 
-      for (let i = headerNodeIdx + 1; i < nodes.length; i++) {
+      for (let i = headerNodeIdx + 1; i < nodes.length; i += 1) {
         const n = nodes[i];
         // 已超出表头范围，停止查找
         if (n._origEl && !headerNode._origEl.contains(n._origEl)) break;
@@ -95,8 +94,8 @@ function buildNodeHeaderMetaMap(nodes, headerMetas) {
     const startIdx = nodes.indexOf(meta.tableNode);
     if (startIdx === -1) continue;
 
-    for (let j = startIdx + 1; j < nodes.length; j++) {
-      const node = nodes[j];
+    for (let i = startIdx + 1; i < nodes.length; i += 1) {
+      const node = nodes[i];
       if (!node._origEl || !containerEl.contains(node._origEl)) break;
 
       metaMap.set(node, meta);
@@ -160,8 +159,7 @@ export function generateRepeatHeaderPlacements(
 ) {
   const placements = [];
   const headerHeightPx = headerMeta.headerNode.height;
-  // 浅拷贝节点，仅覆盖 y 坐标以对齐新页顶部。
-  // _origEl / style / children 等引用字段与原始节点共享，渲染管线只读不写，安全。
+  // 浅拷贝节点，仅覆盖 y 坐标以对齐新页顶部（引用字段共享，渲染管线只读）
   const headerAtTop = { ...headerMeta.headerNode, y: accumulatedYpx };
 
   placements.push({
@@ -174,7 +172,7 @@ export function generateRepeatHeaderPlacements(
 
   for (const child of headerMeta.headerChildren) {
     const offsetInHeader = child.y - headerMeta.headerNode.y;
-    // 同上：浅拷贝子节点，仅覆盖 y 坐标。
+    // 浅拷贝子节点，仅覆盖 y 坐标
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };
 
     placements.push({

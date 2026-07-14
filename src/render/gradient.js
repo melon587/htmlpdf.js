@@ -108,7 +108,7 @@ function fillStopPositions(stops) {
     let next = i + 1;
     while (next < n && result[next].pos === null) next++;
     const count = next - prev;
-    for (let k = 1; k < count; k++) {
+    for (let k = 1; k < count; k += 1) {
       result[prev + k].pos =
         result[prev].pos + (result[next].pos - result[prev].pos) * (k / count);
     }
