@@ -252,11 +252,95 @@ function resolveTextLayout(node, style, fontSize, ctx) {
 }
 
 /**
+ * 为单个文本段设置字体（副作用），无字体时回退 helvetica
+ * @param {Object} ctx
+ * @param {{font: Object|null}} segment
+ * @param {string} fontStyle
+ */
+function applySegmentFont(ctx, segment, fontStyle) {
+  if (segment.font?.fontFamily) {
+    setFont(ctx, segment.font.fontFamily, fontStyle);
+  } else {
+    ctx.doc.setFont('helvetica', fontStyle);
+  }
+}
+
+/**
+ * 测量各段在各自字体下的宽度（副作用：会切换 doc 当前字体）
+ * @param {Array<{text: string, font: Object|null}>} segments
+ * @param {string} fontStyle
+ * @param {Object} ctx
+ * @returns {number[]} 与 segments 等长的宽度数组（mm）
+ */
+function measureSegmentWidths(segments, fontStyle, ctx) {
+  return segments.map((segment) => {
+    applySegmentFont(ctx, segment, fontStyle);
+
+    return ctx.doc.getTextWidth(segment.text);
+  });
+}
+
+/**
+ * 多字体多段精确渲染（left / right / center 均支持）
+ *
+ * left  ：从左锚点正向逐段绘制
+ * right ：从右锚点反向排列（segments 反转后正向绘制）
+ * center：计算总宽后从中点左移半宽正向绘制
+ *
+ * @param {Object}  opts
+ * @param {Array<{text: string, font: Object|null}>} opts.segments
+ * @param {string}  opts.textAlign   - 'left' | 'right' | 'center'
+ * @param {number}  opts.x           - left/right 时为对应边缘，center 时为中点（mm）
+ * @param {number}  opts.y
+ * @param {string}  opts.fontStyle
+ * @param {Object}  opts.ctx
+ * @param {Object}  [opts.rtlOptions] - 仅 left+RTL 时逐段传入
+ */
+function drawMultiSegmentAligned({
+  segments,
+  textAlign,
+  x,
+  y,
+  fontStyle,
+  ctx,
+  rtlOptions,
+}) {
+  const widths = measureSegmentWidths(segments, fontStyle, ctx);
+  const totalWidth = widths.reduce((sum, w) => sum + w, 0);
+
+  const isRight = textAlign === 'right';
+  const orderedSegments = isRight ? [...segments].reverse() : segments;
+  const orderedWidths = isRight ? [...widths].reverse() : widths;
+
+  let curX;
+  if (isRight) curX = x - totalWidth;
+  else if (textAlign === 'center') curX = x - totalWidth / 2;
+  else curX = x; // left
+
+  for (let i = 0; i < orderedSegments.length; i++) {
+    const seg = orderedSegments[i];
+    applySegmentFont(ctx, seg, fontStyle);
+
+    // RTL + left 时逐段传入 rtlOptions；其余对齐方式靠坐标精确定位，不依赖 jsPDF RTL 选项
+    const segRtlOptions =
+      rtlOptions && textAlign === 'left' && seg.font?.fontFamily
+        ? rtlOptions
+        : undefined;
+
+    ctx.doc.text(seg.text, curX, y, {
+      baseline: 'alphabetic',
+      ...segRtlOptions,
+    });
+    curX += orderedWidths[i];
+  }
+}
+
+/**
  * 整体渲染一段文本（right / center / left 均适用）
- * 适用于：无自定义字体的简单路径、right/center 对齐路径
+ * 适用于：无自定义字体的简单路径、单段对齐路径
  * @param {string|null} fontFamily - null 时回退 helvetica
  */
-function drawSinglePass({
+function drawSegmentAligned({
   text,
   fontFamily,
   ctx,
@@ -266,18 +350,16 @@ function drawSinglePass({
   textAlign,
   rtlOptions,
 }) {
-  const { doc } = ctx;
-
-  if (fontFamily) {
-    setFont(ctx, fontFamily, fontStyle);
-  } else {
-    doc.setFont('helvetica', fontStyle);
-  }
+  applySegmentFont(
+    ctx,
+    { font: fontFamily ? { fontFamily } : null },
+    fontStyle,
+  );
 
   const align =
     textAlign === 'right' || textAlign === 'center' ? textAlign : undefined;
 
-  doc.text(text, x, y, {
+  ctx.doc.text(text, x, y, {
     baseline: 'alphabetic',
     ...(align && { align }),
     ...rtlOptions,
@@ -285,47 +367,11 @@ function drawSinglePass({
 }
 
 /**
- * 渲染合并后的 RTL 节点（整体一次性渲染，使用 align:right + rightEdge）
- * 不走 segmentTextByFont，避免逐 segment 右对齐导致重叠
- */
-function drawRTLMerged({
-  node,
-  ctx,
-  y,
-  fontStyle,
-  effectiveFontConfig,
-  textAlign,
-}) {
-  const { doc, toPdfX } = ctx;
-  const rightEdge = toPdfX(node._rightEdge);
-
-  // 字体选择：取 isDefault（用户为本节点指定的兜底字体），找不到再取列表第一个，再回退 helvetica
-  const selectedFontFamily =
-    effectiveFontConfig.find((f) => f.isDefault)?.fontFamily ??
-    effectiveFontConfig[0]?.fontFamily ??
-    'helvetica';
-
-  setFont(ctx, selectedFontFamily, fontStyle);
-
-  doc.text(node.text, rightEdge, y, {
-    baseline: 'alphabetic',
-    align: textAlign === 'center' ? 'center' : 'right',
-    isInputVisual: false,
-    isOutputVisual: true,
-    isInputRtl: true,
-    isOutputRtl: false,
-    isSymmetricSwapping: true,
-  });
-}
-
-/**
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
  * 渲染路径：
- * 1. 无自定义字体 → drawSinglePass（helvetica 兜底）
- * 2. _isRTLMerged → drawRTLMerged 整体渲染（不可分段，否则 align:right 重叠）
- * 3. right/center → drawSinglePass（整体一次，锚点已按 textAlign 计算好）
- * 4. 其余（left/LTR 多字体）→ segmentTextByFont 分段逐 segment 渲染
+ * 1. 单段 → drawSegmentAligned（jsPDF align 选项处理锚点；无字体时 helvetica 兜底）
+ * 2. 多段 → drawMultiSegmentAligned 逐段精确定位（left / right / center 统一）
  *
  * @param {Object} node           - 文本节点
  * @param {Object} ctx            - 渲染上下文
@@ -352,35 +398,15 @@ function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
     ctx,
   );
 
-  // ── 路径 1：无自定义字体 ────────────────────────────────────────────────────
-  if (sortedFontConfig.length === 0) {
-    drawSinglePass({
-      text: node.text,
-      fontFamily: null,
-      ctx,
-      x,
-      y,
-      fontStyle,
-      textAlign,
-      rtlOptions,
-    });
-
-    return;
-  }
-
   const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
 
-  // ── 路径 2：RTL 合并节点 ────────────────────────────────────────────────────
-  if (isRTL && node._isRTLMerged) {
-    drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig, textAlign });
+  // ── 路径 1/2：统一分段渲染（left / right / center）──────────────────────────
+  // 单段：整体一次渲染，让 jsPDF align 选项处理锚点偏移（简单高效）
+  // 多段：逐段量宽后精确定位，统一走 drawMultiSegmentAligned
+  const segments = segmentTextByFont(node.text, effectiveFontConfig);
 
-    return;
-  }
-
-  // ── 路径 3：right/center → 整体一次渲染 ────────────────────────────────────
-  if (textAlign === 'right' || textAlign === 'center') {
-    const segments = segmentTextByFont(node.text, effectiveFontConfig);
-    drawSinglePass({
+  if (segments.length <= 1) {
+    drawSegmentAligned({
       text: node.text,
       fontFamily: segments[0]?.font?.fontFamily ?? null,
       ctx,
@@ -388,27 +414,21 @@ function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
       y,
       fontStyle,
       textAlign,
-      rtlOptions: undefined,
+      rtlOptions: isRTL && textAlign === 'left' ? rtlOptions : undefined,
     });
 
     return;
   }
 
-  // ── 路径 4：left / LTR 多字体 → 逐 segment 累加 curX ──────────────────────
-  let curX = x;
-  for (const segment of segmentTextByFont(node.text, effectiveFontConfig)) {
-    drawSinglePass({
-      text: segment.text,
-      fontFamily: segment.font?.fontFamily ?? null,
-      ctx,
-      x: curX,
-      y,
-      fontStyle,
-      textAlign: 'left',
-      rtlOptions: isRTL && segment.font?.fontFamily ? rtlOptions : undefined,
-    });
-    curX += doc.getTextWidth(segment.text);
-  }
+  drawMultiSegmentAligned({
+    segments,
+    textAlign,
+    x,
+    y,
+    fontStyle,
+    ctx,
+    rtlOptions: isRTL ? rtlOptions : undefined,
+  });
 }
 
 export { drawText, parsePdfFontNames, buildEffectiveFontConfig };

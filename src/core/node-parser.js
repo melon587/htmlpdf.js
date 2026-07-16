@@ -12,7 +12,6 @@ import { isVisible, getPageBreak } from '../utils';
  *   │  └─ parseTextNode()  文本 → [{type, text, x, y, pdfFont, ...}]
  *   │     ├─ 规范化文本    移除 HTML 源码中的换行和多余空格
  *   │     └─ 多行处理      rects.length > 1 时逐字符分析，按行分组（top 容差 2px）
- *   └─ mergeRTLTextNodes() 合并同行 RTL 文本，恢复 BiDi 上下文
  *
  * ## 关键设计
  *
@@ -329,98 +328,5 @@ export function collectNodes(element, cloneRoot) {
 
   walk(element, measRoot);
 
-  // 后处理：合并同一行、相同样式的 RTL 文本节点，以恢复 BiDi 上下文
-  return mergeRTLTextNodes(nodes);
-}
-
-/**
- * 合并同行、同样式的 RTL 文本节点
- * 目的：恢复完整上下文，让 jsPDF BiDi 引擎正确处理阿拉伯语混合方向文本
- */
-function mergeRTLTextNodes(nodes) {
-  const result = [];
-  let i = 0;
-
-  while (i < nodes.length) {
-    const node = nodes[i];
-
-    // 非文本节点或非 RTL 节点，直接添加
-    if (node.type !== 'text' || node.style.direction !== 'rtl') {
-      result.push(node);
-      i++;
-      continue;
-    }
-
-    // 尝试合并后续相邻的 RTL 文本节点
-    const group = [node];
-    let j = i + 1;
-
-    while (j < nodes.length) {
-      const next = nodes[j];
-      const last = group[group.length - 1]; // 与组内最后一个节点比较，而不是第一个
-
-      // 检查是否可以合并
-      if (
-        next.type === 'text' &&
-        next.style.direction === 'rtl' &&
-        next._origEl === node._origEl && // ← 关键：必须是同一个父元素
-        Math.abs(next.y - last.y) < 2 && // 同一行（与最后一个比较）
-        next.style.fontSize === node.style.fontSize &&
-        next.style.fontFamily === node.style.fontFamily &&
-        next.style.fontWeight === node.style.fontWeight &&
-        next.style.fontStyle === node.style.fontStyle &&
-        next.style.color === node.style.color &&
-        next.style.textDecoration === node.style.textDecoration
-      ) {
-        group.push(next);
-        j++;
-      } else {
-        break;
-      }
-    }
-
-    // 如果只有一个节点，补上 _isRTLMerged 标记后直接添加
-    // 单个 RTL token 同样需要用 _rightEdge + align:'right' 渲染，否则 x 被当作左边界，位置偏左
-    if (group.length === 1) {
-      result.push({
-        ...node,
-        _isRTLMerged: true,
-        _rightEdge: node.x + node.width,
-        pdfFont: node.pdfFont, // 保留 pdf-font 属性
-      });
-      i++;
-      continue;
-    }
-
-    // 合并：按文档顺序 join（即逻辑顺序），让 jsPDF BiDi 引擎处理视觉排列
-    // 不按 x 排序：sort 会把 LTR token（如 "Air-" "ECO"）反序，导致显示错误
-    // 用空格 join：因为我们在 tokenize 时跳过了空格 token（避免破坏阿拉伯语连体字）
-    const mergedText = group.map((n) => n.text).join(' ');
-
-    // rightmost/leftmost 按 x 坐标 reduce 取（用于坐标计算，与 join 顺序无关）
-    const rightmostNode = group.reduce((a, b) =>
-      a.x + a.width > b.x + b.width ? a : b,
-    );
-    const leftmostNode = group.reduce((a, b) => (a.x < b.x ? a : b));
-
-    // 合并后的节点
-    result.push({
-      type: 'text',
-      tag: '#text',
-      text: mergedText,
-      x: rightmostNode.x, // 最右 token 的左边界（RTL 视觉起点）
-      y: rightmostNode.y,
-      width: rightmostNode.x + rightmostNode.width - leftmostNode.x,
-      height: rightmostNode.height,
-      style: rightmostNode.style,
-      pdfFont: rightmostNode.pdfFont, // 继承 pdf-font 属性
-      _origEl: rightmostNode._origEl,
-      _isRTLMerged: true,
-      _rightEdge: rightmostNode.x + rightmostNode.width, // 最右 token 的右边界，align:'right' 基准点
-    });
-
-    i = j; // 跳过已合并的节点
-  }
-
-  return result;
+  return nodes;
 }
