@@ -199,10 +199,103 @@ function setFont(ctx, fontFamily, fontStyle) {
 }
 
 /**
+ * 将文本颜色和字号写入 doc（副作用）
+ * @param {Object} doc      - jsPDF 实例
+ * @param {Object} style    - 节点 CSS 样式
+ * @param {number} fontSize - 已解析的像素字号
+ * @param {Function} toPt   - px → pt 转换函数
+ */
+function applyTextStyle(doc, style, fontSize, toPt) {
+  const color = parseColor(style.color);
+
+  if (color) {
+    doc.setTextColor(color[0], color[1], color[2]);
+  } else {
+    doc.setTextColor(0, 0, 0);
+  }
+
+  doc.setFontSize(toPt(fontSize));
+}
+
+/**
+ * 根据节点样式和坐标上下文，计算文本渲染所需的公共布局参数（纯函数）
+ * @param {Object}   node     - 文本节点
+ * @param {Object}   style    - 节点 CSS 样式
+ * @param {number}   fontSize - 已解析的像素字号
+ * @param {Object}   ctx      - 渲染上下文
+ * @returns {{ fontStyle: string, textAlign: string, isRTL: boolean, x: number, y: number, rtlOptions: Object|undefined }}
+ */
+function resolveTextLayout(node, style, fontSize, ctx) {
+  const { toPdfX, toPdfY, toMM } = ctx;
+  const { textAlign, direction, fontStyle: fs, fontWeight: fw } = style;
+  const fontStyle = getCombinedFontStyle(fs, fw);
+  const isRTL = direction === 'rtl';
+
+  let x;
+  if (textAlign === 'right') x = toPdfX(node.x + node.width);
+  else if (textAlign === 'center') x = toPdfX(node.x + node.width / 2);
+  else x = toPdfX(node.x);
+
+  const y = toPdfY(node.y) + toMM(fontSize);
+
+  const rtlOptions = isRTL
+    ? {
+        isInputVisual: false,
+        isOutputVisual: true,
+        isInputRtl: true,
+        isOutputRtl: false,
+        isSymmetricSwapping: true,
+      }
+    : undefined;
+
+  return { fontStyle, textAlign, isRTL, x, y, rtlOptions };
+}
+
+/**
+ * 整体渲染一段文本（right / center / left 均适用）
+ * 适用于：无自定义字体的简单路径、right/center 对齐路径
+ * @param {string|null} fontFamily - null 时回退 helvetica
+ */
+function drawSinglePass({
+  text,
+  fontFamily,
+  ctx,
+  x,
+  y,
+  fontStyle,
+  textAlign,
+  rtlOptions,
+}) {
+  const { doc } = ctx;
+
+  if (fontFamily) {
+    setFont(ctx, fontFamily, fontStyle);
+  } else {
+    doc.setFont('helvetica', fontStyle);
+  }
+
+  const align =
+    textAlign === 'right' || textAlign === 'center' ? textAlign : undefined;
+
+  doc.text(text, x, y, {
+    baseline: 'alphabetic',
+    ...(align && { align }),
+    ...rtlOptions,
+  });
+}
+
+/**
  * 渲染合并后的 RTL 节点（整体一次性渲染，使用 align:right + rightEdge）
  * 不走 segmentTextByFont，避免逐 segment 右对齐导致重叠
  */
-function drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig }) {
+function drawRTLMerged({
+  node,
+  ctx,
+  y,
+  fontStyle,
+  effectiveFontConfig,
+  textAlign,
+}) {
   const { doc, toPdfX } = ctx;
   const rightEdge = toPdfX(node._rightEdge);
 
@@ -216,7 +309,7 @@ function drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig }) {
 
   doc.text(node.text, rightEdge, y, {
     baseline: 'alphabetic',
-    align: 'right',
+    align: textAlign === 'center' ? 'center' : 'right',
     isInputVisual: false,
     isOutputVisual: true,
     isInputRtl: true,
@@ -229,9 +322,10 @@ function drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig }) {
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
  * 渲染路径：
- * 1. 无自定义字体 → helvetica 直接渲染
+ * 1. 无自定义字体 → drawSinglePass（helvetica 兜底）
  * 2. _isRTLMerged → drawRTLMerged 整体渲染（不可分段，否则 align:right 重叠）
- * 3. 其余 → buildEffectiveFontConfig 融入 pdf-font 优先级后 segmentTextByFont 分段渲染
+ * 3. right/center → drawSinglePass（整体一次，锚点已按 textAlign 计算好）
+ * 4. 其余（left/LTR 多字体）→ segmentTextByFont 分段逐 segment 渲染
  *
  * @param {Object} node           - 文本节点
  * @param {Object} ctx            - 渲染上下文
@@ -241,87 +335,78 @@ function drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig }) {
 function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
   if (!node.text) return;
 
-  const { doc, toMM, toPt, toPdfX, toPdfY } = ctx;
-  const nodeTop = toMM(node.y);
-  if (nodeTop < clipTop) {
-    return;
-  }
+  const { doc, toMM, toPt } = ctx;
+  if (toMM(node.y) < clipTop) return;
 
   const { style } = node;
   const fontSize = parsePx(style.fontSize);
   if (fontSize <= 0) return;
 
-  // ── 公共前置：颜色、字号 ────────────────────────────────────────────────────
-  const color = parseColor(style.color);
-  if (color) doc.setTextColor(color[0], color[1], color[2]);
-  else doc.setTextColor(0, 0, 0);
+  applyTextStyle(doc, style, fontSize, toPt);
 
-  doc.setFontSize(toPt(fontSize));
+  // ── 坐标（x 锚点按 textAlign 计算）、公共参数 ────────────────────────────────
+  const { fontStyle, textAlign, isRTL, x, y, rtlOptions } = resolveTextLayout(
+    node,
+    style,
+    fontSize,
+    ctx,
+  );
 
-  const fontStyle = getCombinedFontStyle(style.fontStyle, style.fontWeight);
-  const x = toPdfX(node.x);
-  const y = toPdfY(node.y) + toMM(fontSize);
-  const isRTL = style.direction === 'rtl';
-
-  // ── 路径 1：无自定义字体配置 → 简单渲染 ────────────────────────────────────
+  // ── 路径 1：无自定义字体 ────────────────────────────────────────────────────
   if (sortedFontConfig.length === 0) {
-    doc.setFont('helvetica', fontStyle);
-    doc.text(node.text, x, y, {
-      baseline: 'alphabetic',
-      ...(isRTL && {
-        isInputVisual: false,
-        isOutputVisual: true,
-        isInputRtl: true,
-        isOutputRtl: false,
-        isSymmetricSwapping: true,
-      }),
-    });
-
-    return;
-  }
-
-  // 路径 2/3 共用：融入 pdf-font 优先级，只算一次
-  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
-
-  // ── 路径 2：_isRTLMerged → 整体渲染（不可分段，否则 align:right 重叠）──────
-  if (isRTL && node._isRTLMerged) {
-    drawRTLMerged({
-      node,
+    drawSinglePass({
+      text: node.text,
+      fontFamily: null,
       ctx,
+      x,
       y,
       fontStyle,
-      effectiveFontConfig,
+      textAlign,
+      rtlOptions,
     });
 
     return;
   }
 
-  // ── 路径 3：分 segment 渲染（LTR + RTL 单词混合）──────────────────────────
-  const segments = segmentTextByFont(node.text, effectiveFontConfig);
+  const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
+
+  // ── 路径 2：RTL 合并节点 ────────────────────────────────────────────────────
+  if (isRTL && node._isRTLMerged) {
+    drawRTLMerged({ node, ctx, y, fontStyle, effectiveFontConfig, textAlign });
+
+    return;
+  }
+
+  // ── 路径 3：right/center → 整体一次渲染 ────────────────────────────────────
+  if (textAlign === 'right' || textAlign === 'center') {
+    const segments = segmentTextByFont(node.text, effectiveFontConfig);
+    drawSinglePass({
+      text: node.text,
+      fontFamily: segments[0]?.font?.fontFamily ?? null,
+      ctx,
+      x,
+      y,
+      fontStyle,
+      textAlign,
+      rtlOptions: undefined,
+    });
+
+    return;
+  }
+
+  // ── 路径 4：left / LTR 多字体 → 逐 segment 累加 curX ──────────────────────
   let curX = x;
-
-  for (const segment of segments) {
-    if (segment.font?.fontFamily) {
-      setFont(ctx, segment.font.fontFamily, fontStyle);
-    } else {
-      doc.setFont('helvetica', fontStyle);
-    }
-
-    if (isRTL && segment.font?.fontFamily) {
-      // RTL 单词（有自定义字体）：使用浏览器坐标 + RTL 引擎处理字符顺序
-      doc.text(segment.text, curX, y, {
-        baseline: 'alphabetic',
-        isInputVisual: false,
-        isOutputVisual: true,
-        isInputRtl: true,
-        isOutputRtl: false,
-        isSymmetricSwapping: true,
-      });
-    } else {
-      // LTR 或无自定义字体的 segment
-      doc.text(segment.text, curX, y, { baseline: 'alphabetic' });
-    }
-
+  for (const segment of segmentTextByFont(node.text, effectiveFontConfig)) {
+    drawSinglePass({
+      text: segment.text,
+      fontFamily: segment.font?.fontFamily ?? null,
+      ctx,
+      x: curX,
+      y,
+      fontStyle,
+      textAlign: 'left',
+      rtlOptions: isRTL && segment.font?.fontFamily ? rtlOptions : undefined,
+    });
     curX += doc.getTextWidth(segment.text);
   }
 }
