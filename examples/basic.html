@@ -316,7 +316,7 @@
             <th>Department</th>
             <th>Title</th>
             <th>ID</th>
-            <th>Year Joined</th>
+            <th style="text-align: right">Year Joined</th>
           </tr>
         </thead>
         <tbody>
@@ -693,7 +693,129 @@
         ></canvas>
       </div>
 
-      <!-- page-break="true": force a new page before this element -->
+      <!-- align:right mixed-font test -->
+      <div
+        style="
+          margin-top: 24px;
+          padding: 16px;
+          border: 1px solid #d9d9d9;
+          border-radius: 4px;
+        "
+      >
+        <p style="font-weight: bold; margin-bottom: 12px; color: #333">
+          align:right mixed-font test
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: left">Description</th>
+              <th style="text-align: right">Value (right-align)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- baseline: pure Latin -->
+            <tr>
+              <td>Pure Latin</td>
+              <td style="text-align: right">€144,308.80</td>
+            </tr>
+            <!-- Latin + symbol -->
+            <tr>
+              <td>Latin + symbol</td>
+              <td style="text-align: right">PREZZO TOTALE</td>
+            </tr>
+            <!-- multi-segment: Latin + Arabic digits via charRanges -->
+            <tr>
+              <td>Latin + Arabic-Indic digits (segmented)</td>
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-arabic"
+              >
+                Total: ١٢٣٤٥٦
+              </td>
+            </tr>
+            <!-- RTL + right-align -->
+            <tr>
+              <td>Arabic RTL + right-align</td>
+              <td
+                style="text-align: right; direction: rtl"
+                pdf-font="noto-sans-arabic"
+              >
+                المجموع: ١٢٣٤٥
+              </td>
+            </tr>
+            <!-- long text, natural wrap, each line right-aligned -->
+            <tr>
+              <td>Long text right-align (multi-line)</td>
+              <td
+                style="text-align: right; max-width: 200px; white-space: normal"
+              >
+                CPAN-XHE3 Size 2 Unita di rinnovo aria con recupero di energia
+              </td>
+            </tr>
+            <!-- Chinese + Latin right-align (multi-segment via charRanges) -->
+            <tr>
+              <td>Chinese + Latin right-align</td>
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-sc"
+              >
+                合计 Total: 1,234.56
+              </td>
+            </tr>
+            <!-- Chinese only right-align -->
+            <tr>
+              <td>Chinese only right-align</td>
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-sc"
+              >
+                产品总价
+              </td>
+            </tr>
+            <!-- Chinese + Latin center-align -->
+            <tr>
+              <td>Chinese + Latin center-align</td>
+              <td
+                style="text-align: center"
+                pdf-font="noto-sans-sc"
+              >
+                合计 Total
+              </td>
+            </tr>
+            <!-- Chinese + Arabic + Latin right-align (3 fonts, multi-segment) -->
+            <tr>
+              <td>CJK + Arabic + Latin right-align</td>
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-sc,noto-sans-arabic"
+              >
+                合计 Total: ١٢٣٤
+              </td>
+            </tr>
+            <!-- Chinese + Arabic + Latin center-align -->
+            <tr>
+              <td>CJK + Arabic + Latin center-align</td>
+              <td
+                style="text-align: center"
+                pdf-font="noto-sans-sc,noto-sans-arabic"
+              >
+                合计 ١٢٣٤ Total
+              </td>
+            </tr>
+            <!-- Arabic + Chinese right-align (2 non-Latin fonts) -->
+            <tr>
+              <td>Arabic + Chinese right-align</td>
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-arabic,noto-sans-sc"
+              >
+                الإجمالي 合计
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       <div
         class="card"
         page-break="before"
@@ -946,20 +1068,46 @@
                   fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
                   fontWeight: 400,
                   fontStyle: 'normal',
-                  // charRanges: [
-                  //   [0x0600, 0x06ff], // 阿拉伯语基本区（用于纯阿拉伯语自动匹配）
-                  //   [0x0750, 0x077f], // 阿拉伯语补充区
-                  // ],
+                  charRanges: [
+                    [0x0600, 0x06ff], // 阿拉伯语基本区
+                    [0x0750, 0x077f], // 阿拉伯语补充区
+                    [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
+                  ],
                 },
                 {
                   fontFamily: 'noto-sans-arabic',
                   fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
                   fontWeight: 700,
                   fontStyle: 'normal',
-                  // charRanges: [
-                  //   [0x0600, 0x06ff], // 阿拉伯语基本区（用于纯阿拉伯语自动匹配）
-                  //   [0x0750, 0x077f], // 阿拉伯语补充区
-                  // ],
+                  charRanges: [
+                    [0x0600, 0x06ff],
+                    [0x0750, 0x077f],
+                    [0x0660, 0x0669],
+                  ],
+                },
+                {
+                  fontFamily: 'noto-sans-sc',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-normal.ttf`,
+                  fontWeight: 400,
+                  fontStyle: 'normal',
+                  charRanges: [
+                    [0x4e00, 0x9fff], // CJK 统一表意文字
+                    [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
+                    [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
+                    [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
+                  ],
+                },
+                {
+                  fontFamily: 'noto-sans-sc',
+                  fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-bold.ttf`,
+                  fontWeight: 700,
+                  fontStyle: 'normal',
+                  charRanges: [
+                    [0x4e00, 0x9fff], // CJK 统一表意文字
+                    [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
+                    [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
+                    [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
+                  ],
                 },
               ],
               header: {

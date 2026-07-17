@@ -6,7 +6,7 @@ import { parsePx, parseColor } from '../utils';
  * @param {string|number} fontWeight - CSS font-weight 值 ('bold' | '400' | 700 等)
  * @returns {string} jsPDF 字体样式 ('normal' | 'bold' | 'italic' | 'bolditalic')
  */
-function getCombinedFontStyle(fontStyle, fontWeight) {
+export function getCombinedFontStyle(fontStyle, fontWeight) {
   const isBold = fontWeight === 'bold' || parseInt(fontWeight) >= 700;
   const isItalic = fontStyle === 'italic';
 
@@ -25,7 +25,7 @@ function getCombinedFontStyle(fontStyle, fontWeight) {
  * @param {Array} sortedFontConfig
  * @returns {Object|null}
  */
-function findFontByFamily(cssFontFamily, sortedFontConfig) {
+export function findFontByFamily(cssFontFamily, sortedFontConfig) {
   if (!cssFontFamily || !sortedFontConfig) return null;
 
   // 规范化：转小写、去除引号和空格
@@ -52,7 +52,7 @@ function findFontByFamily(cssFontFamily, sortedFontConfig) {
  * @param {string|string[]} pdfFont
  * @returns {string[]}
  */
-function parsePdfFontNames(pdfFont) {
+export function parsePdfFontNames(pdfFont) {
   if (!pdfFont) return [];
 
   // 已经是数组（Vue :pdf-font 动态绑定传入）
@@ -76,7 +76,7 @@ function parsePdfFontNames(pdfFont) {
  * @param {Array}  sortedFontConfig - 全局已排序字体配置数组
  * @returns {Array}
  */
-function buildEffectiveFontConfig(node, sortedFontConfig) {
+export function buildEffectiveFontConfig(node, sortedFontConfig) {
   if (!node.pdfFont) return sortedFontConfig;
 
   const fontNames = parsePdfFontNames(node.pdfFont);
@@ -121,7 +121,7 @@ function buildEffectiveFontConfig(node, sortedFontConfig) {
  * 优先级：charRanges 精确匹配 > isDefault 字体 > null
  * 返回 null 表示用户配置中无匹配，由渲染层用 helvetica 兜底
  */
-function findFontForChar(code, sortedFontConfig) {
+export function findFontForChar(code, sortedFontConfig) {
   for (const config of sortedFontConfig) {
     if (!config.charRanges) continue;
 
@@ -137,7 +137,7 @@ function findFontForChar(code, sortedFontConfig) {
  * 判断两个字体配置是否相同（fontFamily + fontStyle + fontWeight 全部一致）
  * 用于 segmentTextByFont 合并相邻同字体字符
  */
-function isSameFont(a, b) {
+export function isSameFont(a, b) {
   if (a === b) return true;
 
   if (!a || !b) return false;
@@ -156,7 +156,7 @@ function isSameFont(a, b) {
  * @param {Array} sortedFontConfig - 已排序的字体配置数组
  * @returns {Array<{text: string, font: Object|null}>}
  */
-function segmentTextByFont(text, sortedFontConfig) {
+export function segmentTextByFont(text, sortedFontConfig) {
   if (!text) return [];
 
   if (!sortedFontConfig || sortedFontConfig.length === 0) {
@@ -188,7 +188,7 @@ function segmentTextByFont(text, sortedFontConfig) {
 /**
  * 设置字体，失败则回退到 helvetica
  */
-function setFont(ctx, fontFamily, fontStyle) {
+export function setFont(ctx, fontFamily, fontStyle) {
   const { doc } = ctx;
   try {
     doc.setFont(fontFamily, fontStyle);
@@ -205,7 +205,7 @@ function setFont(ctx, fontFamily, fontStyle) {
  * @param {number} fontSize - 已解析的像素字号
  * @param {Function} toPt   - px → pt 转换函数
  */
-function applyTextStyle(doc, style, fontSize, toPt) {
+export function applyTextStyle(doc, style, fontSize, toPt) {
   const color = parseColor(style.color);
 
   if (color) {
@@ -225,7 +225,7 @@ function applyTextStyle(doc, style, fontSize, toPt) {
  * @param {Object}   ctx      - 渲染上下文
  * @returns {{ fontStyle: string, textAlign: string, isRTL: boolean, x: number, y: number, rtlOptions: Object|undefined }}
  */
-function resolveTextLayout(node, style, fontSize, ctx) {
+export function resolveTextLayout(node, style, fontSize, ctx) {
   const { toPdfX, toPdfY, toMM } = ctx;
   const { textAlign, direction, fontStyle: fs, fontWeight: fw } = style;
   const fontStyle = getCombinedFontStyle(fs, fw);
@@ -257,7 +257,7 @@ function resolveTextLayout(node, style, fontSize, ctx) {
  * @param {{font: Object|null}} segment
  * @param {string} fontStyle
  */
-function applySegmentFont(ctx, segment, fontStyle) {
+export function applySegmentFont(ctx, segment, fontStyle) {
   if (segment.font?.fontFamily) {
     setFont(ctx, segment.font.fontFamily, fontStyle);
   } else {
@@ -272,7 +272,7 @@ function applySegmentFont(ctx, segment, fontStyle) {
  * @param {Object} ctx
  * @returns {number[]} 与 segments 等长的宽度数组（mm）
  */
-function measureSegmentWidths(segments, fontStyle, ctx) {
+export function measureSegmentWidths(segments, fontStyle, ctx) {
   return segments.map((segment) => {
     applySegmentFont(ctx, segment, fontStyle);
 
@@ -296,7 +296,7 @@ function measureSegmentWidths(segments, fontStyle, ctx) {
  * @param {Object}  opts.ctx
  * @param {Object}  [opts.rtlOptions] - 仅 left+RTL 时逐段传入
  */
-function drawMultiSegmentAligned({
+export function drawMultiSegmentAligned({
   segments,
   textAlign,
   x,
@@ -340,7 +340,7 @@ function drawMultiSegmentAligned({
  * 适用于：无自定义字体的简单路径、单段对齐路径
  * @param {string|null} fontFamily - null 时回退 helvetica
  */
-function drawSegmentAligned({
+export function drawSegmentAligned({
   text,
   fontFamily,
   ctx,
@@ -378,7 +378,7 @@ function drawSegmentAligned({
  * @param {number} clipTop        - 裁剪顶部（mm），节点顶部低于此值时跳过
  * @param {Array}  sortedFontConfig - 已排序字体配置
  */
-function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
+export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
   if (!node.text) return;
 
   const { doc, toMM, toPt } = ctx;
@@ -430,5 +430,3 @@ function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
     rtlOptions: isRTL ? rtlOptions : undefined,
   });
 }
-
-export { drawText, parsePdfFontNames, buildEffectiveFontConfig };
