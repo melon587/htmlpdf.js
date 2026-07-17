@@ -294,7 +294,7 @@ export function measureSegmentWidths(segments, fontStyle, ctx) {
  * @param {number}  opts.y
  * @param {string}  opts.fontStyle
  * @param {Object}  opts.ctx
- * @param {Object}  [opts.rtlOptions] - 仅 left+RTL 时逐段传入
+ * @param {Object}  [opts.rtlOptions] - RTL 时逐段传入，触发 jsPDF BiDi 重排
  */
 export function drawMultiSegmentAligned({
   segments,
@@ -321,15 +321,9 @@ export function drawMultiSegmentAligned({
     const seg = orderedSegments[i];
     applySegmentFont(ctx, seg, fontStyle);
 
-    // RTL + left 时逐段传入 rtlOptions；其余对齐方式靠坐标精确定位，不依赖 jsPDF RTL 选项
-    const segRtlOptions =
-      rtlOptions && textAlign === 'left' && seg.font?.fontFamily
-        ? rtlOptions
-        : undefined;
-
     ctx.doc.text(seg.text, curX, y, {
       baseline: 'alphabetic',
-      ...segRtlOptions,
+      ...rtlOptions,
     });
     curX += orderedWidths[i];
   }
@@ -414,7 +408,7 @@ export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
       y,
       fontStyle,
       textAlign,
-      rtlOptions: isRTL && textAlign === 'left' ? rtlOptions : undefined,
+      rtlOptions: isRTL ? rtlOptions : undefined,
     });
 
     return;
