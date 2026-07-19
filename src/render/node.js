@@ -15,22 +15,22 @@ import { drawText } from './text';
 
 /**
  * 渲染背景和边框（element 和 pseudo-element 共用）
- * @param {Object} params.node - 调整后的节点（y 为页内坐标）
+ * @param {Object} params.node       - 调整后的节点（y 为页内坐标）
  * @param {Object} params.ctx
  * @param {boolean} params.isLastSpill
+ * @param {number}  params.clipBottom - 当前页内容可用高度上限（mm），由调用方传入
  */
-function renderBackgroundAndBorder({ node, ctx, isLastSpill }) {
-  const { contentHeight } = ctx;
+function renderBackgroundAndBorder({ node, ctx, isLastSpill, clipBottom }) {
   drawBackground({
     node,
     ctx,
-    clipBottom: contentHeight,
+    clipBottom,
     isLastSpill,
   });
   drawBorder({
     node,
     ctx,
-    clipBottom: contentHeight,
+    clipBottom,
     isLastSpill,
   });
 }
@@ -42,6 +42,9 @@ function renderBackgroundAndBorder({ node, ctx, isLastSpill }) {
  * @param {number} [params.offsetYpx=0]  - 当前页内容区起始全局 y（px）
  * @param {Array}  [params.sortedFontConfig=[]] - 排序后的字体配置
  * @param {boolean}[params.isLastSpill=true]    - 是否是该节点的最后一个 spill placement
+ * @param {number|null} [params.pageActualBottomPx=null]
+ *   本页实际内容底部全局 y（px）。null 时回退到 ctx.contentHeight（整页高度）。
+ *   avoid/before 推页时该值小于整页底部，确保背景/边框不会多画到被推走后的空白区域。
  */
 export function renderNode({
   node,
@@ -49,9 +52,10 @@ export function renderNode({
   offsetYpx = 0,
   sortedFontConfig = [],
   isLastSpill = true,
+  pageActualBottomPx = null,
 }) {
   // 1. 坐标转换：全局 → 页内
-  const { toMM } = ctx;
+  const { toMM, contentHeight } = ctx;
   const relativeYpx = node.y - offsetYpx;
   const relativeYmm = toMM(relativeYpx);
 
@@ -64,14 +68,22 @@ export function renderNode({
   // 3. 创建页内坐标的节点副本
   const adjustedNode = { ...node, y: relativeYpx };
 
+  // 4. 计算本页背景/边框裁剪上限（mm，页内坐标）
+  //    pageActualBottomPx 存在：本页实际内容底部 - 本页起始偏移 = 本页实际高度(px) → 转 mm
+  //    无 pageActualBottomPx：回退到整页高度 contentHeight（自然溢出/无推页场景）
+  const clipBottom = pageActualBottomPx
+    ? toMM(pageActualBottomPx - offsetYpx)
+    : contentHeight;
+
   // 公共渲染参数
   const commonParams = {
     node: adjustedNode,
     ctx,
     isLastSpill,
+    clipBottom,
   };
 
-  // 4. 根据节点类型调度渲染
+  // 5. 根据节点类型调度渲染
   if (adjustedNode.type === 'element') {
     // 普通元素：背景 + 边框 + (图片)
     renderBackgroundAndBorder(commonParams);

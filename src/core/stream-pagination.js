@@ -134,7 +134,7 @@ export function buildNodeLastPageMap(nodePlacements) {
 /**
  * 为跨页节点在后续页生成 'spill' placement，使 renderNode 能继续绘制 bg/border
  * @param {Array}  nodePlacements   - normal placement 数组（页码递增）
- * @param {Map}    pageStartOffsets - 页码 → { pageRawTopPx, pageContentTopPx }
+ * @param {Map}    pageStartOffsets - 页码 → { pageRawTopPx, pageContentTopPx, pageActualBottomPx }
  * @param {number} contentHeightPx  - 单页内容区高度（px）
  * @param {number} totalPagesCount  - 总页数
  * @returns {Array} spillPlacements（页码递增）
@@ -168,10 +168,7 @@ export function expandSpillPlacements(
     const lastPageByMap = nodeLastPage.get(p.node._origEl) || p.page;
     const lastPageByCoord =
       Math.ceil(
-        (p.node.y +
-          p.node.height -
-          (pageInfo ? pageInfo.pageContentTopPx : 0)) /
-          contentHeightPx,
+        (p.node.y + p.node.height - pageContentTopPx) / contentHeightPx,
       ) +
       p.page -
       1;
@@ -195,6 +192,10 @@ export function expandSpillPlacements(
         clipTopPx,
         type: 'spill',
         isLastSpill: sp === lastPage, // 只有最后一页才是 true
+        // 本页实际内容底部（全局px）：用于渲染时计算精确 clipBottom
+        pageActualBottomPx: spillPageInfo
+          ? spillPageInfo.pageActualBottomPx
+          : null,
       });
     }
 
@@ -268,9 +269,13 @@ export function streamPaginate({
   const nodePlacements = []; // 节点渲染计划
   const headerPlacements = []; // repeat-header 渲染计划
 
-  // 每页内容区起始偏移：key=页码，value={ pageRawTopPx（含表头）, pageContentTopPx（减表头）}
+  // 每页内容区起始偏移：key=页码，value={ pageRawTopPx（含表头）, pageContentTopPx（减表头）, pageActualBottomPx（本页内容实际底部全局px）}
   const pageStartOffsets = new Map();
-  pageStartOffsets.set(1, { pageRawTopPx: 0, pageContentTopPx: 0 });
+  pageStartOffsets.set(1, {
+    pageRawTopPx: 0,
+    pageContentTopPx: 0,
+    pageActualBottomPx: contentHeightPx, // 初始值：整页用满，换页时修正上一页的实际底部
+  });
 
   for (let i = 0; i < nodes.length; i += 1) {
     const node = nodes[i];
@@ -283,7 +288,22 @@ export function streamPaginate({
     if (
       needsNewPage(node, currentPageBottom, accumulatedYpx, contentHeightPx)
     ) {
-      accumulatedYpx = calcNextPageStart(node, currentPageBottom);
+      // 计算本页实际内容底部（全局px）：
+      // - 自然溢出/text保护 → currentPageBottom（整页用满）
+      // - avoid/before 推页 → node.y（只用到被推走节点的起点，剩余空间废弃）
+      const pageActualBottomPx = calcNextPageStart(node, currentPageBottom);
+
+      // 修正上一页的 pageActualBottomPx（初始化为整页底部，avoid/before 推页后需更正）
+      // 取最小值：同一页可能有多个节点触发推页，第一个被推走的决定本页实际底部
+      const prevPageInfo = pageStartOffsets.get(currentPage);
+      if (
+        prevPageInfo &&
+        pageActualBottomPx < prevPageInfo.pageActualBottomPx
+      ) {
+        prevPageInfo.pageActualBottomPx = pageActualBottomPx;
+      }
+
+      accumulatedYpx = pageActualBottomPx;
       currentPage++;
 
       // 处理 repeat-header（先处理，再记录 effectiveOffset）
@@ -308,9 +328,12 @@ export function streamPaginate({
       }
 
       // repeat-header 处理完后记录新页偏移（pageContentTopPx 已含 header 修正）
+      // pageActualBottomPx 初始设为整页底部，若后续有 avoid/before 推页会再次修正
+      const newPageContentTopPx = accumulatedYpx - currentPageContentOffsetPx;
       pageStartOffsets.set(currentPage, {
         pageRawTopPx: accumulatedYpx,
-        pageContentTopPx: accumulatedYpx - currentPageContentOffsetPx,
+        pageContentTopPx: newPageContentTopPx,
+        pageActualBottomPx: newPageContentTopPx + contentHeightPx, // 初始：整页用满
       });
 
       // 重新处理当前节点
@@ -331,6 +354,7 @@ export function streamPaginate({
     const effectiveOffsetYpx = accumulatedYpx - currentPageContentOffsetPx;
 
     // 生成节点渲染计划
+    // pageActualBottomPx 先用当前页整页底部（若后续 avoid/before 推页会由 pageStartOffsets 修正）
     nodePlacements.push({
       page: currentPage,
       node,
@@ -346,6 +370,14 @@ export function streamPaginate({
       // eslint-disable-next-line no-param-reassign
       headerMeta.headerRendered = true;
     }
+  }
+
+  // 回填 normal placements 的 pageActualBottomPx：
+  // normal placement 生成时该页的 pageActualBottomPx 可能还未被后续 avoid/before 推页修正，
+  // 循环结束后 pageStartOffsets 已全部修正，在此统一回填。
+  for (const p of nodePlacements) {
+    const info = pageStartOffsets.get(p.page);
+    p.pageActualBottomPx = info ? info.pageActualBottomPx : null;
   }
 
   // 跨页展开：为溢出节点在后续页生成 spill placement

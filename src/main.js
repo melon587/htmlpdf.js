@@ -159,6 +159,7 @@ export async function htmlpdf(element, options = {}) {
       offsetYpx: placement.offsetYpx,
       sortedFontConfig,
       isLastSpill: placement.isLastSpill,
+      pageActualBottomPx: placement.pageActualBottomPx,
     });
   }
 
