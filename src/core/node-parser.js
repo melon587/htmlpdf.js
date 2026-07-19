@@ -50,6 +50,19 @@ function parseElement(origEl, measEl, rootRect, win) {
     y,
     width: rect.width,
     height: rect.height,
+    rowSpanChildMaxHeight:
+      origEl.tagName === 'TR' && !isPseudo
+        ? Math.max(
+            0,
+            ...[...measEl.children]
+              .filter(
+                (c) =>
+                  (c.tagName === 'TD' || c.tagName === 'TH') &&
+                  (c.rowSpan || 1) > 1,
+              )
+              .map((c) => c.getBoundingClientRect().height),
+          )
+        : 0,
     pageBreak: getPageBreak(origEl),
     _el:
       origEl.tagName === 'IMG'

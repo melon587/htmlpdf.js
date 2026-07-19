@@ -56,11 +56,22 @@ function needsNewPage(
   if (node.type === 'text' && node.y + node.height > currentPageBottom)
     return true;
 
-  if (node.pageBreak === 'avoid' && node.y + node.height > currentPageBottom) {
-    // 豁免：节点本身比一页还高，推到下一页也放不下，让其自然 spill，避免无限换页
-    if (node.height > contentHeightPx) return false;
+  if (node.pageBreak === 'avoid') {
+    // TR 节点：用 rowSpanChildMaxHeight 计算有效高度（含 rowspan 子 TD 的最大高度）
+    const effectiveHeight =
+      node.tag === 'TR'
+        ? Math.max(node.height, node.rowSpanChildMaxHeight || 0)
+        : node.height;
 
-    return true;
+    if (node.y + effectiveHeight > currentPageBottom) {
+      // 豁免条件：effectiveHeight 超过整页高度，无论如何放不下，
+      // 豁免 avoid 推页，让其自然 spill，避免无限换页死循环。
+      // 不检查位置（node.y <= accumulatedYpx），因为即使 table page-break="before"
+      // 等场景导致 TR 尚未到达新页顶部，只要超整页就不可能放进任何一页，推页无意义。
+      if (effectiveHeight > contentHeightPx) return false;
+
+      return true;
+    }
   }
 
   if (node.pageBreak === 'before' && node.y > accumulatedYpx) return true;
@@ -70,11 +81,23 @@ function needsNewPage(
 
 /**
  * 计算换页后新页起点 accumulatedYpx
- * - 自然溢出 → currentPageBottom（连续，不留空隙）
- * - avoid/before/text 保护 → node.y（节点顶部对齐新页顶部）
+ *
+ * - 自然溢出（node.y >= currentPageBottom）→ currentPageBottom（连续，不留空隙）
+ * - text 保护触发 → currentPageBottom（text 在超大 TD 内被切割时的 fallback）
+ * - avoid（TR / rowspan>1 TD）触发 → node.y
+ *   DFS 顺序保证 TD 在其父 TR 之后立即出现，且 TD.y === TR.y，
+ *   所以新页从 node.y 开始等价于"整个 TR 从新页顶部开始"，
+ *   之后重新处理该 TD 及后续所有兄弟 TR，relY 全部 ≥ 0。
  */
 function calcNextPageStart(node, currentPageBottom) {
-  return node.y >= currentPageBottom ? currentPageBottom : node.y;
+  // 自然溢出
+  if (node.y >= currentPageBottom) return currentPageBottom;
+
+  // text 保护（说明父 TD avoid 豁免了，TD 高度超整页，只能切割）
+  if (node.type === 'text') return currentPageBottom;
+
+  // avoid（TR / rowspan>1 TD）：从节点顶部开始新页
+  return node.y;
 }
 
 /**
