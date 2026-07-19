@@ -4,6 +4,48 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-07-19
+
+### 🐛 Bug Fixes
+
+#### Rowspan Table Page Break
+
+- **Fixed `rowspan` cells causing incorrect page break position** - When a TR contained a `TD` with `rowspan > 1`, the effective row height could exceed the TR's own `height`, causing the row to be split mid-cell across pages
+  - Root cause: `needsNewPage()` only checked `node.height` (TR's own height), ignoring taller `rowspan` child TDs
+  - Fix: Added `rowSpanChildMaxHeight` field to TR nodes (computed in `node-parser.js` via `getBoundingClientRect()` on rowspan>1 children). `needsNewPage()` now uses `Math.max(node.height, node.rowSpanChildMaxHeight)` as the effective height for avoid-break decisions
+  - Also fixed `calcNextPageStart()` to distinguish text-node cuts (return `currentPageBottom`) from avoid/before push-downs (return `node.y`), preventing text nodes inside oversized TDs from being mis-anchored
+
+#### Background & Border Overflow Past Page-Break Point
+
+- **Fixed backgrounds and borders rendering into blank space after `page-break: avoid/before`** - When a node was pushed to the next page, the current page's background color and borders continued painting to the full page height instead of stopping at the actual content boundary
+  - Root cause: `clipBottom` was always `ctx.contentHeight` (full page height), unaware that some space was vacated by pushed nodes
+  - Fix: `stream-pagination.js` now tracks `pageActualBottomPx` per page — the real global-px bottom of content after any avoid/before push. This value is propagated through each `placement` object and converted to mm in `renderNode()` to produce a precise `clipBottom`
+  - Also applied the same fix to `page-break-lines.js` (`collectPageBreakLines`) so closing border lines are drawn at the correct position instead of the full page bottom
+
+### ♻️ Refactoring
+
+#### Text Rendering Rewrite
+
+- **Rewrote `text.js` rendering pipeline** - Separated layout responsibilities from `node-parser.js` into `text.js`, reducing coupling and improving maintainability
+  - Text alignment for right-aligned and center-aligned content now correctly accounts for available line width
+  - Cleaned up multiline text coordinate calculation
+
+#### Page-Break Lines Module Move
+
+- **Moved `page-break-lines.js` from `src/render/` to `src/core/`** - Better reflects its role as a layout/pagination concern rather than a rendering concern
+  - Updated all import paths accordingly; no API changes
+
+#### Rendering Context Consolidation
+
+- **Consolidated rendering context (`context.js`)** - Moved scattered per-render calculations into `context.js`, reducing boilerplate across `background.js`, `border.js`, `image.js`, `text.js`, and `node.js`
+  - Removed ~65 lines of repeated setup code across render modules
+
+### 📦 Migration Guide
+
+No breaking changes — this release is fully backward compatible with v1.0.3.
+
+---
+
 ## [1.0.3] - 2026-07-09
 
 ### ✨ Features
@@ -229,6 +271,7 @@ Built with:
 
 ---
 
+[1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
 [1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
 [1.0.2]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.2
 [1.0.1]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.1

@@ -4,6 +4,48 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [1.0.4] - 2026-07-19
+
+### 🐛 Bug 修复
+
+#### 跨行单元格（rowspan）分页异常
+
+- **修复含 `rowspan` 子 TD 的 TR 分页位置错误问题** - 当 TR 内存在 `rowspan > 1` 的 TD 时，该 TD 的实际高度可能超过 TR 自身的 `height`，导致该行在分页时被从单元格中间截断
+  - 根本原因：`needsNewPage()` 只检查 `node.height`（TR 自身高度），未考虑更高的 rowspan 子 TD
+  - 修复方案：在 `node-parser.js` 中为 TR 节点新增 `rowSpanChildMaxHeight` 字段（通过对 `rowspan > 1` 的子元素调用 `getBoundingClientRect()` 计算）。`needsNewPage()` 现在使用 `Math.max(node.height, rowSpanChildMaxHeight)` 作为 avoid 推页判断的有效高度
+  - 同步修复 `calcNextPageStart()`，区分文本节点裁切（返回 `currentPageBottom`）与 avoid/before 推页（返回 `node.y`），避免超大 TD 内的文本节点被错误锚定
+
+#### 背景色和边框渲染超出分页实际内容底部
+
+- **修复 `page-break: avoid/before` 推页后，背景色和边框继续绘制到空白区域的问题** - 当节点被推到下一页后，当前页的背景色和边框本应在实际内容底部截止，但实际上延伸到了整页底部
+  - 根本原因：`clipBottom` 始终等于 `ctx.contentHeight`（整页高度），不感知推页后的实际内容边界
+  - 修复方案：`stream-pagination.js` 现在为每页追踪 `pageActualBottomPx`（avoid/before 推页后的实际全局 px 底部），该值通过 `placement` 对象传递，在 `renderNode()` 中转换为精确的 `clipBottom`（mm）
+  - 同步修复 `page-break-lines.js`（`collectPageBreakLines`），闭合边框线现在绘制在正确位置，而不是整页底部
+
+### ♻️ 重构
+
+#### 文本渲染重写
+
+- **重写 `text.js` 渲染管线** - 将布局相关职责从 `node-parser.js` 迁移到 `text.js`，降低耦合，提升可维护性
+  - 修复右对齐、居中对齐文本的行宽计算错误
+  - 清理多行文本坐标计算逻辑
+
+#### 分页边框模块迁移
+
+- **将 `page-break-lines.js` 从 `src/render/` 迁移至 `src/core/`** - 更准确地反映其作为布局/分页关注点而非渲染关注点的定位
+  - 更新了所有相关引用路径，无 API 变更
+
+#### 渲染上下文整合
+
+- **整合渲染上下文（`context.js`）** - 将分散在各渲染模块的重复计算统一收归 `context.js`
+  - 删除了 `background.js`、`border.js`、`image.js`、`text.js`、`node.js` 中约 65 行重复样板代码
+
+### 📦 迁移指南
+
+无破坏性变更 - 此版本与 v1.0.3 完全向后兼容。
+
+---
+
 ## [1.0.3] - 2026-07-09
 
 ### ✨ 新功能
@@ -229,6 +271,7 @@ htmlpdf(element, {
 
 ---
 
+[1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
 [1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
 [1.0.2]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.2
 [1.0.1]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.1
