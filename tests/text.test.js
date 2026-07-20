@@ -261,9 +261,6 @@ describe('segmentTextByFont', () => {
     expect(segmentTextByFont('Hello', [])).toEqual([
       { text: 'Hello', font: null },
     ]);
-    expect(segmentTextByFont('Hello', null)).toEqual([
-      { text: 'Hello', font: null },
-    ]);
   });
 
   it('纯 Latin 文本 → 单段，font = isDefault', () => {

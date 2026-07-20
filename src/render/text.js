@@ -20,33 +20,6 @@ export function getCombinedFontStyle(fontStyle, fontWeight) {
 }
 
 /**
- * 根据 css font-family 查找匹配的字体配置
- * @param {string} cssFontFamily
- * @param {Array} sortedFontConfig
- * @returns {Object|null}
- */
-export function findFontByFamily(cssFontFamily, sortedFontConfig) {
-  if (!cssFontFamily || !sortedFontConfig) return null;
-
-  // 规范化：转小写、去除引号和空格
-  const normalizedFamily = cssFontFamily
-    .toLowerCase()
-    .replace(/["']/g, '')
-    .trim();
-
-  for (const config of sortedFontConfig) {
-    if (
-      config.fontFamily &&
-      config.fontFamily.toLowerCase().trim() === normalizedFamily
-    ) {
-      return config;
-    }
-  }
-
-  return null;
-}
-
-/**
  * 解析 pdf-font 属性值为字体名数组
  * 支持数组（Vue 动态绑定）、逗号分隔字符串、单字符串
  * @param {string|string[]} pdfFont
@@ -290,7 +263,11 @@ export function resolveTextLayout(node, style, fontSize, ctx) {
       }
     : undefined;
 
-  return { fontStyle, textAlign, isRTL, x, y, rtlOptions };
+  // 规范化为 jsPDF 支持的对齐值；justify / start / end 等均回退到 left
+  const pdfAlign =
+    textAlign === 'right' || textAlign === 'center' ? textAlign : 'left';
+
+  return { fontStyle, textAlign: pdfAlign, isRTL, x, y, rtlOptions };
 }
 
 /**
@@ -412,12 +389,9 @@ export function drawSegmentAligned({
     fontStyle,
   );
 
-  const align =
-    textAlign === 'right' || textAlign === 'center' ? textAlign : undefined;
-
   ctx.doc.text(text, x, y, {
     baseline: 'alphabetic',
-    ...(align && { align }),
+    ...(textAlign !== 'left' && { align: textAlign }),
     ...rtlOptions,
   });
 }

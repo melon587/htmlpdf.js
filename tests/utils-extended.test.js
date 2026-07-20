@@ -174,11 +174,6 @@ describe('getPageBreak', () => {
     expect(getPageBreak(el)).toBe('before');
   });
 
-  it('有 page-break=true 属性（默认 before）', () => {
-    const el = { getAttribute: () => true, tagName: 'DIV' };
-    expect(getPageBreak(el)).toBe('before');
-  });
-
   it('AUTO_AVOID_TAGS: TR', () => {
     const el = { getAttribute: () => null, tagName: 'TR' };
     expect(getPageBreak(el)).toBe('avoid');

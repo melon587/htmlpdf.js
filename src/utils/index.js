@@ -90,7 +90,7 @@ export function parseColor(colorStr) {
 export function getPageBreak(el) {
   const v = el.getAttribute('page-break');
   if (v !== null) {
-    return v === '' || v === true ? 'before' : v;
+    return v === '' ? 'before' : v;
   }
 
   if (AUTO_AVOID_TAGS.has(el.tagName)) return 'avoid';
@@ -352,7 +352,7 @@ export function copyPseudoStyles(span, pseudoStyle) {
   const stylesToCopy = {
     // 布局和定位（保留原始值）
     position: pseudoStyle.position,
-    display: pseudoStyle.display || 'inline',
+    display: pseudoStyle.display,
 
     // 文本
     color: pseudoStyle.color,

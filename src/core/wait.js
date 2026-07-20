@@ -73,7 +73,7 @@ function waitForSingleStyleSheet(link, timeout) {
       if (!link.sheet) return false;
 
       try {
-        return link.sheet.cssRules && link.sheet.cssRules.length >= 0;
+        return !!link.sheet.cssRules;
       } catch (e) {
         return true; // 跨域 CSS：CORS 限制导致 cssRules 不可访问，但已加载
       }

@@ -112,7 +112,7 @@ export function collectPageBreakLines({
 
     for (const placement of placements) {
       const { page: pageNum, offsetYpx } = placement;
-      const clipTopPx = placement.clipTopPx || 0;
+      const clipTopPx = placement.clipTopPx ?? 0;
 
       // 当前页内容区的全局 px 范围
       // pageActualBottomPx 存在时（avoid/before 推页）用实际底部，否则回退到整页底部

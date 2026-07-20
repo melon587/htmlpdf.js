@@ -26,8 +26,8 @@ export function initContext(rootElement, options = {}) {
     footer,
   } = options;
 
-  const headerHeight = header && header.height ? header.height : 0;
-  const footerHeight = footer && footer.height ? footer.height : 0;
+  const headerHeight = header?.height ?? 0;
+  const footerHeight = footer?.height ?? 0;
 
   const doc = new jsPDF({ unit: 'mm', format, orientation, compress });
 

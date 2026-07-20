@@ -316,6 +316,7 @@
       <table
         id="rowspan40-table"
         page-break
+        pdf-font="noto-sans-sc"
       >
         <thead>
           <tr>
@@ -553,36 +554,37 @@
           width: 100%;
           font-size: 9px;
         "
+        pdf-font="noto-sans-sc"
       >
         <thead>
           <tr>
             <th
-              style="background: #e8f4ff; border: 1px solid #ccc; padding: 8px"
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
             >
               #
             </th>
             <th
-              style="background: #e8f4ff; border: 1px solid #ccc; padding: 8px"
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
             >
               系列
             </th>
             <th
-              style="background: #e8f4ff; border: 1px solid #ccc; padding: 8px"
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
             >
               规格
             </th>
             <th
-              style="background: #e8f4ff; border: 1px solid #ccc; padding: 8px"
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
             >
               型号
             </th>
             <th
-              style="background: #e8f4ff; border: 1px solid #ccc; padding: 8px"
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
             >
               数量
             </th>
             <th
-              style="background: #e8f4ff; border: 1px solid #ccc; padding: 8px"
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
             >
               单价
             </th>
@@ -1959,6 +1961,10 @@
           النتيجة (Result): ستحصل على ملف PDF (بتنسيق عالي الجودة) يحتوي على
           [المحتوى-123] بشكل صحيح.
         </p>
+        <p>
+          شروط الدفع: دفع مقدم بنسبة 100% مع أمر الشراء المؤكد ما لم يتم الاتفاق
+          على خلاف ذلك.
+        </p>
         <p
           style="
             direction: ltr;
@@ -2171,6 +2177,10 @@
                     [0x0600, 0x06ff], // 阿拉伯语基本区
                     [0x0750, 0x077f], // 阿拉伯语补充区
                     [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
+                    [0x0030, 0x0039], // ASCII 数字 0-9
+                    [0x0025, 0x0025], // % 百分号
+                    [0x003a, 0x003a], // : 冒号
+                    [0x0020, 0x002f], // 空格及基本标点 !"#$%&'()*+,-./
                   ],
                 },
                 {
@@ -2182,6 +2192,10 @@
                     [0x0600, 0x06ff],
                     [0x0750, 0x077f],
                     [0x0660, 0x0669],
+                    [0x0030, 0x0039],
+                    [0x0025, 0x0025],
+                    [0x003a, 0x003a],
+                    [0x0020, 0x002f],
                   ],
                 },
                 {

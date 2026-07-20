@@ -40,7 +40,7 @@ function renderBackgroundAndBorder({ node, ctx, isLastSpill, clipBottom }) {
  * @param {Object} params.node           - 节点（y 为全局坐标）
  * @param {Object} params.ctx            - 渲染上下文
  * @param {number} [params.offsetYpx=0]  - 当前页内容区起始全局 y（px）
- * @param {Array}  [params.sortedFontConfig=[]] - 排序后的字体配置
+ * @param {Array}  [params.fonts=[]]             - 字体配置数组
  * @param {boolean}[params.isLastSpill=true]    - 是否是该节点的最后一个 spill placement
  * @param {number|null} [params.pageActualBottomPx=null]
  *   本页实际内容底部全局 y（px）。null 时回退到 ctx.contentHeight（整页高度）。
@@ -50,7 +50,7 @@ export function renderNode({
   node,
   ctx,
   offsetYpx = 0,
-  sortedFontConfig = [],
+  fonts = [],
   isLastSpill = true,
   pageActualBottomPx = null,
 }) {
@@ -100,7 +100,7 @@ export function renderNode({
         node: adjustedNode,
         ctx,
         clipTop: 0,
-        sortedFontConfig,
+        sortedFontConfig: fonts,
       });
     }
   } else if (adjustedNode.type === 'text') {
@@ -109,7 +109,7 @@ export function renderNode({
       node: adjustedNode,
       ctx,
       clipTop: 0,
-      sortedFontConfig,
+      sortedFontConfig: fonts,
     });
   }
 }

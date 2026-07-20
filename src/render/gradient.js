@@ -21,16 +21,6 @@ const DIRECTION_TO_DEG = {
 };
 
 /**
- * 解析 CSS 颜色字符串 → Canvas 可用的颜色字符串
- * 支持 #hex / rgb() / rgba() / 命名颜色（直接透传，Canvas 本身支持）
- */
-function normColor(str) {
-  const s = str.trim();
-
-  return s || null;
-}
-
-/**
  * 解析单个 color-stop token，返回 { color, pos }
  * pos 为 0~1 的小数（来自百分比），或 null（未指定）
  *
@@ -54,7 +44,7 @@ function parseColorStop(token) {
     colorStr = s.slice(0, s.length - posMatch[0].length);
   }
 
-  const color = normColor(colorStr);
+  const color = colorStr.trim() || null;
   if (!color) return null;
 
   return { color, pos };

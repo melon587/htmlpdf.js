@@ -41,20 +41,14 @@ import { waitForLayout, waitForImages, waitForStyleSheets } from './wait.js';
  * 传播 pdf-font 属性到当前元素（如果父元素有且当前元素没有）
  * 同时修改 CSS font-family，确保浏览器测量时的字体宽度与 PDF 渲染时一致
  * @param {Element} el - 当前元素
- * @returns {boolean} 是否传播了属性
  */
 function propagatePdfFontToElement(el) {
   if (
     !el.hasAttribute('pdf-font') &&
     el.parentElement?.hasAttribute('pdf-font')
   ) {
-    const pdfFont = el.parentElement.getAttribute('pdf-font');
-    el.setAttribute('pdf-font', pdfFont);
-
-    return true;
+    el.setAttribute('pdf-font', el.parentElement.getAttribute('pdf-font'));
   }
-
-  return false;
 }
 
 /**
@@ -195,7 +189,7 @@ export async function createClonedDocument(element, fonts = []) {
     // 设置 base URL，确保 CSS 和资源路径正确（修复 iframe 嵌套 + 相对路径问题）
     // 必须在 replaceChild 之后添加，否则会被覆盖
     const baseEl = iframeDoc.createElement('base');
-    baseEl.href = ownerDoc.baseURI || ownerDoc.location.href;
+    baseEl.href = ownerDoc.baseURI;
     // 插入到 <head> 的最前面，让所有后续的 <link> 标签使用正确的 base URL
     if (iframeDoc.head) {
       iframeDoc.head.insertBefore(baseEl, iframeDoc.head.firstChild);

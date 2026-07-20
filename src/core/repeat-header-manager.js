@@ -20,13 +20,15 @@ function collectHeaderMetas(nodes, tables) {
     if (!repeatHeader) continue;
 
     // 找所有匹配的表格容器节点（同一 selector 可能匹配多个表格实例）
-    let foundAny = false;
+    const hasMatch = nodes.some((n) => matchesSelector(n._origEl, selector));
+    if (!hasMatch) {
+      console.warn(`[repeat-header] Table container not found: ${selector}`);
+      continue;
+    }
 
     for (let tableNodeIdx = 0; tableNodeIdx < nodes.length; tableNodeIdx += 1) {
       const tableNode = nodes[tableNodeIdx];
       if (!matchesSelector(tableNode._origEl, selector)) continue;
-
-      foundAny = true;
 
       // 在容器节点之后查找表头节点（DOM 顺序保证子节点在容器后）
       let headerNode = null;
@@ -51,7 +53,7 @@ function collectHeaderMetas(nodes, tables) {
         continue;
       }
 
-      // 找表头的所有子节点
+      // 找表头的所有子节点（从 headerNodeIdx+1 开始，范围内节点不可能是 headerNode 自身）
       const headerChildren = [];
 
       for (let i = headerNodeIdx + 1; i < nodes.length; i += 1) {
@@ -59,7 +61,7 @@ function collectHeaderMetas(nodes, tables) {
         // 已超出表头范围，停止查找
         if (n._origEl && !headerNode._origEl.contains(n._origEl)) break;
 
-        if (n._origEl && n._origEl !== headerNode._origEl) {
+        if (n._origEl) {
           headerChildren.push(n);
         }
       }
@@ -71,10 +73,6 @@ function collectHeaderMetas(nodes, tables) {
         headerRendered: false,
         skipOnCurrentPage: false,
       });
-    }
-
-    if (!foundAny) {
-      console.warn(`[repeat-header] Table container not found: ${selector}`);
     }
   }
 
@@ -136,17 +134,11 @@ export function createRepeatHeaderManager(nodes, tables = []) {
 export function shouldSkipOriginalHeader(node, headerMeta) {
   if (!headerMeta) return false;
 
-  // 先判断是否是表头节点本身
-  const isHeaderNode = node._origEl === headerMeta.headerNode._origEl;
-  if (isHeaderNode) return true;
+  if (node._origEl === headerMeta.headerNode._origEl) return true;
 
-  // 再判断是否是表头子节点
-  const isHeaderChild =
-    node._origEl &&
-    headerMeta.headerNode._origEl &&
-    headerMeta.headerNode._origEl.contains(node._origEl);
-
-  return Boolean(isHeaderChild);
+  return !!(
+    node._origEl && headerMeta.headerNode._origEl?.contains(node._origEl)
+  );
 }
 
 /**

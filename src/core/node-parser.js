@@ -35,7 +35,7 @@ function parseElement(origEl, measEl, rootRect, win) {
   const style = win.getComputedStyle(measEl);
 
   // 检测是否是物化的伪元素
-  const isPseudo = measEl.hasAttribute && measEl.hasAttribute('data-pseudo');
+  const isPseudo = measEl.hasAttribute('data-pseudo');
 
   // 测量位置（伪元素的位置由浏览器自然布局决定）
   const rect = measEl.getBoundingClientRect();
@@ -180,7 +180,7 @@ function processMultilineText({
       height: group.height,
       style: nodeStyle,
       pdfFont: pdfFont,
-      _origEl: origParent || null,
+      _origEl: origParent,
     });
   }
 
@@ -203,10 +203,9 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
   const normalizedText = raw.replace(/\s+/g, ' ').trim();
 
   // 读取 pdf-font 属性（已在 document-cloner.js 的 enhanceClonedDOM 中传播）
-  const pdfFont =
-    measParent.hasAttribute && measParent.hasAttribute('pdf-font')
-      ? measParent.getAttribute('pdf-font')
-      : null;
+  const pdfFont = measParent.hasAttribute('pdf-font')
+    ? measParent.getAttribute('pdf-font')
+    : null;
 
   const nodeStyle = {
     color: style.color,
@@ -258,21 +257,20 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
       height: r.height,
       style: nodeStyle,
       pdfFont,
-      _origEl: origParent || null,
+      _origEl: origParent,
     },
   ];
 }
 
 /**
  * 递归遍历 DOM 树，返回扁平化节点列表
- * @param {Element} element    - 原始根元素
- * @param {Element} [cloneRoot] - iframe 内的克隆根元素（用于测量）
- * @returns {Array} 扁平化节点列表（经过 RTL 合并处理）
+ * @param {Element} element   - 原始根元素
+ * @param {Element} cloneRoot - iframe 内的克隆根元素（用于测量）
+ * @returns {Array} 扁平化节点列表
  */
 export function collectNodes(element, cloneRoot) {
-  const useClone = !!cloneRoot;
-  const measRoot = useClone ? cloneRoot : element;
-  const measWin = useClone ? cloneRoot.ownerDocument.defaultView : window;
+  const measRoot = cloneRoot;
+  const measWin = cloneRoot.ownerDocument.defaultView;
   const rootRect = measRoot.getBoundingClientRect();
 
   const nodes = [];
@@ -297,7 +295,7 @@ export function collectNodes(element, cloneRoot) {
 
       if (measChild.nodeType === Node.ELEMENT_NODE) {
         // 检查是否是物化的伪元素
-        if (measChild.hasAttribute && measChild.hasAttribute('data-pseudo')) {
+        if (measChild.hasAttribute('data-pseudo')) {
           // 物化的伪元素：origEl 使用 measChild 自身（原始 DOM 中不存在）
           walk(measChild, measChild);
         } else {

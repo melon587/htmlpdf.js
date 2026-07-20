@@ -40,8 +40,8 @@ function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
  */
 function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
   const parts = (bgPos || '50% 50%').trim().split(/\s+/);
-  const px = parts[0] ?? '50%';
-  const py = parts[1] ?? '50%';
+  const px = parts[0];
+  const py = parts[1] ?? px;
 
   return {
     offX: parseBgPosVal(px, elW, imgW),
