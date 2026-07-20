@@ -624,7 +624,7 @@ describe('drawMultiSegmentAligned', () => {
     expect(calls[1].x).toBeCloseTo(20);
   });
 
-  it('right: segments 反转，从 x-totalWidth 开始', () => {
+  it('right (LTR): 从 x-totalWidth 开始正序绘制两段', () => {
     const { ctx, calls } = makeDocCtx(2);
     drawMultiSegmentAligned({
       segments: [
@@ -636,21 +636,53 @@ describe('drawMultiSegmentAligned', () => {
       y: 10,
       fontStyle: 'normal',
       ctx,
+      // 无 rtlOptions → LTR 路径
     });
-    // totalWidth=8, start=30-8=22; reversed: CD first, AB second
-    expect(calls[0].txt).toBe('CD');
+    // totalWidth=8, curX = 30-8=22, 正向: AB@22, CD@26
+    expect(calls[0].txt).toBe('AB');
     expect(calls[0].x).toBeCloseTo(22);
-    expect(calls[1].txt).toBe('AB');
+    expect(calls[1].txt).toBe('CD');
     expect(calls[1].x).toBeCloseTo(26);
   });
 
-  it('RTL + left: rtlOptions 只注入有 fontFamily 的段', () => {
+  it('RTL + right: 所有段均注入 rtlOptions（BiDi 统一处理）', () => {
     const { ctx, mockDoc } = makeDocCtx(2);
     const rtlOptions = { isInputRtl: true };
+    // 逻辑顺序：[مرحبا(有fontFamily, 10mm), test(无fontFamily, 8mm)]
+    // right-align, x=30: curX 从 30 开始
+    //   i=0: curX=30-10=20, draw مرحبا@20
+    //   i=1: curX=20-8=12,  draw test@12
     drawMultiSegmentAligned({
       segments: [
-        { text: 'مرحبا', font: { fontFamily: 'Arabic' } },
-        { text: 'test', font: null }, // 无 fontFamily
+        { text: 'مرحبا', font: { fontFamily: 'Arabic' } }, // width 10
+        { text: 'test', font: null }, // width 8
+      ],
+      textAlign: 'right',
+      x: 30,
+      y: 10,
+      fontStyle: 'normal',
+      ctx,
+      rtlOptions,
+    });
+    const calls = mockDoc.text.mock.calls;
+    expect(calls[0][0]).toBe('مرحبا');
+    expect(calls[0][1]).toBeCloseTo(20);
+    expect(calls[0][3]).toMatchObject({ isInputRtl: true });
+    expect(calls[1][0]).toBe('test');
+    expect(calls[1][1]).toBeCloseTo(12);
+    expect(calls[1][3]).toMatchObject({ isInputRtl: true }); // RTL 模式所有段均注入
+  });
+
+  it('RTL + left: 所有段均注入 rtlOptions（BiDi 统一处理）', () => {
+    const { ctx, mockDoc } = makeDocCtx(2);
+    const rtlOptions = { isInputRtl: true };
+    // left-align, x=0: curX 从 0+18=18 开始
+    //   i=0: curX=18-10=8, draw مرحبا@8
+    //   i=1: curX=8-8=0,   draw test@0
+    drawMultiSegmentAligned({
+      segments: [
+        { text: 'مرحبا', font: { fontFamily: 'Arabic' } }, // width 10
+        { text: 'test', font: null }, // width 8
       ],
       textAlign: 'left',
       x: 0,
@@ -659,26 +691,13 @@ describe('drawMultiSegmentAligned', () => {
       ctx,
       rtlOptions,
     });
-    const firstCall = mockDoc.text.mock.calls[0][3];
-    const secondCall = mockDoc.text.mock.calls[1][3];
-    expect(firstCall).toMatchObject({ isInputRtl: true });
-    expect(secondCall.isInputRtl).toBeUndefined();
-  });
-
-  it('RTL + right: rtlOptions 不注入', () => {
-    const { ctx, mockDoc } = makeDocCtx(2);
-    const rtlOptions = { isInputRtl: true };
-    drawMultiSegmentAligned({
-      segments: [{ text: 'مرحبا', font: { fontFamily: 'Arabic' } }],
-      textAlign: 'right',
-      x: 30,
-      y: 10,
-      fontStyle: 'normal',
-      ctx,
-      rtlOptions,
-    });
-    const opts = mockDoc.text.mock.calls[0][3];
-    expect(opts.isInputRtl).toBeUndefined();
+    const calls = mockDoc.text.mock.calls;
+    expect(calls[0][0]).toBe('مرحبا');
+    expect(calls[0][1]).toBeCloseTo(8);
+    expect(calls[0][3]).toMatchObject({ isInputRtl: true });
+    expect(calls[1][0]).toBe('test');
+    expect(calls[1][1]).toBeCloseTo(0);
+    expect(calls[1][3]).toMatchObject({ isInputRtl: true }); // RTL 模式所有段均注入
   });
 });
 

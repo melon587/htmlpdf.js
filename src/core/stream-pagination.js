@@ -16,11 +16,6 @@ import {
   generateRepeatHeaderPlacements,
 } from './repeat-header-manager';
 
-/** 字体配置按 priority 降序排序 */
-function getFontConfig(fonts) {
-  return fonts.slice().sort((a, b) => (b.priority || 0) - (a.priority || 0));
-}
-
 /** placement 同页渲染顺序权重：spill=0, repeat-header=1, normal=2 */
 function placementOrder(p) {
   if (p.type === 'spill') return 0;
@@ -249,17 +244,10 @@ function mergePlacements(normal, spill) {
  * @param {Object} params
  * @param {Array}  params.nodes               - 节点数组（由 collectNodes 生成）
  * @param {Object} params.ctx                 - 渲染上下文（scale、doc、contentHeight 等）
- * @param {Array}  params.fonts               - 字体配置数组
  * @param {Object} params.repeatHeaderManager - repeat-header 管理器实例（无配置时为 null）
- * @returns {{ totalPages: number, allPlacements: Array, sortedFontConfig: Array }}
+ * @returns {{ totalPages: number, allPlacements: Array }}
  */
-export function streamPaginate({
-  nodes,
-  ctx,
-  fonts = [],
-  repeatHeaderManager = null,
-}) {
-  const sortedFontConfig = getFontConfig(fonts);
+export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
   const { contentHeightPx } = ctx;
 
   let currentPage = 1;
@@ -401,6 +389,5 @@ export function streamPaginate({
   return {
     totalPages: totalPagesCount,
     allPlacements,
-    sortedFontConfig,
   };
 }

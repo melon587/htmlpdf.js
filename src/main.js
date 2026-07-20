@@ -128,10 +128,9 @@ export async function htmlpdf(element, options = {}) {
   const pageBreakBorderMap = getPageBreakLinesMap(nodes, tables);
 
   // 使用流式分页计算渲染方案
-  const { totalPages, allPlacements, sortedFontConfig } = streamPaginate({
+  const { totalPages, allPlacements } = streamPaginate({
     nodes,
     ctx,
-    fonts,
     repeatHeaderManager,
   });
 
@@ -157,7 +156,7 @@ export async function htmlpdf(element, options = {}) {
       node: placement.node,
       ctx,
       offsetYpx: placement.offsetYpx,
-      sortedFontConfig,
+      fonts,
       isLastSpill: placement.isLastSpill,
       pageActualBottomPx: placement.pageActualBottomPx,
     });

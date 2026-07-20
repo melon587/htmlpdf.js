@@ -70,7 +70,17 @@ export function parsePdfFontNames(pdfFont) {
 /**
  * 根据节点的 pdf-font 属性，构造本节点实际使用的字体优先级列表
  *
- * 优先级链：pdf-font+charRanges > pdf-font(无charRanges 作 isDefault) > 全局 charRanges > isDefault > helvetica
+ * 优先级链（有 nodeDefault 时）：
+ *   pdf-font+charRanges > pdf-font(无charRanges，作isDefault) > 全局charRanges > 全局isDefault > helvetica
+ *
+ * 关键语义：
+ *   - pdf-font="roboto"（roboto 无 charRanges）：
+ *       roboto 优先兜底，全局 charRanges 字体（阿拉伯/中文）排在 roboto 之后。
+ *       => 空格、标点等字符由 roboto 渲染，不会被阿拉伯字体抢走。
+ *       => 若需要阿拉伯字体，需显式声明：pdf-font="roboto,noto-sans-arabic"
+ *   - pdf-font="roboto,noto-sans-arabic"（多字体）：
+ *       noto-sans-arabic 的 charRanges 插最前做精确匹配，roboto 作兜底。
+ *   - 无 pdf-font：返回全局 sortedFontConfig（charRanges 优先，isDefault 兜底）
  *
  * @param {Object} node            - 文本节点，包含 pdfFont 字段
  * @param {Array}  sortedFontConfig - 全局已排序字体配置数组
@@ -82,55 +92,88 @@ export function buildEffectiveFontConfig(node, sortedFontConfig) {
   const fontNames = parsePdfFontNames(node.pdfFont);
   if (fontNames.length === 0) return sortedFontConfig;
 
-  // 按声明顺序找到各字体的 config
-  const resolvedConfigs = fontNames
-    .map((name) => {
-      const config = findFontByFamily(name, sortedFontConfig);
-      if (!config) {
-        console.warn(
-          `[htmlpdf] pdf-font: "${name}" not found in config, skipping`,
-        );
-      }
+  // 找出 pdf-font 声明的所有字体的全部变体（同一 fontFamily 含 bold/italic 等）
+  const resolvedConfigs = [];
 
-      return config;
-    })
-    .filter(Boolean);
+  for (const name of fontNames) {
+    const normalizedName = name.toLowerCase().trim();
+    const matched = sortedFontConfig.filter(
+      (c) =>
+        c.fontFamily && c.fontFamily.toLowerCase().trim() === normalizedName,
+    );
+
+    if (matched.length === 0) {
+      console.warn(
+        `[htmlpdf] pdf-font: "${name}" not found in config, skipping`,
+      );
+      continue;
+    }
+
+    for (const c of matched) resolvedConfigs.push(c);
+  }
 
   if (resolvedConfigs.length === 0) return sortedFontConfig;
 
-  // 有 charRanges → 插到最前（精确匹配）；无 charRanges → 第一个作为 isDefault
+  // 分类：显式指定的字体中，有 charRanges 的做精确匹配，无 charRanges 的作 isDefault
   const withRanges = resolvedConfigs.filter((c) => c.charRanges);
   const withoutRanges = resolvedConfigs.filter((c) => !c.charRanges);
   const nodeDefault = withoutRanges[0] ?? null;
 
-  // 从全局配置中移除已被 pdf-font 占据的位置，避免重复
+  // 从全局配置中移除已被 pdf-font 明确指定的字体，避免重复
   const resolvedSet = new Set(resolvedConfigs);
-  let rest = sortedFontConfig.filter((f) => !resolvedSet.has(f));
+  const globalRest = sortedFontConfig.filter((f) => !resolvedSet.has(f));
 
-  // 如果有 nodeDefault，替换掉全局 isDefault 的兜底位置
   if (nodeDefault) {
-    rest = rest.filter((f) => !f.isDefault);
-    rest = [...rest, { ...nodeDefault, isDefault: true }];
+    // 有 nodeDefault（pdf-font 指定了无 charRanges 的字体，如 roboto）：
+    // nodeDefault 的全部变体作为 isDefault，全局 charRanges 字体降级排在其后
+    // 顺序：pdf-font 的 charRanges > nodeDefault 变体(isDefault) > 全局 charRanges > 全局 isDefault
+    const nodeDefaultVariants = withoutRanges.map((c) => ({
+      ...c,
+      isDefault: true,
+    }));
+    // 全局剩余字体中，去掉全局 isDefault（已被 nodeDefault 替换），保留全局 charRanges 字体
+    const globalCharRanges = globalRest.filter(
+      (f) => f.charRanges && !f.isDefault,
+    );
+    const globalIsDefault = globalRest.filter((f) => f.isDefault);
+
+    // 最终顺序：[pdf-font的charRanges] + [nodeDefault变体] + [全局charRanges] + [全局isDefault降级兜底]
+    // 注意：全局 isDefault 此处放最后作为最终兜底（通常和 nodeDefault 是同一字体，resolvedSet 已过滤）
+    return [
+      ...withRanges,
+      ...nodeDefaultVariants,
+      ...globalCharRanges,
+      ...globalIsDefault,
+    ];
   }
 
-  return [...withRanges, ...rest];
+  // 无 nodeDefault（pdf-font 指定的字体全都有 charRanges）：
+  // 这些字体的 charRanges 插到最前，其余保持全局顺序
+  return [...withRanges, ...globalRest];
 }
 
 /**
  * 根据字符码点找到对应的字体配置
- * 优先级：charRanges 精确匹配 > isDefault 字体 > null
- * 返回 null 表示用户配置中无匹配，由渲染层用 helvetica 兜底
+ *
+ * 遍历顺序决定优先级：
+ * - 遇到有 charRanges 的条目：检查字符是否在范围内，命中则返回
+ * - 遇到 isDefault 的条目（无 charRanges）：直接返回作为兜底，不再继续
+ *   => 这保证了 pdf-font 指定的 nodeDefault 字体能真正"挡住"后面的全局 charRanges
+ * - 所有条目遍历完没命中：返回 null，由渲染层用 helvetica 兜底
  */
 export function findFontForChar(code, sortedFontConfig) {
   for (const config of sortedFontConfig) {
-    if (!config.charRanges) continue;
-
-    for (const [start, end] of config.charRanges) {
-      if (code >= start && code <= end) return config;
+    if (config.charRanges) {
+      for (const [start, end] of config.charRanges) {
+        if (code >= start && code <= end) return config;
+      }
+    } else if (config.isDefault) {
+      // 遇到 isDefault 条目直接作为兜底返回，阻止后续 charRanges 字体匹配
+      return config;
     }
   }
 
-  return sortedFontConfig.find((f) => f.isDefault) || null;
+  return null;
 }
 
 /**
@@ -193,7 +236,6 @@ export function setFont(ctx, fontFamily, fontStyle) {
   try {
     doc.setFont(fontFamily, fontStyle);
   } catch (e) {
-    // 字体未注册时静默回退；如遇渲染异常请检查 fontFamily 是否已通过 addFont 注册
     doc.setFont('helvetica', fontStyle);
   }
 }
@@ -281,11 +323,19 @@ export function measureSegmentWidths(segments, fontStyle, ctx) {
 }
 
 /**
- * 多字体多段精确渲染（left / right / center 均支持）
+ * 多字体多段精确渲染（left / right / center 均支持，LTR / RTL 均支持）
  *
- * left  ：从左锚点正向逐段绘制
- * right ：从右锚点反向排列（segments 反转后正向绘制）
- * center：计算总宽后从中点左移半宽正向绘制
+ * LTR（无 rtlOptions）：
+ *   left  ：从左锚点正向逐段绘制
+ *   right ：x 是右边缘，curX = x - totalWidth 开始正向绘制
+ *   center：x 是中点，curX = x - totalWidth/2 开始正向绘制
+ *
+ * RTL（有 rtlOptions）：
+ *   段在视觉上需要反转（Unicode BiDi：逻辑首段在视觉最左，逻辑末段在视觉最右）
+ *   反转后，从右锚点向左逐段绘制，每段注入 rtlOptions 处理段内字符顺序：
+ *     right ：curX 从 x 开始，每段先减宽度再绘制
+ *     left  ：curX 从 x + totalWidth 开始，每段先减宽度再绘制
+ *     center：curX 从 x + totalWidth/2 开始，每段先减宽度再绘制
  *
  * @param {Object}  opts
  * @param {Array<{text: string, font: Object|null}>} opts.segments
@@ -294,7 +344,7 @@ export function measureSegmentWidths(segments, fontStyle, ctx) {
  * @param {number}  opts.y
  * @param {string}  opts.fontStyle
  * @param {Object}  opts.ctx
- * @param {Object}  [opts.rtlOptions] - RTL 时逐段传入，触发 jsPDF BiDi 重排
+ * @param {Object}  [opts.rtlOptions] - RTL 时传入；undefined 表示 LTR
  */
 export function drawMultiSegmentAligned({
   segments,
@@ -308,24 +358,36 @@ export function drawMultiSegmentAligned({
   const widths = measureSegmentWidths(segments, fontStyle, ctx);
   const totalWidth = widths.reduce((sum, w) => sum + w, 0);
 
-  const isRight = textAlign === 'right';
-  const orderedSegments = isRight ? [...segments].reverse() : segments;
-  const orderedWidths = isRight ? [...widths].reverse() : widths;
+  if (rtlOptions) {
+    // RTL：逻辑顺序 = 视觉从右到左顺序（Unicode BiDi 段间不反转，index 0 在最右）
+    // 从右锚点开始，正向遍历 segments，每段先减去宽度再绘制
+    let curX;
+    if (textAlign === 'right') curX = x;
+    else if (textAlign === 'center') curX = x + totalWidth / 2;
+    else curX = x + totalWidth; // left
 
-  let curX;
-  if (isRight) curX = x - totalWidth;
-  else if (textAlign === 'center') curX = x - totalWidth / 2;
-  else curX = x; // left
+    for (let i = 0; i < segments.length; i++) {
+      curX -= widths[i];
+      const seg = segments[i];
+      applySegmentFont(ctx, seg, fontStyle);
+      ctx.doc.text(seg.text, curX, y, {
+        baseline: 'alphabetic',
+        ...rtlOptions,
+      });
+    }
+  } else {
+    // LTR：正向逐段绘制，x 为对应锚点
+    let curX;
+    if (textAlign === 'right') curX = x - totalWidth;
+    else if (textAlign === 'center') curX = x - totalWidth / 2;
+    else curX = x;
 
-  for (let i = 0; i < orderedSegments.length; i++) {
-    const seg = orderedSegments[i];
-    applySegmentFont(ctx, seg, fontStyle);
-
-    ctx.doc.text(seg.text, curX, y, {
-      baseline: 'alphabetic',
-      ...rtlOptions,
-    });
-    curX += orderedWidths[i];
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      applySegmentFont(ctx, seg, fontStyle);
+      ctx.doc.text(seg.text, curX, y, { baseline: 'alphabetic' });
+      curX += widths[i];
+    }
   }
 }
 
@@ -394,9 +456,6 @@ export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
 
   const effectiveFontConfig = buildEffectiveFontConfig(node, sortedFontConfig);
 
-  // ── 路径 1/2：统一分段渲染（left / right / center）──────────────────────────
-  // 单段：整体一次渲染，让 jsPDF align 选项处理锚点偏移（简单高效）
-  // 多段：逐段量宽后精确定位，统一走 drawMultiSegmentAligned
   const segments = segmentTextByFont(node.text, effectiveFontConfig);
 
   if (segments.length <= 1) {
