@@ -38,18 +38,34 @@ function comparePlacements(a, b) {
  * - text 保护：被切割时推到下一页
  * - avoid：放不下时推到下一页（节点高度超过一页时豁免，避免无限换页）
  * - before：强制换页（节点不在当前页起点时）
+ *
+ * @param {Object} node                - 待判断节点
+ * @param {number} currentPageBottom   - 当前页内容区底边（全局 px）
+ *                                       = accumulatedYpx + contentHeightPx - pageContentOffsetPx
+ * @param {number} accumulatedYpx      - 当前页原始起点（全局 px，含表头区域）
+ * @param {number} contentHeightPx     - 单页内容区总高度（px）
+ * @param {number} pageContentOffsetPx - 当前页表头占用高度（px）。
+ *                                       无 repeat-header 时为 0；有 repeat-header 时为表头高度。
+ *                                       用于 text 保护豁免：确保换页后 text 高度不超过可用区，
+ *                                       防止 accumulatedYpx 原地不动导致死循环。
  */
-function needsNewPage(
+function needsNewPage({
   node,
   currentPageBottom,
   accumulatedYpx,
   contentHeightPx,
-) {
+  pageContentOffsetPx,
+}) {
   if (node.y >= currentPageBottom) return true;
 
-  // text 节点：只要被切割就推到下一页（行级别保护）
-  if (node.type === 'text' && node.y + node.height > currentPageBottom)
+  // text 节点：被切割时推到下一页（行级别保护）
+  // 豁免：text 高度超过当前页可用内容区（contentHeightPx - pageContentOffsetPx）时，
+  // 无论换到哪页都放不下，让其自然截断，避免死循环
+  if (node.type === 'text' && node.y + node.height > currentPageBottom) {
+    if (node.height > contentHeightPx - pageContentOffsetPx) return false;
+
     return true;
+  }
 
   if (node.pageBreak === 'avoid') {
     // TR 节点：用 rowSpanChildMaxHeight 计算有效高度（含 rowspan 子 TD 的最大高度）
@@ -78,8 +94,9 @@ function needsNewPage(
  * 计算换页后新页起点 accumulatedYpx
  *
  * - 自然溢出（node.y >= currentPageBottom）→ currentPageBottom（连续，不留空隙）
- * - text 保护触发 → currentPageBottom（text 在超大 TD 内被切割时的 fallback）
- * - avoid（TR / rowspan>1 TD）触发 → node.y
+ * - text 保护 / avoid（TR / rowspan>1 TD）触发 → node.y
+ *   从节点顶部开始新页，保证节点页内坐标 = headerHeightPx（有 repeat-header 时）
+ *   或 0（无 repeat-header 时），不会落入表头区域造成重叠。
  *   DFS 顺序保证 TD 在其父 TR 之后立即出现，且 TD.y === TR.y，
  *   所以新页从 node.y 开始等价于"整个 TR 从新页顶部开始"，
  *   之后重新处理该 TD 及后续所有兄弟 TR，relY 全部 ≥ 0。
@@ -88,10 +105,7 @@ function calcNextPageStart(node, currentPageBottom) {
   // 自然溢出
   if (node.y >= currentPageBottom) return currentPageBottom;
 
-  // text 保护（说明父 TD avoid 豁免了，TD 高度超整页，只能切割）
-  if (node.type === 'text') return currentPageBottom;
-
-  // avoid（TR / rowspan>1 TD）：从节点顶部开始新页
+  // text 保护 / avoid（TR / rowspan>1 TD）：从节点顶部开始新页
   return node.y;
 }
 
@@ -274,14 +288,20 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
 
     // 检查是否需要换页
     if (
-      needsNewPage(node, currentPageBottom, accumulatedYpx, contentHeightPx)
+      needsNewPage({
+        node,
+        currentPageBottom,
+        accumulatedYpx,
+        contentHeightPx,
+        pageContentOffsetPx: currentPageContentOffsetPx,
+      })
     ) {
       // 计算本页实际内容底部（全局px）：
-      // - 自然溢出/text保护 → currentPageBottom（整页用满）
-      // - avoid/before 推页 → node.y（只用到被推走节点的起点，剩余空间废弃）
+      // - 自然溢出 → currentPageBottom（整页用满）
+      // - text 保护 / avoid / before 推页 → node.y（节点起点，剩余空间废弃）
       const pageActualBottomPx = calcNextPageStart(node, currentPageBottom);
 
-      // 修正上一页的 pageActualBottomPx（初始化为整页底部，avoid/before 推页后需更正）
+      // 修正上一页的 pageActualBottomPx（初始化为整页底部，推页后需更正）
       // 取最小值：同一页可能有多个节点触发推页，第一个被推走的决定本页实际底部
       const prevPageInfo = pageStartOffsets.get(currentPage);
       if (
