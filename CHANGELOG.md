@@ -15,6 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Fix: Added `rowSpanChildMaxHeight` field to TR nodes (computed in `node-parser.js` via `getBoundingClientRect()` on rowspan>1 children). `needsNewPage()` now uses `Math.max(node.height, node.rowSpanChildMaxHeight)` as the effective height for avoid-break decisions
   - Also fixed `calcNextPageStart()` to distinguish text-node cuts (return `currentPageBottom`) from avoid/before push-downs (return `node.y`), preventing text nodes inside oversized TDs from being mis-anchored
 
+#### Repeat-Header / Text Overlap
+
+- **Fixed text nodes visually overlapping repeat-header when a text node triggers a page break** - When a `text` node was the trigger for a page break (its bottom crossed `currentPageBottom`), `calcNextPageStart()` previously returned `currentPageBottom` instead of `node.y`, causing `accumulatedYpx` to land inside the repeat-header zone and the text to render on top of the header
+  - Root cause: `calcNextPageStart()` had a special branch that returned `currentPageBottom` for `text` nodes, originally intended to guard against infinite loops but was never actually reachable for that purpose
+  - Fix: Removed the special `text` branch — `calcNextPageStart()` now uniformly returns `node.y` for text-protection and avoid/before push-downs, ensuring the text starts at the top of the new page content area (below the repeat-header)
+  - Also tightened the infinite-loop exemption in `needsNewPage()`: the guard condition for text nodes was changed from `node.height > contentHeightPx` to `node.height > contentHeightPx - pageContentOffsetPx`, correctly accounting for the space consumed by the repeat-header offset
+  - Refactored `needsNewPage()` parameter list from positional args to a destructured object to satisfy ESLint `max-params` rule
+
 #### Background & Border Overflow Past Page-Break Point
 
 - **Fixed backgrounds and borders rendering into blank space after `page-break: avoid/before`** - When a node was pushed to the next page, the current page's background color and borders continued painting to the full page height instead of stopping at the actual content boundary

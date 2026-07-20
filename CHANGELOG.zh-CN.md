@@ -15,6 +15,14 @@
   - 修复方案：在 `node-parser.js` 中为 TR 节点新增 `rowSpanChildMaxHeight` 字段（通过对 `rowspan > 1` 的子元素调用 `getBoundingClientRect()` 计算）。`needsNewPage()` 现在使用 `Math.max(node.height, rowSpanChildMaxHeight)` 作为 avoid 推页判断的有效高度
   - 同步修复 `calcNextPageStart()`，区分文本节点裁切（返回 `currentPageBottom`）与 avoid/before 推页（返回 `node.y`），避免超大 TD 内的文本节点被错误锚定
 
+#### 重复表头与文字视觉重叠
+
+- **修复文本节点触发换页时与 repeat-header 发生视觉重叠的问题** - 当 `text` 节点的底部超出 `currentPageBottom` 而触发换页时，`calcNextPageStart()` 之前对文本节点特殊返回 `currentPageBottom` 而非 `node.y`，导致 `accumulatedYpx` 落入 repeat-header 区域，文字被渲染到表头之上
+  - 根本原因：`calcNextPageStart()` 存在一个针对 `text` 节点的特殊分支，返回 `currentPageBottom`；该分支最初的意图是防止无限循环，但实际上对 text 节点而言该场景不可达，是无效保护
+  - 修复方案：删除该特殊分支——`calcNextPageStart()` 现在对 text 保护和 avoid/before 推页统一返回 `node.y`，确保文本从新页内容区顶部（repeat-header 下方）开始渲染
+  - 同步收紧 `needsNewPage()` 中 text 节点的死循环豁免条件：将 `node.height > contentHeightPx` 改为 `node.height > contentHeightPx - pageContentOffsetPx`，正确计入 repeat-header 占用的高度
+  - 将 `needsNewPage()` 的参数列表从位置参数重构为解构对象，满足 ESLint `max-params` 规则
+
 #### 背景色和边框渲染超出分页实际内容底部
 
 - **修复 `page-break: avoid/before` 推页后，背景色和边框继续绘制到空白区域的问题** - 当节点被推到下一页后，当前页的背景色和边框本应在实际内容底部截止，但实际上延伸到了整页底部
