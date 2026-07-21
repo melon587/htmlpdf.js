@@ -229,6 +229,8 @@ const blob = await htmlpdf(element, {
 <div page-break="avoid">This content will not be split across pages</div>
 ```
 
+> **Auto avoid**: `TR`, `SVG`, and `VIDEO` elements automatically get `page-break="avoid"` behavior without any attribute — they are never split across pages.
+
 ### Repeat Table Headers
 
 Add the table selector and header selector via `tables`:
@@ -327,7 +329,7 @@ Converts an HTML element to PDF.
 | `footer` | `Object` | - | Footer configuration `{ height: mm, render(doc, info) }` |
 | `tables` | `Array` | `[]` | Table configurations, e.g. `[{ selector: '#t1', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]` |
 | `debug` | `boolean` | `false` | Print per-stage timing logs to the console |
-| `onProgress` | `Function` | - | Progress callback `({ stage, progress: 0~1 }) => void` |
+| `onProgress` | `Function` | - | Progress callback `({ stage, progress: 0~1 }) => void`. Stages: `'clone'`, `'images'`, `'fonts'`, `'paginate'`, `'render'`, `'output'` |
 
 #### Font Configuration
 
@@ -342,14 +344,12 @@ Each font config object supports the following fields:
 | `fontStyle` | `string` | ❌ | Font style: `'normal'` or `'italic'` (default: `'normal'`) |
 | `isDefault` | `boolean` | ❌ | If `true`, this font is used for all characters not matched by `charRanges` |
 | `charRanges` | `Array<[number, number]>` | ❌ | Unicode ranges for this font, e.g., `[[0x4E00, 0x9FFF]]` for CJK |
-| `priority` | `number` | ❌ | Priority when multiple `charRanges` overlap (higher = preferred, default: `0`) |
 
 **Font Selection Rules:**
 
-1. **charRanges first**: Characters are matched against fonts with `charRanges` in array order (or by `priority` if set)
+1. **charRanges first**: Characters are matched against fonts with `charRanges` in array order
 2. **isDefault fallback**: If no `charRanges` match, use the font marked `isDefault: true`
-3. **First font fallback**: If no `isDefault` exists, use `fonts[0]`
-4. **Helvetica fallback**: If no `fonts` provided, use built-in `helvetica`
+3. **Helvetica fallback**: If no match is found (no `isDefault`, no matching `charRanges`), fall back to built-in `helvetica`
 
 **Example: Mixed Language Support**
 
@@ -359,7 +359,6 @@ fonts: [
     fontFamily: 'NotoSansCJK',
     fontUrl: 'https://example.com/NotoSansCJK-Regular.ttf',
     charRanges: [[0x4e00, 0x9fff]], // Chinese characters
-    priority: 10,
   },
   {
     fontFamily: 'Roboto',
@@ -372,7 +371,7 @@ fonts: [
 **Notes:**
 
 - `charRanges` and `isDefault` are mutually exclusive (use one or the other per font)
-- When `charRanges` overlap across multiple fonts, array order (or `priority`) determines precedence
+- When `charRanges` overlap across multiple fonts, array order determines precedence
 - Fonts are fetched and cached by URL for the lifetime of the page; changing the URL is the correct way to bust the cache
 
 #### Returns
@@ -388,8 +387,8 @@ Returns a `Promise` that resolves to:
 ### ✅ Fully Supported
 
 - **Text**: `color`, `fontSize`, `fontFamily`, `fontWeight`, `fontStyle`, `textAlign`, `lineHeight`, `textDecoration`
-- **Backgrounds**: Solid colors (`background-color`), linear gradients (`linear-gradient()`)
-- **Borders**: All border styles (`border-width`, `border-color`, `border-style`, `border-radius`)
+- **Backgrounds**: Solid colors (`background-color`), linear gradients (`linear-gradient()`), background images (`background-image: url(...)`) with `background-size` and `background-position` support
+- **Borders**: All border styles (`border-width`, `border-color`, `border-style`). Note: `border-radius` is parsed but **not rendered** (rounded corners are not supported)
 - **Images**: `<img>` tags with cross-page cropping support
 - **Canvas**: `<canvas>` elements with cross-page cropping support
 - **Pseudo-elements**: `::before` and `::after` with string content
@@ -467,7 +466,7 @@ Returns a `Promise` that resolves to:
 
 ### ⚠️ Partially Supported
 
-- **Backgrounds**: Only `linear-gradient()` with standard directions (to top/bottom/left/right, angles). Radial/conic gradients not supported.
+- **Backgrounds**: Only `linear-gradient()` with standard directions (to top/bottom/left/right, diagonal corners like `to top right`, and angle values). Radial/conic gradients not supported.
 - **Pseudo-elements**: Only `content: "string"` supported. Counters (`counter()`), attributes (`attr()`), and images (`url()`) are not supported.
 
 ### ❌ Not Supported

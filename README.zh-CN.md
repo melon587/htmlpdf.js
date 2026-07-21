@@ -228,6 +228,8 @@ const blob = await htmlpdf(element, {
 <div page-break="avoid">此内容不会被拆分到多页</div>
 ```
 
+> **自动 avoid**：`TR`、`SVG` 和 `VIDEO` 元素无需设置任何属性，自动获得 `page-break="avoid"` 效果——这些元素永远不会被跨页截断。
+
 ### 表头重复
 
 通过 `tables` 添加表格选择器和表头选择器：
@@ -326,7 +328,7 @@ await htmlpdf(element);
 | `footer` | `Object` | - | 页脚配置 `{ height: mm, render(doc, info) }` |
 | `tables` | `Array` | `[]` | 表格配置，例如 `[{ selector: '#t1', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]` |
 | `debug` | `boolean` | `false` | 在控制台打印每个阶段的计时日志 |
-| `onProgress` | `Function` | - | 进度回调 `({ stage, progress: 0~1 }) => void` |
+| `onProgress` | `Function` | - | 进度回调 `({ stage, progress: 0~1 }) => void`。阶段值：`'clone'`、`'images'`、`'fonts'`、`'paginate'`、`'render'`、`'output'` |
 
 #### 字体配置
 
@@ -341,14 +343,12 @@ await htmlpdf(element);
 | `fontStyle` | `string` | ❌ | 字体样式：`'normal'` 或 `'italic'`（默认：`'normal'`） |
 | `isDefault` | `boolean` | ❌ | 如果为 `true`，此字体用于所有未被 `charRanges` 匹配的字符 |
 | `charRanges` | `Array<[number, number]>` | ❌ | 此字体的 Unicode 范围，例如 `[[0x4E00, 0x9FFF]]` 表示 CJK |
-| `priority` | `number` | ❌ | 当多个 `charRanges` 重叠时的优先级（数值越高越优先，默认：`0`） |
 
 **字体选择规则：**
 
-1. **charRanges 优先**：字符首先与具有 `charRanges` 的字体按数组顺序匹配（如设置了 `priority` 则按优先级）
+1. **charRanges 优先**：字符首先与具有 `charRanges` 的字体按数组顺序匹配
 2. **isDefault 回退**：如果没有 `charRanges` 匹配，使用标记为 `isDefault: true` 的字体
-3. **首个字体回退**：如果没有 `isDefault`，使用 `fonts[0]`
-4. **Helvetica 回退**：如果未提供 `fonts`，使用内置的 `helvetica`
+3. **Helvetica 回退**：如果没有匹配（无 `isDefault`，也无命中的 `charRanges`），回退到内置的 `helvetica`
 
 **示例：多语言混排**
 
@@ -358,7 +358,6 @@ fonts: [
     fontFamily: 'NotoSansCJK',
     fontUrl: 'https://example.com/NotoSansCJK-Regular.ttf',
     charRanges: [[0x4e00, 0x9fff]], // 中文字符
-    priority: 10,
   },
   {
     fontFamily: 'Roboto',
@@ -371,7 +370,7 @@ fonts: [
 **注意：**
 
 - `charRanges` 和 `isDefault` 互斥（每个字体只能使用其中一个）
-- 当多个字体的 `charRanges` 重叠时，数组顺序（或 `priority`）决定优先级
+- 当多个字体的 `charRanges` 重叠时，数组顺序决定优先级
 - 字体按 URL 缓存在页面生命周期内；更改 URL 是清除缓存的正确方式
 
 #### 返回值
@@ -387,8 +386,8 @@ fonts: [
 ### ✅ 完全支持
 
 - **文本**：`color`、`fontSize`、`fontFamily`、`fontWeight`、`fontStyle`、`textAlign`、`lineHeight`、`textDecoration`
-- **背景**：纯色（`background-color`）、线性渐变（`linear-gradient()`）
-- **边框**：所有边框样式（`border-width`、`border-color`、`border-style`、`border-radius`）
+- **背景**：纯色（`background-color`）、线性渐变（`linear-gradient()`）、背景图片（`background-image: url(...)`），支持 `background-size` 和 `background-position`
+- **边框**：所有边框样式（`border-width`、`border-color`、`border-style`）。注意：`border-radius` 会被读取但**不会渲染**（不支持圆角绘制）
 - **图片**：`<img>` 标签，支持跨页裁切
 - **画布**：`<canvas>` 元素，支持跨页裁切
 - **伪元素**：`::before` 和 `::after`，支持字符串内容
@@ -466,7 +465,7 @@ fonts: [
 
 ### ⚠️ 部分支持
 
-- **背景**：仅支持标准方向（to top/bottom/left/right、角度）的 `linear-gradient()`。不支持径向/锥形渐变。
+- **背景**：仅支持标准方向（to top/bottom/left/right、对角线方向如 `to top right`、角度值）的 `linear-gradient()`。不支持径向/锥形渐变。
 - **伪元素**：仅支持 `content: "string"`。不支持计数器（`counter()`）、属性（`attr()`）和图片（`url()`）。
 - **布局**：Flexbox 和 Grid 通过计算布局位置支持，但在复杂嵌套布局或表格特定功能中可能有限制。
 
