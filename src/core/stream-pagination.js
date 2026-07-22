@@ -227,18 +227,27 @@ function mergePlacements(normal, spill) {
 
   while (i < normal.length && j < spill.length) {
     if (spill[j].page < normal[i].page) {
-      result.push(spill[j++]);
+      result.push(spill[j]);
+      j += 1;
     } else if (normal[i].page < spill[j].page) {
-      result.push(normal[i++]);
+      result.push(normal[i]);
+      i += 1;
     } else {
       // 同页：先消耗所有 spill，再消耗 normal
       // 只推进 j，下一轮继续比较同一个 normal，直到该页 spill 全部消耗完
-      result.push(spill[j++]);
+      result.push(spill[j]);
+      j += 1;
     }
   }
 
-  while (i < normal.length) result.push(normal[i++]);
-  while (j < spill.length) result.push(spill[j++]);
+  while (i < normal.length) {
+    result.push(normal[i]);
+    i += 1;
+  }
+  while (j < spill.length) {
+    result.push(spill[j]);
+    j += 1;
+  }
 
   return result;
 }
@@ -312,7 +321,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
       }
 
       accumulatedYpx = pageActualBottomPx;
-      currentPage++;
+      currentPage += 1;
 
       // 处理 repeat-header（先处理，再记录 effectiveOffset）
       if (headerMeta) {
@@ -345,7 +354,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
       });
 
       // 重新处理当前节点
-      i--;
+      i -= 1;
       continue;
     }
 

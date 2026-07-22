@@ -343,7 +343,7 @@ export function drawMultiSegmentAligned({
     else if (textAlign === 'center') curX = x + totalWidth / 2;
     else curX = x + totalWidth; // left
 
-    for (let i = 0; i < segments.length; i++) {
+    for (let i = 0; i < segments.length; i += 1) {
       curX -= widths[i];
       const seg = segments[i];
       applySegmentFont(ctx, seg, fontStyle);
@@ -359,7 +359,7 @@ export function drawMultiSegmentAligned({
     else if (textAlign === 'center') curX = x - totalWidth / 2;
     else curX = x;
 
-    for (let i = 0; i < segments.length; i++) {
+    for (let i = 0; i < segments.length; i += 1) {
       const seg = segments[i];
       applySegmentFont(ctx, seg, fontStyle);
       ctx.doc.text(seg.text, curX, y, { baseline: 'alphabetic' });

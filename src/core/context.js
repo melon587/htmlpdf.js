@@ -39,7 +39,8 @@ export function initContext(rootElement, options = {}) {
 
   // 内容区宽高（去掉页边距 + header/footer 占用高度）
   const contentWidth = pageWidth - marginMM * 2;
-  const contentHeight = pageHeight - marginMM * 2 - headerHeight - footerHeight;
+  const headerFooterH = headerHeight + footerHeight;
+  const contentHeight = pageHeight - marginMM * 2 - headerFooterH;
 
   // 根元素屏幕宽度 → 计算缩放比例
   const rootRect = rootElement.getBoundingClientRect();

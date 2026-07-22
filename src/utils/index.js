@@ -25,7 +25,9 @@ export function matchesSelector(el, selector) {
       return true;
     }
 
-    if (selector.startsWith('.') && el.classList?.contains(selector.slice(1))) {
+    const cls = selector.slice(1);
+
+    if (selector.startsWith('.') && el.classList?.contains(cls)) {
       return true;
     }
   }

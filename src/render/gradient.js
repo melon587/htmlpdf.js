@@ -58,8 +58,8 @@ function splitTopLevelCommas(str) {
   let depth = 0;
   let cur = '';
   for (const ch of str) {
-    if (ch === '(') depth++;
-    else if (ch === ')') depth--;
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth -= 1;
 
     if (ch === ',' && depth === 0) {
       parts.push(cur);
@@ -90,13 +90,13 @@ function fillStopPositions(stops) {
   let i = 0;
   while (i < n) {
     if (result[i].pos !== null) {
-      i++;
+      i += 1;
       continue;
     }
 
     const prev = i - 1;
     let next = i + 1;
-    while (next < n && result[next].pos === null) next++;
+    while (next < n && result[next].pos === null) next += 1;
     const count = next - prev;
     for (let k = 1; k < count; k += 1) {
       result[prev + k].pos =

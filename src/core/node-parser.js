@@ -327,13 +327,13 @@ export function collectNodes(element, cloneRoot) {
             origIndex < origChildren.length &&
             origChildren[origIndex].nodeType !== Node.ELEMENT_NODE
           ) {
-            origIndex++;
+            origIndex += 1;
           }
 
           if (origIndex < origChildren.length) {
             const origChild = origChildren[origIndex];
             walk(origChild, measChild);
-            origIndex++;
+            origIndex += 1;
           }
         }
       } else if (measChild.nodeType === Node.TEXT_NODE) {
@@ -342,7 +342,7 @@ export function collectNodes(element, cloneRoot) {
           origIndex < origChildren.length &&
           origChildren[origIndex].nodeType !== Node.TEXT_NODE
         ) {
-          origIndex++;
+          origIndex += 1;
         }
 
         if (origIndex < origChildren.length) {
@@ -354,7 +354,7 @@ export function collectNodes(element, cloneRoot) {
             origParent: origEl,
           });
           for (const n of textNodes) nodes.push(n);
-          origIndex++;
+          origIndex += 1;
         }
       }
     }

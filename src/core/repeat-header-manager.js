@@ -26,15 +26,15 @@ function collectHeaderMetas(nodes, tables) {
       continue;
     }
 
-    for (let tableNodeIdx = 0; tableNodeIdx < nodes.length; tableNodeIdx += 1) {
-      const tableNode = nodes[tableNodeIdx];
+    for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
+      const tableNode = nodes[tIdx];
       if (!matchesSelector(tableNode._origEl, selector)) continue;
 
       // 在容器节点之后查找表头节点（DOM 顺序保证子节点在容器后）
       let headerNode = null;
       let headerNodeIdx = -1;
 
-      for (let i = tableNodeIdx + 1; i < nodes.length; i++) {
+      for (let i = tIdx + 1; i < nodes.length; i += 1) {
         const n = nodes[i];
         // 已超出容器范围，停止查找
         if (n._origEl && !tableNode._origEl.contains(n._origEl)) break;
