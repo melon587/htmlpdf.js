@@ -55,3 +55,6 @@ Thumbs.db
 .github/
 .gitlab-ci.yml
 .travis.yml
+
+# AI Agent rules (development only)
+.agents/

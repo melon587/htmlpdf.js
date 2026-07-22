@@ -2,22 +2,45 @@ import { isVisible, getPageBreak } from '../utils';
 
 /**
  * @file node-parser.js
- * DOM → 节点树解析模块
+ * DOM → 扁平节点列表解析模块
  *
  * ## 核心流程
  *
  * collectNodes(element, cloneRoot)
- *   ├─ walk()              递归遍历，同时访问原始树和克隆树（双树协同）
- *   │  ├─ parseElement()   元素 → {type, x, y, width, height, style, ...}
- *   │  └─ parseTextNode()  文本 → [{type, text, x, y, pdfFont, ...}]
- *   │     ├─ 规范化文本    移除 HTML 源码中的换行和多余空格
- *   │     └─ 多行处理      rects.length > 1 时逐字符分析，按行分组（top 容差 2px）
+ *   ├─ walk(origEl, measEl)   协同遍历原始树与克隆树
+ *   │  ├─ parseElement()      元素 → {type, x, y, width, height, style, ...}
+ *   │  └─ parseTextNode()     文本 → [{type, text, x, y, pdfFont, ...}]
+ *   │     ├─ 规范化文本       移除 HTML 源码中的换行和多余空格
+ *   │     └─ 多行处理         rects.length > 1 时逐字符分析，按行分组（top 容差 2px）
  *
- * ## 关键设计
+ * ## 关键设计：协同遍历（Clone-primary dual-walk）
  *
- * - 双树协同：原始树读取语义（tagName、page-break），克隆树测量坐标（getBoundingClientRect）
- * - 坐标系：相对于克隆根元素左上角，单位 px
- * - 文本规范化：`raw.replace(/\s+/g, ' ').trim()` 确保 PDF 渲染和浏览器显示一致
+ * 遍历以克隆树（measEl）为主线，原始树（origEl）作为语义来源同步推进：
+ *
+ *   克隆树（measEl）负责：
+ *     - 坐标测量（getBoundingClientRect）
+ *     - 样式读取（getComputedStyle，包含自定义字体注入后的结果）
+ *     - 文字行测量（createRange / getClientRects）
+ *     - 伪元素 span（document-cloner.js 注入，仅存在于克隆树）
+ *
+ *   原始树（origEl）负责：
+ *     - 语义标签（tagName）
+ *     - page-break 属性（break-before / break-inside）
+ *     - CANVAS 元素引用（克隆的 canvas 像素数据为空，必须取原始元素）
+ *     - _origEl 引用（用于 contains() / matchesSelector() 包含关系判断）
+ *
+ * ## 约束：克隆树与原始树子节点顺序必须一致
+ *
+ * walk() 用 origIndex 同步推进 origChildren。
+ * document-cloner.js 注入的伪元素 span 带有 data-pseudo 属性，walk() 遇到时
+ * 不推进 origIndex。
+ * 若将来在 document-cloner.js 中新增其他注入操作，必须同样用 data-* 属性标记，
+ * 否则会导致 origIndex 错位，产生 silent bug。
+ *
+ * ## 坐标系
+ *
+ * 所有坐标相对于克隆根元素左上角，单位 px。
+ * 文本规范化：`raw.replace(/\s+/g, ' ').trim()` 确保 PDF 渲染和浏览器显示一致。
  */
 
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
