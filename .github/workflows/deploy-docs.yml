@@ -37,8 +37,11 @@ jobs:
         env:
           npm_config_registry: https://registry.npmjs.org
 
+      - name: Build library
+        run: npm run build
+
       - name: Build VitePress
-        run: npx vitepress build website
+        run: npm run docs:build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
