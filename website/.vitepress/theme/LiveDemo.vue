@@ -1844,7 +1844,7 @@ async function onClick() {
 
 <style scoped>
 body {
-  font-family: Arial, sans-serif;
+  /* font-family: Arial, sans-serif; */
   padding: 20px;
 }
 
