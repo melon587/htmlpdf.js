@@ -1,0 +1,2089 @@
+<template>
+  <div class="live-demo">
+    <!-- Controls -->
+    <button id="export-btn"  @click="onClick">
+      {{ 'Download PDF' }}
+    </button>
+
+    <div id="content" pdf-font="roboto">
+      <h1>htmlpdf Export Test</h1>
+      <p>
+        This is a plain text paragraph for testing text rendering. It includes
+        <strong>bold</strong> and <em>italic</em> text.
+      </p>
+
+      <!-- 连字符分隔单词测试（类似 CSRNIY28.2, SWSUPPORT-Programing） -->
+      <div class="card" style="margin-top: 16px">
+        <strong>Hyphenated Words Test:</strong>
+        <ul style="margin-top: 8px; line-height: 1.8">
+          <li>Model: CSRNIY28.2 (dot separated)</li>
+          <li>Feature: SWSUPPORT-Programing for VRFcontroller</li>
+          <li>Extended warranty: ESTGARSTD-Extend warranty-24 months</li>
+          <li>Product code: ABC-123-XYZ-789</li>
+          <li>Serial: 61212562-IOM11X-English-Version</li>
+          <li>[87022201] - HIDTCXNX</li>
+        </ul>
+      </div>
+
+      <!-- 括号和特殊符号分隔测试 -->
+      <div class="card" style="margin-top: 16px">
+        <strong>Brackets & Special Characters Test:</strong>
+        <ul style="margin-top: 8px; line-height: 1.8">
+          <li>Reference: [SKU123]-(2024) Standard Edition</li>
+          <li>Invoice: [INV-2024]-(001) Payment Due</li>
+          <li>Order: [ORD-12345]-(URGENT) Express Shipping</li>
+          <li>Project: [PROJ-ABC]-(Phase-1) Initial Setup</li>
+          <li>Document: [DOC-XYZ]-(v1.0.2) Final Release</li>
+          <li>License: [LIC-PRO]-(2024-2025) Annual Subscription</li>
+          <li>Config: {server}-(production):[port-8080]</li>
+          <li>Path: /usr/local/bin/app-[v2.0]-( stable )</li>
+          <li>
+            > Garanzia Tipo A: 12 months commissioning date, 18 monthsbilling
+            date
+          </li>
+        </ul>
+      </div>
+      <div class="card">
+        <strong>Note:</strong> This card has a background color and a left
+        border, testing background and border rendering.
+      </div>
+      <!-- <div style="margin-top:16px;">
+      <p style="font-size:13px;color:#444;margin-bottom:8px;">Image rendering test:</p>
+      <img src="https://picsum.photos/seed/htmlpdf/400/200" alt="test image" crossorigin="anonymous"
+           style="width:400px;height:200px;border:1px solid #ccc;display:block;" />
+    </div> -->
+      <!-- ===== rowspan 测试表格 ===== -->
+      <p style="font-weight: bold; margin-top: 24px; color: #d46b08">
+        rowspan=40 测试表格（第2列跨40行）
+      </p>
+      <table id="rowspan40-table" page-break pdf-font="noto-sans-sc">
+        <thead>
+          <tr>
+            <th>序号</th>
+            <th>分类</th>
+            <th>内容</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td rowspan="40" style="
+                background: #fff7e6;
+                font-weight: bold;
+                vertical-align: top;
+              ">
+              大类A
+            </td>
+            <td>内容行 1</td>
+            <td>备注 1</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>内容行 2</td>
+            <td>备注 2</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>内容行 3</td>
+            <td>备注 3</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>内容行 4</td>
+            <td>备注 4</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td>内容行 5</td>
+            <td>备注 5</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td>内容行 6</td>
+            <td>备注 6</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td>内容行 7</td>
+            <td>备注 7</td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td>内容行 8</td>
+            <td>备注 8</td>
+          </tr>
+          <tr>
+            <td>9</td>
+            <td>内容行 9</td>
+            <td>备注 9</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td>内容行 10</td>
+            <td>备注 10</td>
+          </tr>
+          <tr>
+            <td>11</td>
+            <td>内容行 11</td>
+            <td>备注 11</td>
+          </tr>
+          <tr>
+            <td>12</td>
+            <td>内容行 12</td>
+            <td>备注 12</td>
+          </tr>
+          <tr>
+            <td>13</td>
+            <td>内容行 13</td>
+            <td>备注 13</td>
+          </tr>
+          <tr>
+            <td>14</td>
+            <td>内容行 14</td>
+            <td>备注 14</td>
+          </tr>
+          <tr>
+            <td>15</td>
+            <td>内容行 15</td>
+            <td>备注 15</td>
+          </tr>
+          <tr>
+            <td>16</td>
+            <td>内容行 16</td>
+            <td>备注 16</td>
+          </tr>
+          <tr>
+            <td>17</td>
+            <td>内容行 17</td>
+            <td>备注 17</td>
+          </tr>
+          <tr>
+            <td>18</td>
+            <td>内容行 18</td>
+            <td>备注 18</td>
+          </tr>
+          <tr>
+            <td>19</td>
+            <td>内容行 19</td>
+            <td>备注 19</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td>内容行 20</td>
+            <td>备注 20</td>
+          </tr>
+          <tr>
+            <td>21</td>
+            <td>内容行 21</td>
+            <td>备注 21</td>
+          </tr>
+          <tr>
+            <td>22</td>
+            <td>内容行 22</td>
+            <td>备注 22</td>
+          </tr>
+          <tr>
+            <td>23</td>
+            <td>内容行 23</td>
+            <td>备注 23</td>
+          </tr>
+          <tr>
+            <td>24</td>
+            <td>内容行 24</td>
+            <td>备注 24</td>
+          </tr>
+          <tr>
+            <td>25</td>
+            <td>内容行 25</td>
+            <td>备注 25</td>
+          </tr>
+          <tr>
+            <td>26</td>
+            <td>内容行 26</td>
+            <td>备注 26</td>
+          </tr>
+          <tr>
+            <td>27</td>
+            <td>内容行 27</td>
+            <td>备注 27</td>
+          </tr>
+          <tr>
+            <td>28</td>
+            <td>内容行 28</td>
+            <td>备注 28</td>
+          </tr>
+          <tr>
+            <td>29</td>
+            <td>内容行 29</td>
+            <td>备注 29</td>
+          </tr>
+          <tr>
+            <td>30</td>
+            <td>内容行 30</td>
+            <td>备注 30</td>
+          </tr>
+          <tr>
+            <td>31</td>
+            <td>内容行 31</td>
+            <td>备注 31</td>
+          </tr>
+          <tr>
+            <td>32</td>
+            <td>内容行 32</td>
+            <td>备注 32</td>
+          </tr>
+          <tr>
+            <td>33</td>
+            <td>内容行 33</td>
+            <td>备注 33</td>
+          </tr>
+          <tr>
+            <td>34</td>
+            <td>内容行 34</td>
+            <td>备注 34</td>
+          </tr>
+          <tr>
+            <td>35</td>
+            <td>内容行 35</td>
+            <td>备注 35</td>
+          </tr>
+          <tr>
+            <td>36</td>
+            <td>内容行 36</td>
+            <td>备注 36</td>
+          </tr>
+          <tr>
+            <td>37</td>
+            <td>内容行 37</td>
+            <td>备注 37</td>
+          </tr>
+          <tr>
+            <td>38</td>
+            <td>内容行 38</td>
+            <td>备注 38</td>
+          </tr>
+          <tr>
+            <td>39</td>
+            <td>内容行 39</td>
+            <td>备注 39</td>
+          </tr>
+          <tr>
+            <td>40</td>
+            <td>内容行 40</td>
+            <td>备注 40</td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- ===== rowspan 测试表格结束 ===== -->
+
+      <!-- ===== 模拟 info-table 场景：rowspan 在第1列，第2列跨多行，行高由内容决定 ===== -->
+      <p style="font-weight: bold; margin-top: 24px; color: #1677ff">
+        模拟 info-table rowspan
+        场景（多系列，共95行，EZ系列rowspan=50超整页豁免测试）
+      </p>
+      <table id="info-table" style="
+          table-layout: auto;
+          border-collapse: collapse;
+          width: 100%;
+          font-size: 9px;
+        " pdf-font="noto-sans-sc">
+        <thead>
+          <tr>
+            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+              #
+            </th>
+            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+              系列
+            </th>
+            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+              规格
+            </th>
+            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+              型号
+            </th>
+            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+              数量
+            </th>
+            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+              单价
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- 系列1: 15行 rowspan=15 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">1</td>
+            <td rowspan="15" style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #fff7e6;
+                font-weight: bold;
+                vertical-align: top;
+              ">
+              CB1 系列
+            </td>
+            <td rowspan="4" style="border: 1px solid #ccc; padding: 4px">
+              spec-A<br />EU-KFR20G/BP3N8Y<br />Split wall mounted
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-07HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">750</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$45.97</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">2</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-09HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">750</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$38.14</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">3</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-12HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">750</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$42.01</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">4</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-15HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">600</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$55.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">5</td>
+            <td rowspan="4" style="border: 1px solid #ccc; padding: 4px">
+              spec-B<br />EU-KFR35G/BP3N8Y
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-18HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">510</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$73.79</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">6</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-24HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">408</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$107.18</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">7</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-30HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$120.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">8</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-36HRFN8-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$150.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">9</td>
+            <td rowspan="4" style="border: 1px solid #ccc; padding: 4px">
+              spec-C
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-EZ09RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">860</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$79.37</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">10</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-EZ12RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">800</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$84.51</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">11</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-EZ24RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">470</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$110.72</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">12</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-MTJ09-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">519</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$130.42</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">13</td>
+            <td rowspan="3" style="border: 1px solid #ccc; padding: 4px">
+              spec-D
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-MTJ12-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">519</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$131.98</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">14</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-MTJ18-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">252</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$156.30</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">15</td>
+            <td style="border: 1px solid #ccc; padding: 4px">CB1-MTJ24-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$170.00</td>
+          </tr>
+          <!-- 系列2: 15行 rowspan=15 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">16</td>
+            <td rowspan="15" style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #f0f5ff;
+                font-weight: bold;
+                vertical-align: top;
+              ">
+              MCA4U 系列
+            </td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-E<br />Cassette type<br />air conditioner indoor unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MCA4U-09HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">486</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$153.25</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">17</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MCA4U-12HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">486</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$157.87</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">18</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MCA4U-18HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">486</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$173.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">19</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MCA4U-24HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">400</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$185.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">20</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MCA4U-36HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$210.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">21</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-F<br />T-MBQ Front panel<br />cassette Arctic White
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">T-MBQ4-03AWD</td>
+            <td style="border: 1px solid #ccc; padding: 4px">1173</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$10.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">22</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCUTAU-09</td>
+            <td style="border: 1px solid #ccc; padding: 4px">440</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$159.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">23</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCUTAU-12</td>
+            <td style="border: 1px solid #ccc; padding: 4px">440</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$162.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">24</td>
+            <td style="border: 1px solid #ccc; padding: 4px">T-MBQ1-UTA</td>
+            <td style="border: 1px solid #ccc; padding: 4px">680</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$10.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">25</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCUTBU-18</td>
+            <td style="border: 1px solid #ccc; padding: 4px">353</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$141.70</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">26</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-G
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCUTBU-24</td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$160.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">27</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCUTBU-36</td>
+            <td style="border: 1px solid #ccc; padding: 4px">250</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$180.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">28</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCUTBU-48</td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$200.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">29</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCA6-09</td>
+            <td style="border: 1px solid #ccc; padding: 4px">150</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$220.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">30</td>
+            <td style="border: 1px solid #ccc; padding: 4px">MCA6-12</td>
+            <td style="border: 1px solid #ccc; padding: 4px">100</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$240.00</td>
+          </tr>
+          <!-- 系列3: 50行 rowspan=50（超过整页，测试豁免） -->
+          <tr page-break>
+            <td style="border: 1px solid #ccc; padding: 4px">31</td>
+            <td rowspan="50" style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #f6ffed;
+                font-weight: bold;
+                vertical-align: top;
+              ">
+              EZ 系列
+            </td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-H<br />EU-KFR26G/BP3N8Y<br />GP11AU(RD6)-GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-09RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">860</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$79.37</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">32</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-12RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">800</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$84.51</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">33</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-24RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">470</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$110.72</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">34</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-36RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$130.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">35</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-48RD6-I</td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$150.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">36</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-I
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MTJ-09HWFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">519</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$130.42</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">37</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MTJ-12HWFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">519</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$131.98</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">38</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MTJ-18HWFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">252</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$156.30</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">39</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MTJ-24HWFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$170.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">40</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MTJ-36HWFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">150</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$190.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">41</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-J<br />RSJ Heat Pump<br />Water Heater
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              RSJ-15/270RDB10N7-L1
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">45</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$666.90</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">42</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              RSJ-20/270RDB10N7-L1
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">40</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$720.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">43</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              RSJ-25/270RDB10N7-L1
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">30</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$780.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">44</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              RSJ-30/270RDB10N7-L1
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">20</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$850.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">45</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              RSJ-40/270RDB10N7-L1
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">10</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$950.00</td>
+          </tr>
+          <!-- EZ 系列追加行：46~80，共35行，分7个spec，每组5行 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">46</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-K<br />EZ Cassette<br />Ceiling Type
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-CAS-07HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">420</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$98.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">47</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-CAS-09HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">400</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$105.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">48</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-CAS-12HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">380</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$115.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">49</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-CAS-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$135.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">50</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-CAS-24HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">250</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$155.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">51</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-L<br />EZ Ducted<br />Indoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-DU-09HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">360</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$125.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">52</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-DU-12HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">340</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$138.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">53</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-DU-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">280</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$162.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">54</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-DU-24HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">220</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$185.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">55</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-DU-36HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">160</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$210.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">56</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-M<br />EZ Floor Standing
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-FS-09HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">500</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$88.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">57</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-FS-12HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">460</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$96.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">58</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-FS-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">390</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$118.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">59</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-FS-24HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">310</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$142.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">60</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-FS-36HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">240</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$170.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">61</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-N<br />EZ Multi-Split<br />Outdoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-MOU-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">280</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$195.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">62</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-MOU-24HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">240</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$215.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">63</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-MOU-30HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">190</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$245.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">64</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-MOU-36HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">150</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$275.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">65</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-MOU-48HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">100</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$320.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">66</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-O<br />EZ Commercial<br />Rooftop Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-RTU-36HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">120</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$380.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">67</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-RTU-48HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">95</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$420.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">68</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-RTU-60HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">80</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$480.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">69</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-RTU-72HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">60</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$540.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">70</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-RTU-96HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">40</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$620.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">71</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-P<br />EZ VRF<br />Outdoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-VRF-60HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">55</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$750.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">72</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-VRF-72HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">45</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$840.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">73</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-VRF-84HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">35</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$920.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">74</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-VRF-96HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">25</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$1020.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">75</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-VRF-120HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">15</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$1180.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">76</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-Q<br />EZ Heat Pump<br />Hydronic Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-HP-08HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">90</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$890.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">77</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-HP-11HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">75</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$960.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">78</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-HP-14HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">60</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$1050.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">79</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-HP-16HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">45</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$1140.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">80</td>
+            <td style="border: 1px solid #ccc; padding: 4px">EZ-HP-20HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">30</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$1300.00</td>
+          </tr>
+          <!-- 系列4: MFFN 系列，序号从81开始 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">81</td>
+            <td rowspan="15" style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #fff2e8;
+                font-weight: bold;
+                vertical-align: top;
+              ">
+              MFFN 系列
+            </td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-R<br />Split floor standing<br />air conditioner indoor unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MFFN-18HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">486</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$153.25</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">82</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MFFN-24HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">400</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$185.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">83</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MFFN-36HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$210.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">84</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MFFN-48HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$250.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">85</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MFFN-55HRFNX(GA)
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">68</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$322.24</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">86</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-S
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSCB1BU-07HRFN8-QRD1GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">750</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$45.97</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">87</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSCB1BU-09HRFN8-QRD1GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">750</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$38.14</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">88</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSCB1BU-12HRFN8-QRD1GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">750</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$42.01</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">89</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSCB1CU-18HRFN8-QRD1GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">510</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$73.79</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">90</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSCB1DU-24HRFN8-QRD1GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">408</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$107.18</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">91</td>
+            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+              spec-T<br />MSGPAU/MSGPBU<br />GP11AU RD6
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSGPAU-09HRFN8-QRD6GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">860</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$79.37</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">92</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSGPBU-12HRFN8-QRD6GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">800</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$84.51</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">93</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSGPDU-24HRFN8-QRD6GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">470</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$110.72</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">94</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSGPEU-36HRFN8-QRD6GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$130.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">95</td>
+            <td style="border: 1px solid #ccc; padding: 4px">
+              MSGPFU-48HRFN8-QRD6GW
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$150.00</td>
+          </tr>
+        </tbody>
+      </table>
+      <!-- ===== 模拟 info-table 场景结束 ===== -->
+
+      <table>
+        <thead repeat-header>
+          <tr>
+            <th>Name</th>
+            <th>Department</th>
+            <th>Title</th>
+            <th>ID</th>
+            <th style="text-align: right">Year Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>[87022201] - HIDTCXNX</td>
+            <td>> PPA-Air flow test</td>
+            <td>Kit giunti di connessione ad Yper unità interne VRF</td>
+            <td>A001</td>
+            <td>2019</td>
+          </tr>
+          <tr page-break="avoid">
+            <td>Bob</td>
+            <td>Product</td>
+            <td>Product Manager</td>
+            <td>A002</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td>Carol</td>
+            <td>Design</td>
+            <td>UI Designer</td>
+            <td>A003</td>
+            <td>2018</td>
+          </tr>
+          <tr>
+            <td>Dave</td>
+            <td>Engineering</td>
+            <td>Backend Engineer</td>
+            <td>A004</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Eve</td>
+            <td>Operations</td>
+            <td>Ops Specialist</td>
+            <td>A005</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td>Frank</td>
+            <td>Marketing</td>
+            <td>Marketing Manager</td>
+            <td>A006</td>
+            <td>2017</td>
+          </tr>
+          <tr>
+            <td>Grace</td>
+            <td>Finance</td>
+            <td>Finance Lead</td>
+            <td>A007</td>
+            <td>2016</td>
+          </tr>
+          <tr>
+            <td>Henry</td>
+            <td>HR</td>
+            <td>HR Specialist</td>
+            <td>A008</td>
+            <td>2023</td>
+          </tr>
+          <tr>
+            <td>Ivy</td>
+            <td>Engineering</td>
+            <td>QA Engineer</td>
+            <td>A009</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Jack</td>
+            <td>Engineering</td>
+            <td>Architect</td>
+            <td>A010</td>
+            <td>2015</td>
+          </tr>
+          <tr>
+            <td>Kate</td>
+            <td>Product</td>
+            <td>Product Director</td>
+            <td>A011</td>
+            <td>2014</td>
+          </tr>
+          <tr>
+            <td>Leo</td>
+            <td>Design</td>
+            <td>Visual Designer</td>
+            <td>A012</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td>Mia</td>
+            <td>Operations</td>
+            <td>Content Ops</td>
+            <td>A013</td>
+            <td>2022</td>
+          </tr>
+          <tr>
+            <td>Nick</td>
+            <td>Marketing</td>
+            <td>Brand Specialist</td>
+            <td>A014</td>
+            <td>2019</td>
+          </tr>
+          <tr>
+            <td>Olivia</td>
+            <td>Finance</td>
+            <td>Accountant</td>
+            <td>A015</td>
+            <td>2018</td>
+          </tr>
+          <tr>
+            <td>Peter</td>
+            <td>HR</td>
+            <td>Recruiter</td>
+            <td>A016</td>
+            <td>2023</td>
+          </tr>
+          <tr>
+            <td>Quinn</td>
+            <td>Engineering</td>
+            <td>DevOps Engineer</td>
+            <td>A017</td>
+            <td>2020</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr page-break="avoid">
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+          <tr>
+            <td>Rose</td>
+            <td>Product</td>
+            <td>Data Analyst</td>
+            <td>A018</td>
+            <td>2021</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- 图片跨页裁切测试：图片足够高，预期在第一页显示上半部分，第二页显示下半部分 -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Image cross-page cropping test (tall image):
+        </p>
+        <img page-break src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
+          crossorigin="anonymous" style="
+            width: 800px;
+            height: 1200px;
+            display: block;
+            border: 2px solid red;
+          " alt="cross-page test" />
+      </div>
+
+      <!-- linear-gradient 渐变背景测试 -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Gradient background tests:
+        </p>
+        <!-- to right -->
+        <div style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(to right, #1677ff, #69b1ff);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 13px;
+          ">
+          linear-gradient(to right, #1677ff, #69b1ff)
+        </div>
+        <!-- 135deg + 3 stops -->
+        <div style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(
+              135deg,
+              #ff4d4f 0%,
+              #ffc53d 50%,
+              #73d13d 100%
+            );
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 13px;
+          ">
+          linear-gradient(135deg, #ff4d4f 0%, #ffc53d 50%, #73d13d 100%)
+        </div>
+        <!-- rgba transparent -->
+        <div style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(
+              to bottom,
+              rgba(22, 119, 255, 0.9),
+              rgba(22, 119, 255, 0.1)
+            );
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #1677ff;
+            font-size: 13px;
+          ">
+          linear-gradient(to bottom, rgba(22,119,255,0.9), rgba(22,119,255,0.1))
+        </div>
+        <!-- default direction (to bottom) -->
+        <div style="
+            height: 60px;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            background: linear-gradient(#9254de, #f759ab);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 13px;
+          ">
+          linear-gradient(#9254de, #f759ab) — default to bottom
+        </div>
+      </div>
+
+      <!-- Canvas 渲染测试：普通 canvas（在页内） -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Canvas rendering test (normal):
+        </p>
+        <canvas id="canvas-normal" width="760" height="200" style="display: block; border: 2px solid #1677ff"></canvas>
+      </div>
+
+      <!-- Canvas 跨页裁切测试：canvas 足够高，预期跨页裁切显示 -->
+      <div style="margin-top: 16px">
+        <p style="font-size: 13px; color: #444; margin-bottom: 8px">
+          Canvas cross-page cropping test (tall canvas):
+        </p>
+        <canvas id="canvas-tall" width="760" height="900" style="display: block; border: 2px solid green"></canvas>
+      </div>
+
+      <!-- align:right mixed-font test -->
+      <div style="
+          margin-top: 24px;
+          padding: 16px;
+          border: 1px solid #d9d9d9;
+          border-radius: 4px;
+        ">
+        <p style="font-weight: bold; margin-bottom: 12px; color: #333">
+          align:right mixed-font test
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align: left">Description</th>
+              <th style="text-align: right">Value (right-align)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- baseline: pure Latin -->
+            <tr>
+              <td>Pure Latin</td>
+              <td style="text-align: right">€144,308.80</td>
+            </tr>
+            <!-- Latin + symbol -->
+            <tr>
+              <td>Latin + symbol</td>
+              <td style="text-align: right">PREZZO TOTALE</td>
+            </tr>
+            <!-- multi-segment: Latin + Arabic digits via charRanges -->
+            <tr>
+              <td>Latin + Arabic-Indic digits (segmented)</td>
+              <td style="text-align: right" pdf-font="noto-sans-arabic">
+                Total: ١٢٣٤٥٦
+              </td>
+            </tr>
+            <!-- RTL + right-align -->
+            <tr>
+              <td>Arabic RTL + right-align</td>
+              <td style="text-align: right; direction: rtl" pdf-font="noto-sans-arabic">
+                المجموع: ١٢٣٤٥
+              </td>
+            </tr>
+            <!-- long text, natural wrap, each line right-aligned -->
+            <tr>
+              <td>Long text right-align (multi-line)</td>
+              <td style="text-align: right; max-width: 200px; white-space: normal">
+                CPAN-XHE3 Size 2 Unita di rinnovo aria con recupero di energia
+              </td>
+            </tr>
+            <!-- Chinese + Latin right-align (multi-segment via charRanges) -->
+            <tr>
+              <td>Chinese + Latin right-align</td>
+              <td style="text-align: right" pdf-font="noto-sans-sc">
+                合计 Total: 1,234.56
+              </td>
+            </tr>
+            <!-- Chinese only right-align -->
+            <tr>
+              <td>Chinese only right-align</td>
+              <td style="text-align: right" pdf-font="noto-sans-sc">
+                产品总价
+              </td>
+            </tr>
+            <!-- Chinese + Latin center-align -->
+            <tr>
+              <td>Chinese + Latin center-align</td>
+              <td style="text-align: center" pdf-font="noto-sans-sc">
+                合计 Total
+              </td>
+            </tr>
+            <!-- Chinese + Arabic + Latin right-align (3 fonts, multi-segment) -->
+            <tr>
+              <td>CJK + Arabic + Latin right-align</td>
+              <td style="text-align: right" pdf-font="noto-sans-sc,noto-sans-arabic">
+                合计 Total: ١٢٣٤
+              </td>
+            </tr>
+            <!-- Chinese + Arabic + Latin center-align -->
+            <tr>
+              <td>CJK + Arabic + Latin center-align</td>
+              <td style="text-align: center" pdf-font="noto-sans-sc,noto-sans-arabic">
+                合计 ١٢٣٤ Total
+              </td>
+            </tr>
+            <!-- Arabic + Chinese right-align (2 non-Latin fonts) -->
+            <tr>
+              <td>Arabic + Chinese right-align</td>
+              <td style="text-align: right" pdf-font="noto-sans-arabic,noto-sans-sc">
+                الإجمالي 合计
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" page-break="before">
+        <strong>Page 2 Content:</strong> This card has page-break="true" (same
+        as "before"), so it always starts on a new page.
+      </div>
+
+      <!-- page-break="avoid": keep this element whole on one page -->
+      <div class="card" page-break="avoid">
+        <strong>No Break:</strong> This card has page-break="avoid", so it will
+        move to the next page if it does not fit.
+      </div>
+
+      <!-- Arabic / RTL text test -->
+      <div class="rtl-container" pdf-font="noto-sans-arabic">
+        <h3>اختبار النص العربي (Arabic Text Test)</h3>
+        <p>
+          مرحبا بكم في اختبار htmlpdf! هذا النص مكتوب باللغة العربية لاختبار عرض
+          النصوص من اليمين إلى اليسار (RTL). يدعم htmlpdf عرض اللغات العربية
+          والعبرية والفارسية وغيرها من اللغات التي تُكتب من اليمين إلى اليسار.
+        </p>
+        <p>
+          <strong>التحديات الرئيسية:</strong> ترتيب الأحرف، محاذاة النص، دعم
+          الخطوط، والتنسيقات المختلطة (LTR + RTL).
+        </p>
+
+        <!-- Mixed Arabic + parentheses numbers test -->
+        <p style="
+            margin-top: 12px;
+            border-top: 1px dashed #ffd591;
+            padding-top: 12px;
+          ">
+          <strong style="color: #fa8c16">اختبار الأرقام بين قوسين (Mixed with parentheses):</strong>
+        </p>
+        <p>
+          (1)7 الخطوة الأولى: تثبيت المكتبة باستخدام npm install htmlpdfx.js
+        </p>
+        <p>(2)8 الخطوة الثانية: استيراد المكتبة في ملف JavaScript الخاص بك</p>
+        <p>
+          (3)9 الخطوة الثالثة: استدعاء دالة htmlpdf.htmlpdf() مع العنصر المطلوب
+        </p>
+        <p>
+          النتيجة (Result): ستحصل على ملف PDF (بتنسيق عالي الجودة) يحتوي على
+          [المحتوى-123] بشكل صحيح.
+        </p>
+        <p>
+          شروط الدفع: دفع مقدم بنسبة 100% مع أمر الشراء المؤكد ما لم يتم الاتفاق
+          على خلاف ذلك.
+        </p>
+        <p style="
+            direction: ltr;
+            text-align: left;
+            color: #888;
+            font-size: 12px;
+            margin-top: 12px;
+            border-top: 1px dashed #ffd591;
+            padding-top: 12px;
+          " pdf-font="roboto">
+          Note: This paragraph demonstrates mixed directionality - English text
+          in an RTL container with LTR direction override.
+        </p>
+      </div>
+
+      <!-- Pseudo-element comprehensive tests -->
+      <div class="pseudo-section">
+        <h3>Pseudo-element Tests (::before & ::after)</h3>
+
+        <!-- Simple content insertion -->
+        <div style="margin-bottom: 12px">
+          <p class="icon-before">
+            This text has a checkmark icon inserted via ::before
+          </p>
+          <p class="icon-before">
+            Multiple paragraphs with the same pseudo-element style
+          </p>
+        </div>
+
+        <!-- Badge with ::after -->
+        <div style="margin-bottom: 12px">
+          <span class="badge" style="font-size: 14px; color: #333">Latest Feature</span>
+          <br />
+          <span class="badge" style="
+              font-size: 14px;
+              color: #333;
+              margin-top: 8px;
+              display: inline-block;
+            ">Special Offer</span>
+        </div>
+
+        <!-- Positioned pseudo-element (absolute) -->
+        <div class="corner-mark">
+          <strong>Positioned ::before test:</strong> This box has an absolutely
+          positioned star icon (★) at the top-left corner created with ::before.
+          The pseudo-element uses absolute positioning.
+        </div>
+
+        <!-- Decorative quote box with both ::before and ::after -->
+        <div class="quote-box">
+          The best way to predict the future is to invent it. This quote box
+          uses both ::before and ::after pseudo-elements to add decorative
+          quotation marks with absolute positioning and transparency.
+        </div>
+
+        <!-- Counter list with ::before -->
+        <p style="
+            margin-top: 16px;
+            margin-bottom: 4px;
+            font-weight: bold;
+            color: #333;
+          ">
+          Step-by-step guide (numbered with ::before):
+        </p>
+        <ul class="step-list">
+          <li>Initialize your project with npm init</li>
+          <li>Install dependencies using npm install</li>
+          <li>Run the development server with npm run dev</li>
+          <li>Build for production using npm run build</li>
+          <li>Deploy your application to the server</li>
+        </ul>
+
+        <p style="margin-top: 12px; font-size: 12px; color: #888">
+          These pseudo-elements test content insertion, positioning (static,
+          relative, absolute), styling (colors, backgrounds, borders), and
+          numbered lists. All should be correctly materialized and rendered in
+          the PDF output.
+        </p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { onMounted } from 'vue';
+import { htmlpdf } from '../../../dist/htmlpdf.esm';
+
+onMounted(() => {
+  const ctxNormal = document
+    .getElementById('canvas-normal')
+    .getContext('2d');
+  const grad = ctxNormal.createLinearGradient(0, 0, 760, 0);
+  grad.addColorStop(0, '#1677ff');
+  grad.addColorStop(1, '#69b1ff');
+  ctxNormal.fillStyle = grad;
+  ctxNormal.fillRect(0, 0, 760, 200);
+  ctxNormal.fillStyle = '#fff';
+  ctxNormal.font = 'bold 20px Arial';
+  ctxNormal.fillText(
+    'Canvas Normal Test — gradient + text + chart',
+    20,
+    40,
+  );
+  ctxNormal.strokeStyle = '#fff';
+  ctxNormal.lineWidth = 2;
+  ctxNormal.beginPath();
+  [60, 120, 90, 150, 80, 160, 100, 130, 110].forEach((y, i) => {
+    i === 0
+      ? ctxNormal.moveTo(30 + i * 80, y)
+      : ctxNormal.lineTo(30 + i * 80, y);
+  });
+  ctxNormal.stroke();
+
+  // 绘制高 canvas：彩色横条 + 刻度标注，用于测试跨页裁切
+  const ctxTall = document.getElementById('canvas-tall').getContext('2d');
+  const colors = [
+    '#ff4d4f',
+    '#ff7a45',
+    '#ffc53d',
+    '#73d13d',
+    '#40a9ff',
+    '#9254de',
+    '#f759ab',
+  ];
+  const rowH = Math.floor(900 / colors.length);
+  colors.forEach((color, i) => {
+    ctxTall.fillStyle = color;
+    ctxTall.fillRect(0, i * rowH, 760, rowH);
+    ctxTall.fillStyle = '#fff';
+    ctxTall.font = 'bold 18px Arial';
+    ctxTall.fillText(
+      `Row ${i + 1}  y=${i * rowH}px`,
+      20,
+      i * rowH + rowH / 2 + 6,
+    );
+  });
+  // 右侧刻度线
+  ctxTall.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctxTall.lineWidth = 1;
+  for (let y = 0; y <= 900; y += 100) {
+    ctxTall.beginPath();
+    ctxTall.moveTo(700, y);
+    ctxTall.lineTo(760, y);
+    ctxTall.stroke();
+    ctxTall.fillStyle = '#fff';
+    ctxTall.font = '12px Arial';
+    ctxTall.fillText(`${y}px`, 705, y + 12);
+  }
+})
+
+
+async function onClick() {
+  const blob = await htmlpdf(
+    document.getElementById('content'),
+    {
+      margin: 5,
+      compress: false,
+      tables: [
+        {
+          selector: '#rowspan40-table',
+          repeatHeader: '#rowspan40-table thead',
+        },
+        {
+          selector: '#info-table',
+          repeatHeader: '#info-table thead',
+        },
+      ],
+      fonts: [
+        {
+          fontFamily: 'roboto',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf`,
+          fontWeight: 400,
+          fontStyle: 'normal',
+          isDefault: true,
+        },
+        {
+          fontFamily: 'roboto',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf`,
+          fontWeight: 700,
+          fontStyle: 'normal',
+          isDefault: true,
+        },
+        {
+          fontFamily: 'roboto',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf`,
+          fontWeight: 400,
+          fontStyle: 'italic',
+          isDefault: true,
+        },
+        {
+          fontFamily: 'roboto',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf`,
+          fontWeight: 700,
+          fontStyle: 'italic',
+          isDefault: true,
+        },
+        {
+          fontFamily: 'noto-sans-arabic',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
+          fontWeight: 400,
+          fontStyle: 'normal',
+          charRanges: [
+            [0x0600, 0x06ff], // 阿拉伯语基本区
+            [0x0750, 0x077f], // 阿拉伯语补充区
+            [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
+            [0x0030, 0x0039], // ASCII 数字 0-9
+            [0x0025, 0x0025], // % 百分号
+            [0x003a, 0x003a], // : 冒号
+            [0x0020, 0x002f], // 空格及基本标点 !"#$%&'()*+,-./
+          ],
+        },
+        {
+          fontFamily: 'noto-sans-arabic',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
+          fontWeight: 700,
+          fontStyle: 'normal',
+          charRanges: [
+            [0x0600, 0x06ff],
+            [0x0750, 0x077f],
+            [0x0660, 0x0669],
+            [0x0030, 0x0039],
+            [0x0025, 0x0025],
+            [0x003a, 0x003a],
+            [0x0020, 0x002f],
+          ],
+        },
+        {
+          fontFamily: 'noto-sans-sc',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-normal.ttf`,
+          fontWeight: 400,
+          fontStyle: 'normal',
+          charRanges: [
+            [0x4e00, 0x9fff], // CJK 统一表意文字
+            [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
+            [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
+            [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
+          ],
+        },
+        {
+          fontFamily: 'noto-sans-sc',
+          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-bold.ttf`,
+          fontWeight: 700,
+          fontStyle: 'normal',
+          charRanges: [
+            [0x4e00, 0x9fff], // CJK 统一表意文字
+            [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
+            [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
+            [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
+          ],
+        },
+      ],
+      header: {
+        height: 10,
+        render(doc, { pageNumber, totalPages, pageWidth, margin }) {
+          doc.setFontSize(9);
+          doc.setTextColor(100);
+          doc.text('htmlpdf Export Test', margin, margin - 2);
+          doc.text(
+            `${pageNumber} / ${totalPages}`,
+            pageWidth - margin,
+            margin - 2,
+            { align: 'right' },
+          );
+        },
+      },
+      footer: {
+        height: 8,
+        render(
+          doc,
+          { pageNumber, totalPages, pageWidth, pageHeight, margin },
+        ) {
+          doc.setFontSize(8);
+          doc.setTextColor(150);
+          doc.text(
+            `${pageNumber}  /  ${totalPages} `,
+            pageWidth / 2,
+            pageHeight - margin + 4,
+            { align: 'center' },
+          );
+        },
+      },
+    },
+  );
+
+  console.log(blob, 'blob');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(blob),
+    download: 'export.pdf',
+  });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+
+<style scoped>
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+}
+
+#export-btn {
+  padding: 10px 24px;
+  background: #1677ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  margin-bottom: 20px;
+}
+
+#content {
+  width: 800px;
+  padding: 24px;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+
+h1 {
+  color: #222;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+p {
+  color: #444;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.card {
+  margin-top: 16px;
+  padding: 16px;
+  background: #f0f5ff;
+  border-left: 4px solid #1677ff;
+  border-radius: 4px;
+  /* height: 1000px; */
+}
+
+.card strong {
+  color: #1677ff;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+
+th,
+td {
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 13px;
+}
+
+th {
+  background: #1677ff;
+  color: #fff;
+}
+
+tr:nth-child(even) td {
+  background: #f5f5f5;
+}
+
+/* Arabic / RTL text styles */
+.rtl-container {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  direction: rtl;
+  text-align: right;
+}
+
+.rtl-container h3 {
+  color: #fa8c16;
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.rtl-container p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #333;
+}
+
+/* Pseudo-element test styles */
+.pseudo-section {
+  margin-top: 24px;
+  padding: 16px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 4px;
+}
+
+.pseudo-section h3 {
+  color: #52c41a;
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+/* ::before content insertion */
+.icon-before::before {
+  content: '✓ ';
+  color: #52c41a;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* ::after content with styling */
+.badge::after {
+  content: 'NEW';
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 10px;
+  border-radius: 3px;
+  font-weight: bold;
+}
+
+/* Positioned pseudo-element (absolute) */
+.corner-mark {
+  position: relative;
+  padding: 12px;
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+
+.corner-mark::before {
+  content: 'ꙮ';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 24px;
+  height: 24px;
+  background: #1677ff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 24px;
+  text-align: center;
+}
+
+/* Decorative pseudo-elements with borders */
+.quote-box {
+  position: relative;
+  padding: 16px 16px 16px 24px;
+  background: #fff;
+  border-left: 4px solid #722ed1;
+  margin-top: 8px;
+  font-style: italic;
+  color: #555;
+}
+
+.quote-box::before {
+  content: '"';
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  font-size: 32px;
+  color: #722ed1;
+  opacity: 0.3;
+  font-style: normal;
+}
+
+.quote-box::after {
+  content: '"';
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  font-size: 32px;
+  color: #722ed1;
+  opacity: 0.3;
+  font-style: normal;
+}
+
+/* Simple numbered list with ::before */
+.step-list {
+  margin-top: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.step-list li {
+  position: relative;
+  padding: 8px 8px 8px 40px;
+  margin-bottom: 8px;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+
+.step-list li:nth-child(1)::before {
+  content: '1';
+}
+
+.step-list li:nth-child(2)::before {
+  content: '2';
+}
+
+.step-list li:nth-child(3)::before {
+  content: '3';
+}
+
+.step-list li:nth-child(4)::before {
+  content: '4';
+}
+
+.step-list li:nth-child(5)::before {
+  content: '5';
+}
+
+.step-list li::before {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+  background: #1677ff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  line-height: 24px;
+  text-align: center;
+}
+</style>

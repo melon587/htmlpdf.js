@@ -484,6 +484,35 @@ fonts: [
 - Firefox 88+
 - Safari 14+
 
+## ⚠️ 已知限制
+
+### 仅限浏览器
+
+htmlpdfx.js **无法在 Node.js、Deno 或任何服务端环境中运行**。它依赖以下浏览器 API，这些 API 在浏览器之外不存在：
+
+- `getBoundingClientRect()` — 获取元素坐标
+- `getComputedStyle()` — 读取 CSS 属性
+- `Range.getClientRects()` — 测量多行文本
+
+如需服务端 HTML 转 PDF，请考虑 [Puppeteer](https://pptr.dev/) 或 [Playwright](https://playwright.dev/)。
+
+### CSS 变换
+
+CSS `transform`（rotate、scale、skew、matrix、translate）**不会被渲染**。元素始终按其未经变换的布局位置绘制。
+
+### 不支持的 CSS
+
+- 盒阴影、文字阴影、`filter`、`backdrop-filter`
+- CSS 动画和过渡（只捕获静态初始状态）
+- `border-radius`（会被解析但不会绘制，PDF 中圆角仍为直角）
+- 径向渐变、锥形渐变、重复渐变
+- `clip-path`、`mask`、非矩形区域的 `overflow: hidden`
+
+### 图片
+
+- SVG `<img>` 标签不会渲染（内联 `<svg>` 元素也不支持）
+- 如果浏览器在 iframe 中拦截了 `background-image` 的 Data URI，渲染可能失败
+
 ## 🤝 贡献
 
 欢迎贡献！请随时提交 Pull Request。

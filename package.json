@@ -4,6 +4,7 @@
   "description": "A lightweight HTML to PDF converter library based on jsPDF, supporting custom fonts, page breaks, repeat headers, and multi-page rendering",
   "main": "dist/htmlpdf.js",
   "module": "dist/htmlpdf.esm.js",
+  "types": "htmlpdf.d.ts",
   "license": "MIT",
   "type": "module",
   "author": "melon587 <782331426@qq.com>",
@@ -27,6 +28,7 @@
   ],
   "files": [
     "dist",
+    "htmlpdf.d.ts",
     "README.md",
     "README.zh-CN.md",
     "LICENSE",
@@ -42,6 +44,9 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "test:watch": "vitest",
+    "docs:dev": "vitepress dev website",
+    "docs:build": "vitepress build website",
+    "docs:preview": "vitepress preview website",
     "prepublishOnly": "npm run build && npm run test",
     "publish:check": "npm pack --dry-run",
     "version:patch": "npm version patch",
@@ -62,6 +67,7 @@
     "eslint-plugin-promise": "7.3.0",
     "prettier": "3.8.3",
     "rollup": "3.30.0",
+    "vitepress": "1.6.4",
     "vitest": "1.6.1"
   },
   "engines": {
