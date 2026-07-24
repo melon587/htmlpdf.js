@@ -86,6 +86,11 @@ function parseElement(origEl, measEl, rootRect, win) {
               .map((c) => c.getBoundingClientRect().height),
           )
         : 0,
+    // 缓存 TD/TH 的 rowSpan 属性值，避免 iframe 销毁后仍依赖活 DOM 引用
+    rowSpan:
+      (origEl.tagName === 'TD' || origEl.tagName === 'TH') && !isPseudo
+        ? origEl.rowSpan || 1
+        : 1,
     pageBreak: getPageBreak(origEl),
     _el:
       origEl.tagName === 'IMG'

@@ -27,12 +27,19 @@ function parseBorderString(borderStr) {
 
 /**
  * 绘制边框（跨页裁剪）
- * - isFirstPage（nodeTop >= 0）→ 画 top border
+ * - isFirstPage（nodeTop >= clipTop）→ 画 top border
  * - isLastPage（isLastSpill 且节点底部在页内）→ 画 bottom border
  * - left/right 每页都画（中间 spill 页延伸到整页高度）
+ * @param {number}  clipTop     - 当前页内容起点（mm），repeat-header 底部。默认 0。
  * @param {boolean} isLastSpill - false 表示中间 spill 页，不画 bottom border
  */
-function drawBorder({ node, ctx, clipBottom, isLastSpill = true }) {
+function drawBorder({
+  node,
+  ctx,
+  clipTop = 0,
+  clipBottom,
+  isLastSpill = true,
+}) {
   const { doc, toMM, toPdfX, toPdfYmm } = ctx;
   const { style } = node;
   const nodeTop = toMM(node.y);
@@ -41,15 +48,14 @@ function drawBorder({ node, ctx, clipBottom, isLastSpill = true }) {
   const x = toPdfX(node.x);
   const w = toMM(node.width);
 
-  // clipTop 固定为 0（页面顶部），背景/边框从页面顶部开始
-  const drawTop = Math.max(nodeTop, 0);
+  const drawTop = Math.max(nodeTop, clipTop);
   const drawBottom = Math.min(nodeBottom, clipBottom);
   if (drawBottom <= drawTop) return;
 
   const yTop = toPdfYmm(drawTop);
   const yBottom = toPdfYmm(drawBottom);
-  // nodeTop >= 0：节点顶部在当前页内，即本页是节点的第一页
-  const isFirstPage = nodeTop >= 0;
+  // nodeTop >= clipTop：节点顶部在当前页可见区内，即本页是节点的第一页
+  const isFirstPage = nodeTop >= clipTop;
   // isLastSpill=false 说明是中间 spill 页，不能画 bottom border
   const isLastPage = isLastSpill && nodeBottom <= clipBottom;
   // 中间 spill 页：左右边框延伸到整页高度；最后一页：到节点实际底部

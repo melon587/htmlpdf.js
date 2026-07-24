@@ -60,22 +60,29 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
  *   2. 渐变背景（linear-gradient，覆盖纯色）
  *   3. backgroundImage URL（bgSrc，叠加在渐变上）
  *
+ * @param {number}  clipTop     - 当前页内容起点（mm）。repeat-header 存在时等于 header 高度，
+ *                                避免 spill 背景画进 header 区域。默认 0。
  * @param {boolean} isLastSpill - 是否是该节点的最后一个 spill placement
  *   - true（默认）：背景色只画到节点实际底部
  *   - false（中间 spill 页）：背景色延伸到整页高度（clipBottom），后续内容会覆盖在上面
  */
-function drawBackground({ node, ctx, clipBottom, isLastSpill = true }) {
+function drawBackground({
+  node,
+  ctx,
+  clipTop = 0,
+  clipBottom,
+  isLastSpill = true,
+}) {
   const { doc, toMM, toPdfX, toPdfYmm } = ctx;
   const { style } = node;
   const nodeTop = toMM(node.y);
   const nodeBottom = toMM(node.y + node.height);
 
-  // clipTop 固定为 0（页面顶部），背景从页面顶部开始
-  const drawTop = Math.max(nodeTop, 0);
+  // drawTop：节点顶部与 clipTop（repeat-header 底部）取较大值，避免画进 header 区域
+  const drawTop = Math.max(nodeTop, clipTop);
   // 中间 spill 页：背景延伸到整页高度；最后一页：到节点实际底部
-  const drawBottom = isLastSpill
-    ? Math.min(nodeBottom, clipBottom)
-    : clipBottom;
+  // 两者都需要与 clipBottom 取较小值，防止节点底部早于页底部时多画一段空白
+  const drawBottom = Math.min(isLastSpill ? nodeBottom : Infinity, clipBottom);
   if (drawBottom <= drawTop) return;
 
   const x = toPdfX(node.x);

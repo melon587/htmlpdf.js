@@ -159,25 +159,24 @@ export async function htmlpdf(element, options = {}) {
       fonts,
       isLastSpill: placement.isLastSpill,
       pageActualBottomPx: placement.pageActualBottomPx,
+      clipTopPx: placement.clipTopPx ?? 0,
     });
   }
 
   // 逐页绘制出口闭合线（在所有节点渲染完后画，避免被覆盖）
-  if (spillClosingLinesByPage.size > 0) {
-    for (let page = 1; page <= totalPages; page += 1) {
-      const spillLines = spillClosingLinesByPage.get(page);
-      if (!spillLines || spillLines.length === 0) continue;
+  for (let page = 1; page <= totalPages; page += 1) {
+    const spillLines = spillClosingLinesByPage.get(page);
+    if (!spillLines || spillLines.length === 0) continue;
 
-      doc.setPage(page);
-      for (const { node, offsetYpx, exitAtPx } of spillLines) {
-        const clipBottomMM = toMM(exitAtPx - offsetYpx);
-        drawSpillClosingLines({
-          node,
-          ctx,
-          clipBottom: clipBottomMM,
-          pageBreakBorder: pageBreakBorderMap.get(node),
-        });
-      }
+    doc.setPage(page);
+    for (const { node, offsetYpx, exitAtPx } of spillLines) {
+      const clipBottomMM = toMM(exitAtPx - offsetYpx);
+      drawSpillClosingLines({
+        node,
+        ctx,
+        clipBottom: clipBottomMM,
+        pageBreakBorder: pageBreakBorderMap.get(node),
+      });
     }
   }
 

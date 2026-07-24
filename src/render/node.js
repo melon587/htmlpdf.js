@@ -18,18 +18,27 @@ import { drawText } from './text';
  * @param {Object} params.node       - 调整后的节点（y 为页内坐标）
  * @param {Object} params.ctx
  * @param {boolean} params.isLastSpill
- * @param {number}  params.clipBottom - 当前页内容可用高度上限（mm），由调用方传入
+ * @param {number}  params.clipTop    - 当前页内容可用起点（mm），repeat-header 底部
+ * @param {number}  params.clipBottom - 当前页内容可用终点（mm）
  */
-function renderBackgroundAndBorder({ node, ctx, isLastSpill, clipBottom }) {
+function renderBackgroundAndBorder({
+  node,
+  ctx,
+  isLastSpill,
+  clipTop,
+  clipBottom,
+}) {
   drawBackground({
     node,
     ctx,
+    clipTop,
     clipBottom,
     isLastSpill,
   });
   drawBorder({
     node,
     ctx,
+    clipTop,
     clipBottom,
     isLastSpill,
   });
@@ -40,11 +49,13 @@ function renderBackgroundAndBorder({ node, ctx, isLastSpill, clipBottom }) {
  * @param {Object} params.node           - 节点（y 为全局坐标）
  * @param {Object} params.ctx            - 渲染上下文
  * @param {number} [params.offsetYpx=0]  - 当前页内容区起始全局 y（px）
- * @param {Array}  [params.fonts=[]]             - 字体配置数组
- * @param {boolean}[params.isLastSpill=true]    - 是否是该节点的最后一个 spill placement
+ * @param {Array}  [params.fonts=[]]     - 字体配置数组
+ * @param {boolean}[params.isLastSpill=true] - 是否是该节点的最后一个 spill placement
  * @param {number|null} [params.pageActualBottomPx=null]
  *   本页实际内容底部全局 y（px）。null 时回退到 ctx.contentHeight（整页高度）。
- *   avoid/before 推页时该值小于整页底部，确保背景/边框不会多画到被推走后的空白区域。
+ * @param {number} [params.clipTopPx=0]
+ *   本页内容区顶部偏移（px）。repeat-header 存在时等于 header 高度，
+ *   确保 spill 背景不会画进 repeat-header 区域。
  */
 export function renderNode({
   node,
@@ -53,6 +64,7 @@ export function renderNode({
   fonts = [],
   isLastSpill = true,
   pageActualBottomPx = null,
+  clipTopPx = 0,
 }) {
   // 1. 坐标转换：全局 → 页内
   const { toMM, contentHeight } = ctx;
@@ -60,7 +72,6 @@ export function renderNode({
   const relativeYmm = toMM(relativeYpx);
 
   // 2. 边界检查：跳过完全在当前页之外的节点
-  // 条件：节点顶部和底部都在页面顶部以上（负坐标且底部也是负数）
   if (relativeYmm < 0 && relativeYmm + toMM(node.height) <= 0) {
     return;
   }
@@ -68,9 +79,8 @@ export function renderNode({
   // 3. 创建页内坐标的节点副本
   const adjustedNode = { ...node, y: relativeYpx };
 
-  // 4. 计算本页背景/边框裁剪上限（mm，页内坐标）
-  //    pageActualBottomPx 存在：本页实际内容底部 - 本页起始偏移 = 本页实际高度(px) → 转 mm
-  //    无 pageActualBottomPx：回退到整页高度 contentHeight（自然溢出/无推页场景）
+  // 4. 计算本页背景/边框裁剪范围（mm，页内坐标）
+  const clipTop = toMM(clipTopPx);
   const clipBottom = pageActualBottomPx
     ? toMM(pageActualBottomPx - offsetYpx)
     : contentHeight;
@@ -80,19 +90,18 @@ export function renderNode({
     node: adjustedNode,
     ctx,
     isLastSpill,
+    clipTop,
     clipBottom,
   };
 
   // 5. 根据节点类型调度渲染
   if (adjustedNode.type === 'element') {
-    // 普通元素：背景 + 边框 + (图片)
     renderBackgroundAndBorder(commonParams);
 
     if (adjustedNode.tag === 'IMG' || adjustedNode.tag === 'CANVAS') {
       drawImage({ node: adjustedNode, ctx, offsetYpx });
     }
   } else if (adjustedNode.type === 'pseudo-element') {
-    // 伪元素：背景 + 边框 + (文本)
     renderBackgroundAndBorder(commonParams);
 
     if (adjustedNode.text) {
@@ -104,7 +113,6 @@ export function renderNode({
       });
     }
   } else if (adjustedNode.type === 'text') {
-    // 文本节点：直接渲染文本
     drawText({
       node: adjustedNode,
       ctx,

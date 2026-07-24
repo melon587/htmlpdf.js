@@ -6,9 +6,21 @@
  * ├─ needsNewPage()            判断节点是否需要换页（自然溢出 / text 保护 / avoid / before）
  * ├─ calcNextPageStart()       计算新页起点 accumulatedYpx
  * ├─ repeat-header 处理        换页时生成表头副本，跳过原始表头节点
- * ├─ 生成 nodePlacements       { page, node, offsetYpx, type: 'normal' }
+ * ├─ 生成 nodePlacements       { page, node, offsetYpx, type: 'normal', paintOrder }
  * ├─ expandSpillPlacements()   为跨页节点在后续页生成 spill placement
- * └─ mergePlacements()         归并 normal + spill，同页 spill 优先；合并 headerPlacements 排序
+ * └─ comparePlacements sort    合并所有 placements 并按页码+类型+paintOrder 排序
+ *
+ * ## CSS Table painting order（CSS2.1 §17.5.4）
+ *
+ * 同页同 type 的 placements 按 paintOrder 排序，确保渲染顺序符合浏览器规范：
+ *   0  TABLE / COLGROUP / COL  → 最先画（容器背景在最底层）
+ *   1  TBODY / THEAD / TFOOT   → row group 背景
+ *   2  TR                      → row 背景
+ *   3  TD / TH                 → cell 背景（高于 TR，修复 rowspan 背景覆盖问题）
+ *   4  其他普通元素             → DFS 顺序足够，统一为同一权重
+ *   5  text / pseudo-element   → 内容层，最后画
+ *
+ * 同一 paintOrder 内保留 DFS 原始顺序（stable sort + dfsIndex tiebreaker）。
  */
 
 import {
@@ -16,20 +28,65 @@ import {
   generateRepeatHeaderPlacements,
 } from './repeat-header-manager';
 
-/** placement 同页渲染顺序权重：spill=0, repeat-header=1, normal=2 */
+/**
+ * placement 同页渲染顺序权重
+ *   0  非 rowspan 的 spill（TABLE/TBODY/TR 等容器）→ 最先铺底
+ *   1  repeat-header
+ *   2  normal（含普通 TD/TH）
+ *   3  rowspan TD/TH 的 spill → 最后画，覆盖在同页普通 TD 之上
+ *      （CSS §17.5.4：rowspan cell 背景高于同列普通 cell 背景）
+ */
 function placementOrder(p) {
-  if (p.type === 'spill') return 0;
+  if (p.type === 'spill') {
+    const { tag } = p.node;
+    if ((tag === 'TD' || tag === 'TH') && (p.node.rowSpan || 1) > 1) {
+      return 3;
+    }
+
+    return 0;
+  }
 
   if (p.type === 'repeat-header' || p.type === 'repeat-header-child') return 1;
 
   return 2;
 }
 
-/** placement 排序：先按页码，同页内按 placementOrder（spill → repeat-header → normal） */
+/**
+ * CSS Table painting order（CSS2.1 §17.5.4）
+ * 返回值越小越先渲染（背景层优先于内容层）
+ */
+function getPaintOrder(node) {
+  if (node.type === 'text' || node.type === 'pseudo-element') return 5;
+
+  const { tag } = node;
+  if (tag === 'TABLE' || tag === 'COLGROUP' || tag === 'COL') return 0;
+
+  if (tag === 'TBODY' || tag === 'THEAD' || tag === 'TFOOT') return 1;
+
+  if (tag === 'TR') return 2;
+
+  if (tag === 'TD' || tag === 'TH') return 3;
+
+  return 4;
+}
+
+/**
+ * placement 排序：
+ *   1. 页码升序
+ *   2. 同页内按 placementOrder（spill → repeat-header → normal）
+ *   3. 同页同 type 内按 paintOrder（CSS Table painting order）
+ *   4. 同 paintOrder 内按 dfsIndex 保留原始 DFS 顺序
+ */
 function comparePlacements(a, b) {
   if (a.page !== b.page) return a.page - b.page;
 
-  return placementOrder(a) - placementOrder(b);
+  const typeOrd = placementOrder(a) - placementOrder(b);
+  if (typeOrd !== 0) return typeOrd;
+
+  const paintOrd = a.paintOrder - b.paintOrder;
+  if (paintOrd !== 0) return paintOrd;
+
+  return a.dfsIndex - b.dfsIndex;
 }
 
 /**
@@ -160,7 +217,8 @@ export function expandSpillPlacements(
   const nodeLastPage = buildNodeLastPageMap(nodePlacements);
 
   for (const p of nodePlacements) {
-    const nodeBottomPx = p.node.y + p.node.height;
+    // rowspan TD/TH 用 rowSpanActualBottom（分页后修正值），其他节点用 y+height
+    const nodeBottomPx = p.node.rowSpanActualBottom ?? p.node.y + p.node.height;
     const pageInfo = pageStartOffsets.get(p.page);
     const pageContentTopPx = pageInfo ? pageInfo.pageContentTopPx : 0;
     const pageBottomGlobal = pageContentTopPx + contentHeightPx;
@@ -176,9 +234,7 @@ export function expandSpillPlacements(
     // - 叶子节点（如 IMG）：子孙 = 自身，靠 lastPageByCoord 推算跨页数
     const lastPageByMap = nodeLastPage.get(p.node._origEl) || p.page;
     const lastPageByCoord =
-      Math.ceil(
-        (p.node.y + p.node.height - pageContentTopPx) / contentHeightPx,
-      ) +
+      Math.ceil((nodeBottomPx - pageContentTopPx) / contentHeightPx) +
       p.page -
       1;
     const lastPage = Math.min(
@@ -201,6 +257,8 @@ export function expandSpillPlacements(
         clipTopPx,
         type: 'spill',
         isLastSpill: sp === lastPage, // 只有最后一页才是 true
+        paintOrder: p.paintOrder,
+        dfsIndex: p.dfsIndex,
         // 本页实际内容底部（全局px）：用于渲染时计算精确 clipBottom
         pageActualBottomPx: spillPageInfo
           ? spillPageInfo.pageActualBottomPx
@@ -215,44 +273,6 @@ export function expandSpillPlacements(
 }
 
 /**
- * 归并两个页码递增的 placement 数组（O(n) 双指针），同页时 spill 优先
- * @param {Array} normal - nodePlacements
- * @param {Array} spill  - spillPlacements
- * @returns {Array} 合并后的 placements
- */
-function mergePlacements(normal, spill) {
-  const result = [];
-  let i = 0;
-  let j = 0;
-
-  while (i < normal.length && j < spill.length) {
-    if (spill[j].page < normal[i].page) {
-      result.push(spill[j]);
-      j += 1;
-    } else if (normal[i].page < spill[j].page) {
-      result.push(normal[i]);
-      i += 1;
-    } else {
-      // 同页：先消耗所有 spill，再消耗 normal
-      // 只推进 j，下一轮继续比较同一个 normal，直到该页 spill 全部消耗完
-      result.push(spill[j]);
-      j += 1;
-    }
-  }
-
-  while (i < normal.length) {
-    result.push(normal[i]);
-    i += 1;
-  }
-  while (j < spill.length) {
-    result.push(spill[j]);
-    j += 1;
-  }
-
-  return result;
-}
-
-/**
  * 流式分页主函数：单次遍历 nodes，动态决策换页，生成渲染计划
  *
  * 流程：
@@ -261,8 +281,7 @@ function mergePlacements(normal, spill) {
  * 3. 跳过原始表头节点（当前页已有 repeat-header 副本时）
  * 4. 生成 nodePlacements
  * 5. expandSpillPlacements：为溢出节点生成 spill placement
- * 6. mergePlacements：归并 normal + spill，同页 spill 优先
- * 7. 合并 headerPlacements 并按页码+类型排序，返回 allPlacements
+ * 6. 合并所有 placements 并按页码+类型排序，返回 allPlacements
  *
  * @param {Object} params
  * @param {Array}  params.nodes               - 节点数组（由 collectNodes 生成）
@@ -378,6 +397,8 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
       offsetYpx: effectiveOffsetYpx,
       type: 'normal',
       isLastSpill: true,
+      paintOrder: getPaintOrder(node),
+      dfsIndex: i,
     });
 
     // headerNode 放入渲染计划后立即标记，下次该表格换页时开始生成 repeat-header 副本
@@ -406,13 +427,14 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
     totalPagesCount,
   );
 
-  // 归并 nodePlacements 与 spillPlacements（O(n) 双指针，同页 spill 优先）
-  const mergedPlacements = mergePlacements(nodePlacements, spillPlacements);
-
-  // 合并所有 placements 并按页码、类型排序（spill < repeat-header < normal）
-  const allPlacements = [...headerPlacements, ...mergedPlacements].sort(
-    comparePlacements,
-  );
+  // 归并 nodePlacements 与 spillPlacements 并按页码、类型排序
+  // comparePlacements 已包含 placementOrder/paintOrder/dfsIndex 全部排序维度，
+  // 无需预先 merge，直接 concat + sort 即可。
+  const allPlacements = [
+    ...headerPlacements,
+    ...nodePlacements,
+    ...spillPlacements,
+  ].sort(comparePlacements);
 
   // 返回分页方案
   return {
