@@ -89,16 +89,31 @@ export async function preloadImages(nodes) {
         const imgEl = e._el;
         const natW = imgEl.naturalWidth || imgEl.width;
         const natH = imgEl.naturalHeight || imgEl.height;
+
+        // 图片未加载（隐藏/网络失败）时尺寸为 0，跳过避免创建无效 canvas
+        if (!natW || !natH) {
+          console.warn(
+            '[htmlpdf] preloadImages: IMG has zero dimensions, skipping:',
+            imgEl.src,
+          );
+
+          return null;
+        }
+
         const canvas = document.createElement('canvas');
         canvas.width = natW;
         canvas.height = natH;
         try {
           canvas.getContext('2d').drawImage(imgEl, 0, 0);
-          e.src = canvas.toDataURL('image/jpeg', 0.92);
+          // 检测透明通道：有 alpha 像素用 PNG 保留透明度，否则用 JPEG 减小体积
+          const hasAlpha = canvasHasAlpha(canvas);
+          e.src = hasAlpha
+            ? canvas.toDataURL('image/png')
+            : canvas.toDataURL('image/jpeg', 0.92);
           e.naturalWidth = natW;
           e.naturalHeight = natH;
           e._srcCanvas = canvas;
-          e._srcFormat = 'JPEG';
+          e._srcFormat = hasAlpha ? 'PNG' : 'JPEG';
         } catch (err) {
           console.warn(
             '[htmlpdf] preloadImages: canvas.drawImage failed:',

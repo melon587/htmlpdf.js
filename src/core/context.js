@@ -44,6 +44,13 @@ export function initContext(rootElement, options = {}) {
 
   // 根元素屏幕宽度 → 计算缩放比例
   const rootRect = rootElement.getBoundingClientRect();
+  if (rootRect.width === 0) {
+    throw new Error(
+      '[htmlpdf] Root element has zero width. ' +
+        'Ensure the element is visible and laid out before calling htmlpdf().',
+    );
+  }
+
   const scale = contentWidth / rootRect.width;
 
   // 单页内容区高度（px）

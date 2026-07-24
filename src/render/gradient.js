@@ -149,12 +149,15 @@ function parseLinearGradientInner(inner) {
 function parseLinearGradient(str) {
   if (!str || !str.includes('linear-gradient')) return null;
 
-  const fnMatch = str.match(
+  // trim 消除末尾空白，避免正则 $ 锚点匹配失败
+  const s = str.trim();
+
+  const fnMatch = s.match(
     /linear-gradient\s*\((.+)\)\s*(?:,\s*linear-gradient|$)/s,
   );
   if (!fnMatch) {
     return parseLinearGradientInner(
-      str.match(/linear-gradient\s*\((.+)\)$/s)?.[1],
+      s.match(/linear-gradient\s*\((.+)\)$/s)?.[1],
     );
   }
 

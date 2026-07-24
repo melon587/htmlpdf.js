@@ -32,6 +32,9 @@ export async function waitForImages(doc) {
         new Promise((resolve) => {
           img.addEventListener('load', resolve, { once: true });
           img.addEventListener('error', resolve, { once: true });
+          // 监听器挂载后再次检查：图片可能在 filter 和 addEventListener
+          // 之间已完成加载（TOCTOU 竞态），此时事件不会再触发。
+          if (img.complete) resolve();
         }),
     ),
   );

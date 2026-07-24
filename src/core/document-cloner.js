@@ -157,7 +157,10 @@ export async function createClonedDocument(element, fonts = []) {
 
     // Step 2: 创建隐藏 iframe
     iframe = ownerDoc.createElement('iframe');
-    const elWidth = element.getBoundingClientRect().width;
+    // getBoundingClientRect().width 为 0 时（元素隐藏或未布局）回退到 offsetWidth，
+    // 最终兜底 800px，避免 iframe 宽度为 0 导致所有 getComputedStyle 测量失效。
+    const elWidth =
+      element.getBoundingClientRect().width || element.offsetWidth || 800;
     iframe.style.cssText = [
       'position:fixed',
       'top:0',
@@ -174,12 +177,18 @@ export async function createClonedDocument(element, fonts = []) {
     // Step 3: 把 clone 写入 iframe document
     const iframeDoc = iframe.contentDocument;
     if (!iframeDoc) {
-      throw new Error('Failed to access iframe contentDocument');
+      throw new Error('[htmlpdf] Failed to access iframe contentDocument');
     }
 
-    iframeDoc.open();
-    iframeDoc.write('<!DOCTYPE html><html></html>');
-    iframeDoc.close();
+    // open/write/close 仅用于将文档置为可写状态，随后由 replaceChild 完整替换内容。
+    // 严格 CSP（script-src）环境下 document.write() 可能抛出，此处可安全忽略。
+    try {
+      iframeDoc.open();
+      iframeDoc.write('<!DOCTYPE html><html></html>');
+      iframeDoc.close();
+    } catch (_) {
+      // CSP 阻止了 document.write()；replaceChild 会覆盖文档内容，无需处理。
+    }
 
     iframeDoc.replaceChild(
       iframeDoc.adoptNode(docElClone),
@@ -201,7 +210,9 @@ export async function createClonedDocument(element, fonts = []) {
     // Step 3.6: 找到克隆根元素，增强 DOM（传播 pdf-font + 物化伪元素）
     const cloneRoot = iframeDoc.querySelector(`[${markAttr}]`);
     if (!cloneRoot) {
-      throw new Error('无法在克隆文档中定位根元素');
+      throw new Error(
+        '[htmlpdf] Could not locate root element in cloned document',
+      );
     }
 
     // 增强克隆的 DOM

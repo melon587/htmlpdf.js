@@ -82,18 +82,24 @@ export function collectPageBreakLines({
   for (const node of nodes) {
     if (pageBreakBorderMap.has(node)) {
       // 这是表格容器节点，初始化 Map 条目
-      if (!trNodesByTable.has(node._origEl))
+      // _origEl 为 null 时跳过，避免 undefined 成为 Map key 导致所有表共享列表
+      if (node._origEl && !trNodesByTable.has(node._origEl))
         trNodesByTable.set(node._origEl, []);
 
       if (!placementsByTable.has(node)) placementsByTable.set(node, []);
     }
 
-    // 如果是 TR，挂到它所属的每一个 pageBreakBorder 祖先容器下
+    // 如果是 TR，从其 _origEl 向上查找第一个在 trNodesByTable 中的祖先容器
+    // O(深度) 替代原来的 O(M) 遍历所有容器并调用 contains()
     if (node.tag === 'TR' && node._origEl) {
-      for (const [tableEl, trList] of trNodesByTable) {
-        if (tableEl.contains(node._origEl)) {
-          trList.push(node);
+      let ancestor = node._origEl.parentElement;
+      while (ancestor) {
+        if (trNodesByTable.has(ancestor)) {
+          trNodesByTable.get(ancestor).push(node);
+          break;
         }
+
+        ancestor = ancestor.parentElement;
       }
     }
   }

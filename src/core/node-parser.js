@@ -47,7 +47,7 @@ const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
 
 /**
  * 解析元素节点，提取坐标、尺寸和样式
- * @param {Element} origEl   - 原始 DOM 元素
+ * @param {Element|null} origEl - 原始 DOM 元素；伪元素传 null（原始 DOM 中不存在）
  * @param {Element} measEl   - iframe 内的克隆元素（用于测量）
  * @param {DOMRect} rootRect - 根元素边界（坐标原点）
  * @param {Window}  win      - 测量窗口
@@ -65,16 +65,19 @@ function parseElement(origEl, measEl, rootRect, win) {
   const x = rect.left - rootRect.left;
   const y = rect.top - rootRect.top;
 
+  // origEl 对伪元素为 null（原始 DOM 中不存在对应节点），回退到 measEl.tagName
+  const tag = origEl ? origEl.tagName : measEl.tagName;
+
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
     pseudoType: isPseudo ? measEl.getAttribute('data-pseudo') : undefined,
-    tag: origEl.tagName,
+    tag,
     x,
     y,
     width: rect.width,
     height: rect.height,
     rowSpanChildMaxHeight:
-      origEl.tagName === 'TR' && !isPseudo
+      tag === 'TR' && !isPseudo
         ? Math.max(
             0,
             ...[...measEl.children]
@@ -88,14 +91,12 @@ function parseElement(origEl, measEl, rootRect, win) {
         : 0,
     // 缓存 TD/TH 的 rowSpan 属性值，避免 iframe 销毁后仍依赖活 DOM 引用
     rowSpan:
-      (origEl.tagName === 'TD' || origEl.tagName === 'TH') && !isPseudo
-        ? origEl.rowSpan || 1
-        : 1,
-    pageBreak: getPageBreak(origEl),
+      (tag === 'TD' || tag === 'TH') && !isPseudo ? origEl?.rowSpan || 1 : 1,
+    pageBreak: origEl ? getPageBreak(origEl) : null,
     _el:
-      origEl.tagName === 'IMG'
+      origEl?.tagName === 'IMG'
         ? measEl
-        : origEl.tagName === 'CANVAS'
+        : origEl?.tagName === 'CANVAS'
           ? origEl
           : null,
     _origEl: origEl,
@@ -304,7 +305,8 @@ export function collectNodes(element, cloneRoot) {
   const nodes = [];
 
   function walk(origEl, measEl) {
-    if (SKIP_TAGS.has(origEl.tagName)) return;
+    // origEl 为 null 表示物化的伪元素（原始 DOM 中不存在对应节点）
+    if (origEl && SKIP_TAGS.has(origEl.tagName)) return;
 
     const style = measWin.getComputedStyle(measEl);
     if (!isVisible(style)) return;
@@ -313,7 +315,8 @@ export function collectNodes(element, cloneRoot) {
     nodes.push(parseElement(origEl, measEl, rootRect, measWin));
 
     const measChildren = measEl.childNodes;
-    const origChildren = origEl.childNodes;
+    // 伪元素没有原始子节点，origChildren 为空 NodeList
+    const origChildren = origEl ? origEl.childNodes : [];
 
     // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
     let origIndex = 0;
@@ -324,8 +327,9 @@ export function collectNodes(element, cloneRoot) {
       if (measChild.nodeType === Node.ELEMENT_NODE) {
         // 检查是否是物化的伪元素
         if (measChild.hasAttribute('data-pseudo')) {
-          // 物化的伪元素：origEl 使用 measChild 自身（原始 DOM 中不存在）
-          walk(measChild, measChild);
+          // 物化的伪元素在原始 DOM 中不存在，origEl 传 null 以满足 _origEl 契约
+          // （_origEl 仅用于 contains()/matchesSelector()，伪元素不参与这两类判断）
+          walk(null, measChild);
         } else {
           // 普通元素：从 origChildren 中找对应节点
           while (

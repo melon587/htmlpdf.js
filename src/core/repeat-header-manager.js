@@ -20,15 +20,14 @@ function collectHeaderMetas(nodes, tables) {
     if (!repeatHeader) continue;
 
     // 找所有匹配的表格容器节点（同一 selector 可能匹配多个表格实例）
-    const hasMatch = nodes.some((n) => matchesSelector(n._origEl, selector));
-    if (!hasMatch) {
-      console.warn(`[repeat-header] Table container not found: ${selector}`);
-      continue;
-    }
+    // 注意：不做预扫描，直接遍历，最后判断是否有匹配项
+    let anyTableFound = false;
 
     for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
       const tableNode = nodes[tIdx];
       if (!matchesSelector(tableNode._origEl, selector)) continue;
+
+      anyTableFound = true;
 
       // 在容器节点之后查找表头节点（DOM 顺序保证子节点在容器后）
       let headerNode = null;
@@ -36,6 +35,9 @@ function collectHeaderMetas(nodes, tables) {
 
       for (let i = tIdx + 1; i < nodes.length; i += 1) {
         const n = nodes[i];
+        // tableNode._origEl 为 null 时无法判断包含关系，停止查找
+        if (!tableNode._origEl) break;
+
         // 已超出容器范围，停止查找
         if (n._origEl && !tableNode._origEl.contains(n._origEl)) break;
 
@@ -73,6 +75,10 @@ function collectHeaderMetas(nodes, tables) {
         headerRendered: false,
         skipOnCurrentPage: false,
       });
+    }
+
+    if (!anyTableFound) {
+      console.warn(`[repeat-header] Table container not found: ${selector}`);
     }
   }
 

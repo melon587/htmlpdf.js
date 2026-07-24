@@ -29,6 +29,9 @@ function drawImage({ node, ctx, offsetYpx = 0 }) {
   if (visibleBottomPx <= visibleTopPx) return;
 
   // 可见区域对应原始图片的像素范围
+  // 分母用 node.height（CSS 渲染高度）而非 natH（图片原始像素高度）：
+  // 此处计算的是"当前页可见区域占整个渲染区域的比例"，再映射到 natH，
+  // 与图片的渲染拉伸/压缩行为保持一致。
   const ratioTop = (visibleTopPx - globalNodeTopPx) / node.height;
   const ratioBottom = (visibleBottomPx - globalNodeTopPx) / node.height;
 
