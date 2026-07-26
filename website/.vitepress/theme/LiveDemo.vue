@@ -1862,7 +1862,7 @@ body {
 #content {
   width: 800px;
   padding: 24px;
-  border: 1px solid #ddd;
+  border: 1px solid blue;
   background: #fff;
 }
 
