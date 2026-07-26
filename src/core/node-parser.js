@@ -321,49 +321,56 @@ export function collectNodes(element, cloneRoot) {
     // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
     let origIndex = 0;
 
+    // 推进 origIndex 直到遇到目标 nodeType
+    function advanceOrig(nodeType) {
+      while (
+        origIndex < origChildren.length &&
+        origChildren[origIndex].nodeType !== nodeType
+      ) {
+        origIndex += 1;
+      }
+    }
+
+    // 解析文本节点并追加到 nodes
+    function pushTextNodes(measChild, origParent) {
+      const textNodes = parseTextNode({
+        textNode: measChild,
+        measParent: measEl,
+        rootRect,
+        win: measWin,
+        origParent,
+      });
+      for (const n of textNodes) nodes.push(n);
+    }
+
     for (let i = 0; i < measChildren.length; i += 1) {
       const measChild = measChildren[i];
 
       if (measChild.nodeType === Node.ELEMENT_NODE) {
-        // 检查是否是物化的伪元素
         if (measChild.hasAttribute('data-pseudo')) {
           // 物化的伪元素在原始 DOM 中不存在，origEl 传 null 以满足 _origEl 契约
           // （_origEl 仅用于 contains()/matchesSelector()，伪元素不参与这两类判断）
           walk(null, measChild);
         } else {
           // 普通元素：从 origChildren 中找对应节点
-          while (
-            origIndex < origChildren.length &&
-            origChildren[origIndex].nodeType !== Node.ELEMENT_NODE
-          ) {
-            origIndex += 1;
-          }
-
+          advanceOrig(Node.ELEMENT_NODE);
           if (origIndex < origChildren.length) {
-            const origChild = origChildren[origIndex];
-            walk(origChild, measChild);
+            walk(origChildren[origIndex], measChild);
             origIndex += 1;
           }
         }
       } else if (measChild.nodeType === Node.TEXT_NODE) {
-        // 文本节点：从 origChildren 中找对应节点
-        while (
-          origIndex < origChildren.length &&
-          origChildren[origIndex].nodeType !== Node.TEXT_NODE
-        ) {
-          origIndex += 1;
-        }
-
-        if (origIndex < origChildren.length) {
-          const textNodes = parseTextNode({
-            textNode: measChild,
-            measParent: measEl,
-            rootRect,
-            win: measWin,
-            origParent: origEl,
-          });
-          for (const n of textNodes) nodes.push(n);
-          origIndex += 1;
+        if (origEl === null) {
+          // 伪元素上下文：无 origChildren，直接解析
+          // _origEl 传 null（伪元素文本不参与 contains/matchesSelector 判断）
+          pushTextNodes(measChild, null);
+        } else {
+          // 普通元素：从 origChildren 中找对应文本节点
+          advanceOrig(Node.TEXT_NODE);
+          if (origIndex < origChildren.length) {
+            pushTextNodes(measChild, origEl);
+            origIndex += 1;
+          }
         }
       }
     }
