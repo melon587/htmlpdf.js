@@ -148,7 +148,36 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
 }
 
 /**
- * 生成 repeat-header 的渲染计划
+ * CSS Table painting order（与 stream-pagination.js getPaintOrder 保持一致）
+ */
+function getPaintOrderForNode(node) {
+  if (node.type === 'text' || node.type === 'pseudo-element') return 5;
+
+  const { tag } = node;
+  if (tag === 'TABLE' || tag === 'COLGROUP' || tag === 'COL') return 0;
+
+  if (tag === 'TBODY' || tag === 'THEAD' || tag === 'TFOOT') return 1;
+
+  if (tag === 'TR') return 2;
+
+  if (tag === 'TD' || tag === 'TH') return 3;
+
+  return 4;
+}
+
+/**
+ * 生成 repeat-header 的渲染计划。
+ *
+ * repeat-header / repeat-header-child 的 offsetYpx = accumulatedYpx，
+ * 使节点的 relativeY = 0，从新页顶部开始渲染（y - offsetYpx = 0）。
+ *
+ * 祖先容器 spill 的 clipTopPx = pageRawTopPx - pageContentTopPx = 0，
+ * 因为 pageRawTopPx 已被设为 pageContentTopPx（见 stream-pagination.js），
+ * 所以祖先边框/背景从页顶开始覆盖，repeat-header 内容自然盖在其上。
+ *
+ * @param {Object} headerMeta
+ * @param {number} currentPage
+ * @param {number} accumulatedYpx - 新页全局起点（含表头区域，px）
  */
 export function generateRepeatHeaderPlacements(
   headerMeta,
@@ -157,20 +186,22 @@ export function generateRepeatHeaderPlacements(
 ) {
   const placements = [];
   const headerHeightPx = headerMeta.headerNode.height;
-  // 浅拷贝节点，仅覆盖 y 坐标以对齐新页顶部（引用字段共享，渲染管线只读）
+  // 浅拷贝节点，仅覆盖 y 坐标以对齐新页表头位置（引用字段共享，渲染管线只读）
   const headerAtTop = { ...headerMeta.headerNode, y: accumulatedYpx };
 
   placements.push({
     page: currentPage,
     node: headerAtTop,
+    // offsetYpx = accumulatedYpx → relativeY = node.y - offsetYpx = 0（页顶渲染）
     offsetYpx: accumulatedYpx,
     type: 'repeat-header',
     isLastSpill: true,
+    paintOrder: getPaintOrderForNode(headerMeta.headerNode),
+    dfsIndex: -2,
   });
 
   for (const child of headerMeta.headerChildren) {
     const offsetInHeader = child.y - headerMeta.headerNode.y;
-    // 浅拷贝子节点，仅覆盖 y 坐标
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };
 
     placements.push({
@@ -179,6 +210,8 @@ export function generateRepeatHeaderPlacements(
       offsetYpx: accumulatedYpx,
       type: 'repeat-header-child',
       isLastSpill: true,
+      paintOrder: getPaintOrderForNode(child),
+      dfsIndex: -1,
     });
   }
 

@@ -246,9 +246,13 @@ export function expandSpillPlacements(
     for (let sp = p.page + 1; sp <= lastPage; sp += 1) {
       const spillPageInfo = pageStartOffsets.get(sp);
       const spillOffsetYpx = spillPageInfo ? spillPageInfo.pageContentTopPx : 0;
-      const spillRawOffset = spillPageInfo ? spillPageInfo.pageRawTopPx : 0;
-      // clipTopPx = pageRawTopPx - pageContentTopPx = 表头高度 px
-      const clipTopPx = spillRawOffset - spillOffsetYpx;
+      // TD/TH spill 不能覆盖 repeat-header 区域，clipTopPx = 表头高度
+      // 其他容器（TABLE、DIV 等）spill 从页顶开始（clipTopPx = 0），
+      // 使祖先边框/背景覆盖整个页面包括 repeat-header 区域
+      const { tag } = p.node;
+      const isCellNode = tag === 'TD' || tag === 'TH';
+      const spillHeaderH = spillPageInfo?.headerHeightPx ?? 0;
+      const clipTopPx = isCellNode ? spillHeaderH : 0;
 
       nodeSpills.push({
         page: sp,
@@ -296,15 +300,20 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
   let accumulatedYpx = 0;
   let currentPageContentOffsetPx = 0;
 
-  const nodePlacements = []; // 节点渲染计划
-  const headerPlacements = []; // repeat-header 渲染计划
+  const nodePlacements = []; // 节点渲染计划（含 repeat-header 副本）
 
-  // 每页内容区起始偏移：key=页码，value={ pageRawTopPx（含表头）, pageContentTopPx（减表头）, pageActualBottomPx（本页内容实际底部全局px）}
+  // 每页内容区起始偏移：
+  //   pageRawTopPx      = accumulatedYpx（新页原始全局起点，含表头区域）
+  //                       注意：此处 pageRawTopPx === pageContentTopPx，
+  //                       使 spill.clipTopPx = 0，祖先边框/背景从页顶开始覆盖，
+  //                       repeat-header 节点自身会盖在祖先背景之上。
+  //   pageContentTopPx  = accumulatedYpx - headerHeightPx（内容区真实全局起点）
+  //   pageActualBottomPx = 本页内容实际底部（全局px），换页时修正
   const pageStartOffsets = new Map();
   pageStartOffsets.set(1, {
     pageRawTopPx: 0,
     pageContentTopPx: 0,
-    pageActualBottomPx: contentHeightPx, // 初始值：整页用满，换页时修正上一页的实际底部
+    pageActualBottomPx: contentHeightPx,
   });
 
   for (let i = 0; i < nodes.length; i += 1) {
@@ -324,13 +333,10 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
         pageContentOffsetPx: currentPageContentOffsetPx,
       })
     ) {
-      // 计算本页实际内容底部（全局px）：
-      // - 自然溢出 → currentPageBottom（整页用满）
-      // - text 保护 / avoid / before 推页 → node.y（节点起点，剩余空间废弃）
+      // 计算本页实际内容底部（全局px）
       const pageActualBottomPx = calcNextPageStart(node, currentPageBottom);
 
-      // 修正上一页的 pageActualBottomPx（初始化为整页底部，推页后需更正）
-      // 取最小值：同一页可能有多个节点触发推页，第一个被推走的决定本页实际底部
+      // 修正上一页的 pageActualBottomPx
       const prevPageInfo = pageStartOffsets.get(currentPage);
       if (
         prevPageInfo &&
@@ -342,7 +348,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
       accumulatedYpx = pageActualBottomPx;
       currentPage += 1;
 
-      // 处理 repeat-header（先处理，再记录 effectiveOffset）
+      // 处理 repeat-header
       if (headerMeta) {
         if (!headerMeta.headerRendered) {
           currentPageContentOffsetPx = 0;
@@ -354,7 +360,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
             currentPage,
             accumulatedYpx,
           );
-          headerPlacements.push(...result.placements);
+          nodePlacements.push(...result.placements);
           currentPageContentOffsetPx = result.headerHeightPx;
           // eslint-disable-next-line no-param-reassign
           headerMeta.skipOnCurrentPage = true;
@@ -363,13 +369,15 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
         currentPageContentOffsetPx = 0;
       }
 
-      // repeat-header 处理完后记录新页偏移（pageContentTopPx 已含 header 修正）
-      // pageActualBottomPx 初始设为整页底部，若后续有 avoid/before 推页会再次修正
+      // 记录新页偏移
+      // pageRawTopPx = pageContentTopPx，确保容器节点 spill clipTopPx = 0，
+      // headerHeightPx 单独记录，供 TD/TH spill 使用（不能覆盖表头区域）
       const newPageContentTopPx = accumulatedYpx - currentPageContentOffsetPx;
       pageStartOffsets.set(currentPage, {
-        pageRawTopPx: accumulatedYpx,
+        pageRawTopPx: newPageContentTopPx,
         pageContentTopPx: newPageContentTopPx,
-        pageActualBottomPx: newPageContentTopPx + contentHeightPx, // 初始：整页用满
+        headerHeightPx: currentPageContentOffsetPx,
+        pageActualBottomPx: newPageContentTopPx + contentHeightPx,
       });
 
       // 重新处理当前节点
@@ -378,7 +386,6 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
     }
 
     // 跳过原始表头节点（当前页已有 repeat-header 副本时）
-    // skipOnCurrentPage 存在 headerMeta 上，各表格独立维护，避免多表格时相互干扰
     if (
       headerMeta?.skipOnCurrentPage &&
       shouldSkipOriginalHeader(node, headerMeta)
@@ -390,7 +397,6 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
     const effectiveOffsetYpx = accumulatedYpx - currentPageContentOffsetPx;
 
     // 生成节点渲染计划
-    // pageActualBottomPx 先用当前页整页底部（若后续 avoid/before 推页会由 pageStartOffsets 修正）
     nodePlacements.push({
       page: currentPage,
       node,
@@ -401,18 +407,14 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
       dfsIndex: i,
     });
 
-    // headerNode 放入渲染计划后立即标记，下次该表格换页时开始生成 repeat-header 副本
-    // 注意：headerNode 在 DOM 顺序上先于 tbody，所以它被 skip 时 headerRendered 已经是
-    // true（skip 条件依赖 headerRendered），不存在永远标记不到的情况
+    // headerNode 放入渲染计划后立即标记
     if (headerMeta && node._origEl === headerMeta.headerNode._origEl) {
       // eslint-disable-next-line no-param-reassign
       headerMeta.headerRendered = true;
     }
   }
 
-  // 回填 normal placements 的 pageActualBottomPx：
-  // normal placement 生成时该页的 pageActualBottomPx 可能还未被后续 avoid/before 推页修正，
-  // 循环结束后 pageStartOffsets 已全部修正，在此统一回填。
+  // 回填 normal placements 的 pageActualBottomPx
   for (const p of nodePlacements) {
     const info = pageStartOffsets.get(p.page);
     p.pageActualBottomPx = info ? info.pageActualBottomPx : null;
@@ -427,16 +429,11 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
     totalPagesCount,
   );
 
-  // 归并 nodePlacements 与 spillPlacements 并按页码、类型排序
-  // comparePlacements 已包含 placementOrder/paintOrder/dfsIndex 全部排序维度，
-  // 无需预先 merge，直接 concat + sort 即可。
-  const allPlacements = [
-    ...headerPlacements,
-    ...nodePlacements,
-    ...spillPlacements,
-  ].sort(comparePlacements);
+  // 合并并排序
+  const allPlacements = [...nodePlacements, ...spillPlacements].sort(
+    comparePlacements,
+  );
 
-  // 返回分页方案
   return {
     totalPages: totalPagesCount,
     allPlacements,
