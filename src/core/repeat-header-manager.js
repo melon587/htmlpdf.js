@@ -148,24 +148,6 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
 }
 
 /**
- * CSS Table painting order（与 stream-pagination.js getPaintOrder 保持一致）
- */
-function getPaintOrderForNode(node) {
-  if (node.type === 'text' || node.type === 'pseudo-element') return 5;
-
-  const { tag } = node;
-  if (tag === 'TABLE' || tag === 'COLGROUP' || tag === 'COL') return 0;
-
-  if (tag === 'TBODY' || tag === 'THEAD' || tag === 'TFOOT') return 1;
-
-  if (tag === 'TR') return 2;
-
-  if (tag === 'TD' || tag === 'TH') return 3;
-
-  return 4;
-}
-
-/**
  * 生成 repeat-header 的渲染计划。
  *
  * repeat-header / repeat-header-child 的 offsetYpx = accumulatedYpx，
@@ -196,7 +178,6 @@ export function generateRepeatHeaderPlacements(
     offsetYpx: accumulatedYpx,
     type: 'repeat-header',
     isLastSpill: true,
-    paintOrder: getPaintOrderForNode(headerMeta.headerNode),
     dfsIndex: -2,
   });
 
@@ -210,7 +191,6 @@ export function generateRepeatHeaderPlacements(
       offsetYpx: accumulatedYpx,
       type: 'repeat-header-child',
       isLastSpill: true,
-      paintOrder: getPaintOrderForNode(child),
       dfsIndex: -1,
     });
   }

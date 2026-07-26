@@ -6,21 +6,15 @@
  * ├─ needsNewPage()            判断节点是否需要换页（自然溢出 / text 保护 / avoid / before）
  * ├─ calcNextPageStart()       计算新页起点 accumulatedYpx
  * ├─ repeat-header 处理        换页时生成表头副本，跳过原始表头节点
- * ├─ 生成 nodePlacements       { page, node, offsetYpx, type: 'normal', paintOrder }
+ * ├─ 生成 nodePlacements       { page, node, offsetYpx, type: 'normal', dfsIndex }
  * ├─ expandSpillPlacements()   为跨页节点在后续页生成 spill placement
- * └─ comparePlacements sort    合并所有 placements 并按页码+类型+paintOrder 排序
+ * └─ comparePlacements sort    合并所有 placements 并按页码+类型+dfsIndex 排序
  *
- * ## CSS Table painting order（CSS2.1 §17.5.4）
+ * ## 渲染顺序
  *
- * 同页同 type 的 placements 按 paintOrder 排序，确保渲染顺序符合浏览器规范：
- *   0  TABLE / COLGROUP / COL  → 最先画（容器背景在最底层）
- *   1  TBODY / THEAD / TFOOT   → row group 背景
- *   2  TR                      → row 背景
- *   3  TD / TH                 → cell 背景（高于 TR，修复 rowspan 背景覆盖问题）
- *   4  其他普通元素             → DFS 顺序足够，统一为同一权重
- *   5  text / pseudo-element   → 内容层，最后画
- *
- * 同一 paintOrder 内保留 DFS 原始顺序（stable sort + dfsIndex tiebreaker）。
+ * collectNodes() 以 DFS 前序收集节点，天然保证 TABLE → TBODY → TR → TD → text
+ * 的顺序，与 CSS2.1 §17.5.4 Table painting order 一致。
+ * 同页同 type 的 placements 直接按 dfsIndex 排序即可，无需额外的 paintOrder 层。
  */
 
 import {
@@ -52,39 +46,16 @@ function placementOrder(p) {
 }
 
 /**
- * CSS Table painting order（CSS2.1 §17.5.4）
- * 返回值越小越先渲染（背景层优先于内容层）
- */
-function getPaintOrder(node) {
-  if (node.type === 'text' || node.type === 'pseudo-element') return 5;
-
-  const { tag } = node;
-  if (tag === 'TABLE' || tag === 'COLGROUP' || tag === 'COL') return 0;
-
-  if (tag === 'TBODY' || tag === 'THEAD' || tag === 'TFOOT') return 1;
-
-  if (tag === 'TR') return 2;
-
-  if (tag === 'TD' || tag === 'TH') return 3;
-
-  return 4;
-}
-
-/**
  * placement 排序：
  *   1. 页码升序
  *   2. 同页内按 placementOrder（spill → repeat-header → normal）
- *   3. 同页同 type 内按 paintOrder（CSS Table painting order）
- *   4. 同 paintOrder 内按 dfsIndex 保留原始 DFS 顺序
+ *   3. 同 placementOrder 内按 dfsIndex 保留原始 DFS 顺序
  */
 function comparePlacements(a, b) {
   if (a.page !== b.page) return a.page - b.page;
 
   const typeOrd = placementOrder(a) - placementOrder(b);
   if (typeOrd !== 0) return typeOrd;
-
-  const paintOrd = a.paintOrder - b.paintOrder;
-  if (paintOrd !== 0) return paintOrd;
 
   return a.dfsIndex - b.dfsIndex;
 }
@@ -261,7 +232,6 @@ export function expandSpillPlacements(
         clipTopPx,
         type: 'spill',
         isLastSpill: sp === lastPage, // 只有最后一页才是 true
-        paintOrder: p.paintOrder,
         dfsIndex: p.dfsIndex,
         // 本页实际内容底部（全局px）：用于渲染时计算精确 clipBottom
         pageActualBottomPx: spillPageInfo
@@ -403,7 +373,6 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
       offsetYpx: effectiveOffsetYpx,
       type: 'normal',
       isLastSpill: true,
-      paintOrder: getPaintOrder(node),
       dfsIndex: i,
     });
 
