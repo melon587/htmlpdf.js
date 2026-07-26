@@ -215,6 +215,17 @@ export async function createClonedDocument(element, fonts = []) {
       );
     }
 
+    // Step 3.6.1: 清除 cloneRoot 所有祖先元素的 class 和 id，
+    // 防止宿主环境的 CSS（如 VitePress 的 .vp-doc tr）通过祖先选择器
+    // 污染克隆文档内部元素的计算样式。
+    // cloneRoot 内部的 class/id 完全不受影响。
+    let ancestor = cloneRoot.parentElement;
+    while (ancestor) {
+      ancestor.removeAttribute('class');
+      ancestor.removeAttribute('id');
+      ancestor = ancestor.parentElement;
+    }
+
     // 增强克隆的 DOM
     enhanceClonedDOM(cloneRoot);
 
