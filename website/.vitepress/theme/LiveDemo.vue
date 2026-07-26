@@ -1306,11 +1306,11 @@
       </table>
 
       <!-- 图片跨页裁切测试：图片足够高，预期在第一页显示上半部分，第二页显示下半部分 -->
-      <div style="margin-top: 16px">
+      <div style="margin-top: 16px" page-break>
         <p style="font-size: 13px; color: #444; margin-bottom: 8px">
           Image cross-page cropping test (tall image):
         </p>
-        <img page-break src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
+        <img src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
           crossorigin="anonymous" style="
             width: 800px;
             height: 1200px;
