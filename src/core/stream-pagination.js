@@ -66,6 +66,8 @@ function comparePlacements(a, b) {
  * - text 保护：被切割时推到下一页
  * - avoid：放不下时推到下一页（节点高度超过一页时豁免，避免无限换页）
  * - before：强制换页（节点不在当前页起点时）
+ * - repeat-header 联体：当节点是表的 firstDataTR，且
+ *   headerHeight + TR有效高度 > 当前页剩余空间 时，整个表推到下一页
  *
  * @param {Object} node                - 待判断节点
  * @param {number} currentPageBottom   - 当前页内容区底边（全局 px）
@@ -76,6 +78,7 @@ function comparePlacements(a, b) {
  *                                       无 repeat-header 时为 0；有 repeat-header 时为表头高度。
  *                                       用于 text 保护豁免：确保换页后 text 高度不超过可用区，
  *                                       防止 accumulatedYpx 原地不动导致死循环。
+ * @param {Object|null} headerMeta     - 当前节点所属的 repeat-header meta（无时为 null）
  */
 function needsNewPage({
   node,
@@ -83,6 +86,7 @@ function needsNewPage({
   accumulatedYpx,
   contentHeightPx,
   pageContentOffsetPx,
+  headerMeta,
 }) {
   if (node.y >= currentPageBottom) return true;
 
@@ -114,6 +118,27 @@ function needsNewPage({
   }
 
   if (node.pageBreak === 'before' && node.y > accumulatedYpx) return true;
+
+  // repeat-header 联体判断：
+  // 当前节点是 headerNode（THEAD）本身时，提前检查
+  // headerHeight + firstDataTR有效高度 是否超过当前页剩余空间。
+  // 若超出，则在 THEAD 处就触发换页，让整个表从新页顶部开始，
+  // 避免 THEAD 单独停留在旧页形成孤立表头。
+  // 豁免：联体高度超过整页时放不进任何页，让其自然分布。
+  if (
+    headerMeta &&
+    node._origEl === headerMeta.headerNode._origEl &&
+    headerMeta.firstDataTR
+  ) {
+    const trEffectiveH = Math.max(
+      headerMeta.firstDataTR.height,
+      headerMeta.firstDataTR.rowSpanChildMaxHeight || 0,
+    );
+    const combined = node.height + trEffectiveH;
+    const remaining = currentPageBottom - node.y;
+
+    if (combined > remaining && combined <= contentHeightPx) return true;
+  }
 
   return false;
 }
@@ -247,6 +272,45 @@ export function expandSpillPlacements(
 }
 
 /**
+ * 换页时统一处理 repeat-header 状态，返回新页的页码/起点/表头高度。
+ *
+ * 两种情况：
+ *   1. headerRendered=false → 表头尚未渲染，新页无需副本，直接透传
+ *   2. headerRendered=true  → 在新页顶部生成 repeat-header 副本
+ *
+ * @returns {{ currentPage, accumulatedYpx, headerHeightPx }}
+ */
+function applyHeaderOnNewPage({
+  headerMeta,
+  nodePlacements,
+  currentPage,
+  accumulatedYpx,
+  repeatHeaderManager,
+}) {
+  if (!headerMeta.headerRendered) {
+    // 表头尚未渲染，新页无需副本
+    repeatHeaderManager.setMeta(headerMeta, 'skipOnCurrentPage', false);
+
+    return { currentPage, accumulatedYpx, headerHeightPx: 0 };
+  }
+
+  // 旧页有表头：在新页顶部生成 repeat-header 副本
+  const result = generateRepeatHeaderPlacements(
+    headerMeta,
+    currentPage,
+    accumulatedYpx,
+  );
+  nodePlacements.push(...result.placements);
+  repeatHeaderManager.setMeta(headerMeta, 'skipOnCurrentPage', true);
+
+  return {
+    currentPage,
+    accumulatedYpx,
+    headerHeightPx: result.headerHeightPx,
+  };
+}
+
+/**
  * 流式分页主函数：单次遍历 nodes，动态决策换页，生成渲染计划
  *
  * 流程：
@@ -301,6 +365,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
         accumulatedYpx,
         contentHeightPx,
         pageContentOffsetPx: currentPageContentOffsetPx,
+        headerMeta,
       })
     ) {
       // 计算本页实际内容底部（全局px）
@@ -320,21 +385,16 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
 
       // 处理 repeat-header
       if (headerMeta) {
-        if (!headerMeta.headerRendered) {
-          currentPageContentOffsetPx = 0;
-          // eslint-disable-next-line no-param-reassign
-          headerMeta.skipOnCurrentPage = false;
-        } else {
-          const result = generateRepeatHeaderPlacements(
-            headerMeta,
-            currentPage,
-            accumulatedYpx,
-          );
-          nodePlacements.push(...result.placements);
-          currentPageContentOffsetPx = result.headerHeightPx;
-          // eslint-disable-next-line no-param-reassign
-          headerMeta.skipOnCurrentPage = true;
-        }
+        const r = applyHeaderOnNewPage({
+          headerMeta,
+          nodePlacements,
+          currentPage,
+          accumulatedYpx,
+          repeatHeaderManager,
+        });
+        currentPage = r.currentPage;
+        accumulatedYpx = r.accumulatedYpx;
+        currentPageContentOffsetPx = r.headerHeightPx;
       } else {
         currentPageContentOffsetPx = 0;
       }
@@ -378,8 +438,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
 
     // headerNode 放入渲染计划后立即标记
     if (headerMeta && node._origEl === headerMeta.headerNode._origEl) {
-      // eslint-disable-next-line no-param-reassign
-      headerMeta.headerRendered = true;
+      repeatHeaderManager.setMeta(headerMeta, 'headerRendered', true);
     }
   }
 

@@ -6,21 +6,62 @@
 import { matchesSelector } from '../utils';
 
 /**
- * 收集 repeat-header 元信息
+ * 扫描单个 table 容器，找到 headerNode、其子节点，以及 header 后的第一个数据 TR。
+ * 返回 { headerNode, headerChildren, firstDataTR } 或 null（未找到 header）。
+ *
+ * @param {Array}  nodes
+ * @param {number} tIdx         - tableNode 在 nodes 中的索引
+ * @param {Element} containerEl - tableNode._origEl
+ * @param {string} repeatHeader - header 选择器
+ */
+function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
+  let headerNode = null;
+  let firstDataTR = null;
+  const headerChildren = [];
+
+  for (let i = tIdx + 1; i < nodes.length; i += 1) {
+    const n = nodes[i];
+    if (!n._origEl || !containerEl.contains(n._origEl)) break;
+
+    if (!headerNode) {
+      if (matchesSelector(n._origEl, repeatHeader)) headerNode = n;
+
+      continue;
+    }
+
+    if (headerNode._origEl.contains(n._origEl)) {
+      headerChildren.push(n);
+      continue;
+    }
+
+    // 在 header 外、table 内：找第一个 TR 作为 firstDataTR
+    if (!firstDataTR && n.tag === 'TR') firstDataTR = n;
+  }
+
+  return headerNode ? { headerNode, headerChildren, firstDataTR } : null;
+}
+
+/**
+ * 收集 repeat-header 元信息，同时构建节点 → meta 映射。
+ *
+ * 合并原来的 collectHeaderMetas + buildNodeHeaderMetaMap 两次扫描：
+ * 在找到每个 tableNode 后，只做一次向后遍历，同时完成：
+ *   1. 找 headerNode、headerChildren、firstDataTR
+ *   2. 将 table 范围内所有节点映射到对应 meta（nodeMetaMap）
+ *
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
+ * @returns {{ headerMetas: Array, nodeMetaMap: WeakMap }}
  */
 function collectHeaderMetas(nodes, tables) {
   const headerMetas = [];
+  const nodeMetaMap = new WeakMap();
 
   for (const config of tables) {
     const { selector, repeatHeader } = config;
 
-    // 只处理配置了 repeatHeader 的表格
     if (!repeatHeader) continue;
 
-    // 找所有匹配的表格容器节点（同一 selector 可能匹配多个表格实例）
-    // 注意：不做预扫描，直接遍历，最后判断是否有匹配项
     let anyTableFound = false;
 
     for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
@@ -28,53 +69,40 @@ function collectHeaderMetas(nodes, tables) {
       if (!matchesSelector(tableNode._origEl, selector)) continue;
 
       anyTableFound = true;
+      const containerEl = tableNode._origEl;
+      if (!containerEl) continue;
 
-      // 在容器节点之后查找表头节点（DOM 顺序保证子节点在容器后）
-      let headerNode = null;
-      let headerNodeIdx = -1;
-
-      for (let i = tIdx + 1; i < nodes.length; i += 1) {
-        const n = nodes[i];
-        // tableNode._origEl 为 null 时无法判断包含关系，停止查找
-        if (!tableNode._origEl) break;
-
-        // 已超出容器范围，停止查找
-        if (n._origEl && !tableNode._origEl.contains(n._origEl)) break;
-
-        if (matchesSelector(n._origEl, repeatHeader)) {
-          headerNode = n;
-          headerNodeIdx = i;
-          break;
-        }
-      }
-
-      if (!headerNode) {
+      const found = scanTableHeader(nodes, tIdx, containerEl, repeatHeader);
+      if (!found) {
         console.warn(
           `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
         );
         continue;
       }
 
-      // 找表头的所有子节点（从 headerNodeIdx+1 开始，范围内节点不可能是 headerNode 自身）
-      const headerChildren = [];
-
-      for (let i = headerNodeIdx + 1; i < nodes.length; i += 1) {
-        const n = nodes[i];
-        // 已超出表头范围，停止查找
-        if (n._origEl && !headerNode._origEl.contains(n._origEl)) break;
-
-        if (n._origEl) {
-          headerChildren.push(n);
-        }
-      }
-
-      headerMetas.push({
+      const meta = {
         tableNode,
-        headerNode,
-        headerChildren,
+        headerNode: found.headerNode,
+        headerChildren: found.headerChildren,
+        /**
+         * header 后的第一个数据 TR 节点。
+         * 用于 needsNewPage 中"表头 + 首行联体"判断：
+         * 若 headerHeight + firstDataTR 有效高度 > 当前页剩余，
+         * 则整个表格强推到下一页，避免孤立表头。
+         */
+        firstDataTR: found.firstDataTR,
         headerRendered: false,
         skipOnCurrentPage: false,
-      });
+      };
+      headerMetas.push(meta);
+
+      // 回填 nodeMetaMap：table 范围内所有节点 → meta
+      for (let i = tIdx + 1; i < nodes.length; i += 1) {
+        const n = nodes[i];
+        if (!n._origEl || !containerEl.contains(n._origEl)) break;
+
+        nodeMetaMap.set(n, meta);
+      }
     }
 
     if (!anyTableFound) {
@@ -82,31 +110,7 @@ function collectHeaderMetas(nodes, tables) {
     }
   }
 
-  return headerMetas;
-}
-
-/**
- * 预标记节点所属的 headerMeta，返回 WeakMap<node, meta>
- */
-function buildNodeHeaderMetaMap(nodes, headerMetas) {
-  const metaMap = new WeakMap();
-
-  for (const meta of headerMetas) {
-    const containerEl = meta.tableNode._origEl;
-    if (!containerEl) continue;
-
-    const startIdx = nodes.indexOf(meta.tableNode);
-    if (startIdx === -1) continue;
-
-    for (let i = startIdx + 1; i < nodes.length; i += 1) {
-      const node = nodes[i];
-      if (!node._origEl || !containerEl.contains(node._origEl)) break;
-
-      metaMap.set(node, meta);
-    }
-  }
-
-  return metaMap;
+  return { headerMetas, nodeMetaMap };
 }
 
 /**
@@ -119,15 +123,15 @@ export function createRepeatHeaderManager(nodes, tables = []) {
   const hasRepeatHeader = tables.some((t) => t.repeatHeader);
 
   if (hasRepeatHeader) {
-    const headerMetas = collectHeaderMetas(nodes, tables);
-    const nodeMetaMap =
-      headerMetas.length > 0
-        ? buildNodeHeaderMetaMap(nodes, headerMetas)
-        : new WeakMap();
+    const { headerMetas, nodeMetaMap } = collectHeaderMetas(nodes, tables);
 
     return {
       headerMetas,
       getHeaderMetaForNode: (node) => nodeMetaMap.get(node) || null,
+      /** 更新 meta 上的任意字段（key/value 对） */
+      setMeta(meta, key, value) {
+        meta[key] = value; // eslint-disable-line no-param-reassign
+      },
     };
   }
 
@@ -171,6 +175,12 @@ export function generateRepeatHeaderPlacements(
   // 浅拷贝节点，仅覆盖 y 坐标以对齐新页表头位置（引用字段共享，渲染管线只读）
   const headerAtTop = { ...headerMeta.headerNode, y: accumulatedYpx };
 
+  // dfsIndex 用连续负整数，保证多 child 时渲染顺序与原始 DFS 一致：
+  //   headerNode:       -(childCount + 1)
+  //   headerChildren:   -childCount, -(childCount-1), ..., -1
+  // 所有值均 < 0，与 normal placement 的正 dfsIndex 自然分隔。
+  const childCount = headerMeta.headerChildren.length;
+
   placements.push({
     page: currentPage,
     node: headerAtTop,
@@ -178,10 +188,10 @@ export function generateRepeatHeaderPlacements(
     offsetYpx: accumulatedYpx,
     type: 'repeat-header',
     isLastSpill: true,
-    dfsIndex: -2,
+    dfsIndex: -(childCount + 1),
   });
 
-  for (const child of headerMeta.headerChildren) {
+  headerMeta.headerChildren.forEach((child, idx) => {
     const offsetInHeader = child.y - headerMeta.headerNode.y;
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };
 
@@ -191,9 +201,9 @@ export function generateRepeatHeaderPlacements(
       offsetYpx: accumulatedYpx,
       type: 'repeat-header-child',
       isLastSpill: true,
-      dfsIndex: -1,
+      dfsIndex: -(childCount - idx),
     });
-  }
+  });
 
   return { placements, headerHeightPx };
 }
