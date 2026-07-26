@@ -34,27 +34,28 @@ function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
       continue;
     }
 
-    // 在 header 外、table 内：找第一个 TR 作为 firstDataTR
-    if (!firstDataTR && n.tag === 'TR') firstDataTR = n;
+    // 在 header 外、table 内：找第一个 TR 作为 firstDataTR，找到即可退出
+    if (!firstDataTR && n.tag === 'TR') {
+      firstDataTR = n;
+      break;
+    }
   }
 
   return headerNode ? { headerNode, headerChildren, firstDataTR } : null;
 }
 
 /**
- * 收集 repeat-header 元信息，同时构建节点 → meta 映射。
+ * 构建节点 → meta 的 WeakMap。
  *
- * 合并原来的 collectHeaderMetas + buildNodeHeaderMetaMap 两次扫描：
  * 在找到每个 tableNode 后，只做一次向后遍历，同时完成：
  *   1. 找 headerNode、headerChildren、firstDataTR
  *   2. 将 table 范围内所有节点映射到对应 meta（nodeMetaMap）
  *
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
- * @returns {{ headerMetas: Array, nodeMetaMap: WeakMap }}
+ * @returns {WeakMap} nodeMetaMap - 节点 → meta 映射
  */
-function collectHeaderMetas(nodes, tables) {
-  const headerMetas = [];
+function buildNodeMetaMap(nodes, tables) {
   const nodeMetaMap = new WeakMap();
 
   for (const config of tables) {
@@ -94,7 +95,6 @@ function collectHeaderMetas(nodes, tables) {
         headerRendered: false,
         skipOnCurrentPage: false,
       };
-      headerMetas.push(meta);
 
       // 回填 nodeMetaMap：table 范围内所有节点 → meta
       for (let i = tIdx + 1; i < nodes.length; i += 1) {
@@ -110,7 +110,7 @@ function collectHeaderMetas(nodes, tables) {
     }
   }
 
-  return { headerMetas, nodeMetaMap };
+  return nodeMetaMap;
 }
 
 /**
@@ -123,14 +123,13 @@ export function createRepeatHeaderManager(nodes, tables = []) {
   const hasRepeatHeader = tables.some((t) => t.repeatHeader);
 
   if (hasRepeatHeader) {
-    const { headerMetas, nodeMetaMap } = collectHeaderMetas(nodes, tables);
+    const nodeMetaMap = buildNodeMetaMap(nodes, tables);
 
     return {
-      headerMetas,
       getHeaderMetaForNode: (node) => nodeMetaMap.get(node) || null,
       /** 更新 meta 上的任意字段（key/value 对） */
-      setMeta(meta, key, value) {
-        meta[key] = value; // eslint-disable-line no-param-reassign
+      setMeta(e, key, value) {
+        e[key] = value;
       },
     };
   }
