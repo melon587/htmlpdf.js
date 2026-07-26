@@ -54,6 +54,20 @@ src/utils/index.js                   ← pure helpers (color, px, font-face, can
 | Font system deep-dive (config, unicode-range, fallback chain) | `wiki/font-system.md` |
 | Node parser (clone-primary dual-walk, multi-line text, \_origEl contract) | `wiki/node-parser.md` |
 
+## Code Graph (code-review-graph)
+
+A code knowledge graph is pre-built for this project at `.code-review-graph/graph.db`. The `code-review-graph` MCP server is connected and provides 30 tools.
+
+**Before exploring or modifying any source file, always call these tools first:**
+
+1. `get_minimal_context_tool` — get a compact overview (~100 tokens) of the repo structure. Call this first on every new task.
+2. `get_impact_radius_tool` — when modifying a file, call this to understand what else is affected.
+3. `semantic_search_nodes_tool` — use this instead of Grep/Glob when searching for functions or classes by name or concept.
+4. `query_graph_tool` — use this to find callers, callees, tests, or imports of any symbol.
+5. `refactor_tool` — use this for rename previews, dead code detection, and refactoring suggestions.
+
+Only fall back to direct file reads (Read/Grep/Glob) when the graph tools do not return sufficient detail.
+
 ## Do NOT
 
 - Add `priority` to font config objects — it does not exist in the source.

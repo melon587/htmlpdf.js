@@ -1,96 +1,99 @@
-# Render Layer Rules
+# 渲染层规则
 
-## Render Entry Point
+## 渲染入口点
 
-`renderNode()` in `src/render/node.js` is the **only** public entry point for rendering. It dispatches to sub-renderers based on `node.type`:
+`src/render/node.js` 中的 `renderNode()` 是**唯一**的公共渲染入口。它根据 `node.type` 分发到子渲染器：
 
-| `node.type` | Sub-renderers called |
+| `node.type` | 调用的子渲染器 |
 | --- | --- |
-| `'element'` | `drawBackground` → `drawBorder` → `drawImage` (if IMG/CANVAS) |
-| `'pseudo'` | `drawBackground` → `drawBorder` → `drawText` (if has text content) |
-| `'text'` | `drawText` only |
+| `'element'` | `drawBackground` → `drawBorder` → `drawImage`（IMG/CANVAS 时） |
+| `'pseudo-element'` | `drawBackground` → `drawBorder`（无文字内容时止步于此） |
+| `'text'` | 仅 `drawText` |
 
-Never call `drawBackground`, `drawBorder`, `drawImage`, or `drawText` directly from outside the render layer — always go through `renderNode()`.
+禁止从渲染层外部直接调用 `drawBackground`、`drawBorder`、`drawImage` 或 `drawText`——始终通过 `renderNode()`。
 
-## Cross-Page Clipping (`clipBottom`)
+## 跨页裁剪（`clipBottom`）
 
-All render functions receive a `clipBottom` value (in mm) derived from:
+所有渲染函数接收一个 `clipBottom` 值（mm），由以下计算得出：
 
 ```js
 clipBottom = toMM(pageActualBottomPx - offsetYpx);
 ```
 
-This is the maximum Y coordinate (relative to the node's top-left) that should be rendered on the current page. Render functions must clip their output to this boundary.
+这是当前页可渲染的最大 Y 坐标（相对于节点左上角，单位 mm）。渲染函数必须将输出裁剪到此边界。
 
-### Spill behaviour
+`clipTop`（mm）在有 repeat-header 时等于 `toMM(clipTopPx)`，防止 spill 背景/边框覆盖重复表头区域。
 
-| `isLastSpill` | `isLastSpill=false` (middle pages) | `isLastSpill=true` (final page) |
-| --- | --- | --- |
-| Background | extends to full page height | clips to actual node bottom |
-| Left/right border | drawn on every page | drawn on every page |
-| Top border | only on first page (nodeTop ≥ 0) | only on first page |
-| Bottom border | not drawn | drawn (node bottom ≤ clipBottom) |
+### Spill 行为
 
-## Background (`src/render/background.js`)
+| 场景      | `isLastSpill=false`（中间页） | `isLastSpill=true`（最终页）  |
+| --------- | ----------------------------- | ----------------------------- |
+| 背景      | 延伸到整页高度                | 裁剪到节点实际底部            |
+| 左/右边框 | 每页都绘制                    | 每页都绘制                    |
+| 上边框    | 仅在第一页（nodeTop ≥ 0）     | 仅在第一页                    |
+| 下边框    | 不绘制                        | 绘制（节点底部 ≤ clipBottom） |
 
-Draw order (back to front):
+## 背景（`src/render/background.js`）
 
-1. **Solid color** — `background-color` via `setFillColor` + `rect`
-2. **Linear gradient** — parsed by `gradient.js`, rendered to canvas slice, added via `addImage`
-3. **Background image URL** — `node.bgSrc` (preloaded base64), positioned via `calcBgImageSize/Pos`
+绘制顺序（从后到前）：
 
-### `background-size` values supported
+1. **纯色** — 通过 `setFillColor` + `rect` 绘制 `background-color`
+2. **线性渐变** — 由 `gradient.js` 解析，渲染到 canvas 切片，通过 `addImage` 添加
+3. **背景图片 URL** — `node.bgSrc`（预加载的 base64），通过 `calcBgImageSize/Pos` 定位
 
-- `cover` — scale to cover the element, crop if needed
-- `contain` — scale to fit inside the element, letterbox if needed
-- `auto` — use natural image size
-- Explicit px/% values
+### 支持的 `background-size` 值
 
-### `background-position` values supported
+- `cover` — 缩放以覆盖元素，必要时裁剪
+- `contain` — 缩放以适应元素内部，必要时留白
+- `auto` — 使用图片原始尺寸
+- 显式 px/% 值
 
-- Keywords: `top`, `bottom`, `left`, `right`, `center`
-- Explicit px/% values
+### 支持的 `background-position` 值
 
-### CSS properties read (not always rendered)
+- 关键字：`top`、`bottom`、`left`、`right`、`center`
+- 显式 px/% 值
 
-- `border-radius` — read but **not rendered** (jsPDF has no native rounded rect with clip)
+### 已读取但未渲染的 CSS 属性
 
-## Border (`src/render/border.js`)
+- `border-radius` — 已采集但**未渲染**（jsPDF 没有原生带裁剪的圆角矩形）
 
-- Borders are drawn as individual `line()` calls using jsPDF.
-- `parseBorderString(borderStr)` splits `border-top`, `border-right`, etc. into `{ width, color }`.
-- Zero-width or transparent borders are skipped.
-- `drawSpillClosingLines()` draws a horizontal closing line at a table's page-break exit point. It uses `pageBreakBorder` config (the border style from `tables[].pageBreakBorder`) rather than the node's own border.
+## 边框（`src/render/border.js`）
 
-## Image (`src/render/image.js`)
+- 边框以独立的 `line()` 调用绘制。
+- `parseBorderString(borderStr)` 将 `border-top`、`border-right` 等解析为 `{ width, color }`。
+- 宽度为零或透明的边框会被跳过。
+- `drawSpillClosingLines()` 在表格分页出口处绘制水平闭合线，使用 `pageBreakBorder` 配置（来自 `tables[].pageBreakBorder`）而非节点自身的边框样式。
 
-- Source is always `node._srcCanvas` — a canvas element preloaded during `preloadImages()`.
-- The visible slice `[visibleTopPx … visibleBottomPx]` is cropped from the source canvas using a temporary offscreen canvas.
-- The cropped canvas is converted to base64 and added via `doc.addImage()`.
-- Format is `'PNG'` if `canvasHasAlpha()` returns true, otherwise `'JPEG'`.
+## 图片（`src/render/image.js`）
 
-## Gradient (`src/render/gradient.js`)
+- 来源始终是 `node._srcCanvas`——`preloadImages()` 期间预加载的 canvas 元素。
+- 使用临时离屏 canvas 从源 canvas 裁剪出可见切片 `[visibleTopPx … visibleBottomPx]`。
+- 裁剪后的 canvas 转换为 base64，通过 `doc.addImage()` 添加。
+- 若 `canvasHasAlpha()` 返回 true 则格式为 `'PNG'`，否则为 `'JPEG'`。
 
-- `parseLinearGradient(str)` parses a CSS `linear-gradient(...)` string into `{ angle, stops }`.
-- Supported direction keywords: `to top`, `to bottom`, `to left`, `to right`, `to top left`, `to top right`, `to bottom left`, `to bottom right`
-- Degree values are also supported (e.g. `45deg`).
-- `renderGradientSlice()` renders only the current-page slice (not the full node height). This avoids memory issues for very tall elements.
+## 渐变（`src/render/gradient.js`）
 
-## Text (`src/render/text.js`)
+- `parseLinearGradient(str)` 将 CSS `linear-gradient(...)` 字符串解析为 `{ angle, stops }`。
+- 支持的方向关键字：`to top`、`to bottom`、`to left`、`to right`、`to top left`、`to top right`、`to bottom left`、`to bottom right`
+- 也支持角度值（如 `45deg`）。
+- `renderGradientSlice()` 仅渲染当前页的切片（而非完整节点高度），避免超高元素的内存问题。
 
-- `drawText()` is the main entry point.
-- Text rendering supports **multi-font segmentation**: a single text node can span multiple fonts if different characters match different font configs via `unicode-range`.
-- `segmentTextByFont()` splits a string into `[{ text, font }]` segments.
-- Each segment is measured with jsPDF's `getTextWidth()`, then positioned for alignment.
-- Alignment: `left`, `center`, `right` — computed relative to the node's bounding box.
-- RTL: detected from `node.style.direction === 'rtl'`; uses jsPDF's `R2L` option.
-- `applyTextStyle()` sets font size, color, and opacity on the jsPDF doc.
+## 文字（`src/render/text.js`）
 
-## Rules for Adding New Render Features
+- `drawText()` 是主入口。
+- 文字渲染支持**多字体分段**：单个文本节点可跨越多种字体，不同字符通过 `unicode-range` 匹配不同字体配置。
+- `segmentTextByFont()` 将字符串拆分为 `[{ text, font }]` 分段。
+- 每个分段用 jsPDF 的 `getTextWidth()` 测量，然后按对齐方式定位。
+- 对齐：`left`、`center`、`right`——相对于节点边界框计算。
+- RTL：通过 `node.style.direction === 'rtl'` 检测，使用 jsPDF 的 `R2L` 选项。
+- `applyTextStyle()` 在 jsPDF doc 上设置字号、颜色和不透明度。
+- `resolveTextLayout()` 计算文字基线 Y 坐标：`toPdfY(node.y) + toMM(fontSize)`。
 
-1. New visual effects on elements → add to `background.js` or a new file, call from `renderNode()`.
-2. New border styles → add to `border.js`.
-3. New text features → add to `text.js`; use `segmentTextByFont()` for font-aware text.
-4. Never add `doc.addPage()` or page navigation inside any render function.
-5. Never read from the live DOM — all data must be in the `node` object.
-6. All coordinates passed to jsPDF must be in **mm** via `ctx` helpers.
+## 添加新渲染功能的规则
+
+1. 元素上的新视觉效果 → 添加到 `background.js` 或新文件，从 `renderNode()` 调用。
+2. 新边框样式 → 添加到 `border.js`。
+3. 新文字功能 → 添加到 `text.js`；对字体感知的文字使用 `segmentTextByFont()`。
+4. 禁止在任何渲染函数内添加 `doc.addPage()` 或页面导航。
+5. 禁止读取活跃 DOM——所有数据必须来自 `node` 对象。
+6. 传给 jsPDF 的所有坐标必须通过 `ctx` 辅助函数转换为 **mm**。

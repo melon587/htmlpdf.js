@@ -1,104 +1,108 @@
-# Pagination Design — Deep Dive
+# 分页设计 — 深入解析
 
-## Overview
+## 概述
 
-`streamPaginate()` in `src/core/stream-pagination.js` performs a **single-pass, left-to-right traversal** of the flat node array and produces `allPlacements` — a sorted list of rendering instructions.
+`src/core/stream-pagination.js` 中的 `streamPaginate()` 对扁平节点数组执行**单次从左到右遍历**，生成 `allPlacements`——一个已排序的渲染指令列表。
 
-No second pass is needed. No backtracking. Once a node is assigned a page, that decision is final.
+无需第二次遍历，无需回溯。节点一旦被分配到某页，该决策即为最终结果。
 
-## Input / Output
+## 输入 / 输出
 
 ```
-Input:  nodes[]              flat node array from node-parser.js
-        ctx                  context object (page dimensions, scale)
-        repeatHeaderManager  pre-built repeat-header metadata
+输入：nodes[]              来自 node-parser.js 的扁平节点数组
+      ctx                  上下文对象（页面尺寸、缩放比例）
+      repeatHeaderManager  预构建的重复表头元数据
 
-Output: { totalPages, allPlacements }
+输出：{ totalPages, allPlacements }
 ```
 
-`allPlacements` is an array sorted by `page`, then by render priority within a page:
+`allPlacements` 是一个按 `page` 排序的数组，同页内按渲染优先级排序：
 
-1. Spill placements (elements carrying over from a previous page)
-2. Repeat-header placements (thead rows injected at the top of each page)
-3. Normal placements (elements that start on this page naturally)
+1. spill placements（从上一页延续的元素）
+2. repeat-header placements（每页顶部注入的 thead 行）
+3. normal placements（本页自然开始的元素）
 
-## Core Variables in `streamPaginate()`
+同一优先级组内按 `dfsIndex`（DFS 前序索引）排序，天然保证 TABLE → TBODY → TR → TD → text 的正确渲染顺序。
 
-| Variable | Type | Meaning |
+## `streamPaginate()` 中的核心变量
+
+| 变量 | 类型 | 含义 |
 | --- | --- | --- |
-| `accumulatedYpx` | number | Running px of content consumed so far (global Y cursor) |
-| `currentPage` | number | The page currently being filled (1-indexed) |
-| `pageStartOffsets` | Map | `pageIndex → accumulatedYpx` at the start of that page |
-| `nodePlacements` | Map | `node → { page, offsetYpx }` — first placement per node |
+| `accumulatedYpx` | number | 已消费内容的累计 px（全局 Y 游标） |
+| `currentPage` | number | 当前正在填充的页码（从 1 开始） |
+| `pageStartOffsets` | Map | `pageIndex → { pageContentTopPx, pageActualBottomPx, headerHeightPx }` |
+| `nodePlacements` | Array | 每个节点的 normal placement，用于后续 spill 展开 |
 
-## Page-Break Decision: `needsNewPage(node)`
+## 换页决策：`needsNewPage(node)`
 
-Called for each node before placing it. Returns `true` if a page break should occur before placing this node on the current page.
+在放置每个节点之前调用，若应在当前节点之前换页则返回 `true`。
 
-Conditions checked (any one triggers a break):
+触发换页的条件（满足任意一条即换页）：
 
-1. **Natural overflow** — `node.y + node.height > accumulatedYpx + contentHeightPx` Node bottom would exceed the current page bottom.
+1. **自然溢出** — `node.y >= currentPageBottom`，节点顶部已超出当前页底部。
 
-2. **`break-before: page`** — `node.pageBreak === 'before'` Explicit page break requested.
+2. **`break-before: page`** — `node.pageBreak === 'before'`，显式请求换页。
 
-3. **`break-inside: avoid`** — `node.pageBreak === 'avoid'` AND the node doesn't fit on the current page's remaining space.
+3. **`break-inside: avoid`** — `node.pageBreak === 'avoid'` 且节点放不进当前页剩余空间。
 
-4. **Text protect** — parent node has `avoid` and this text line would overflow. Prevents a single orphan text line at the bottom of a page.
+4. **文本保护** — 父节点有 `avoid` 且该文字行会溢出，防止孤行出现在页面底部。
 
-5. **Implicit avoid** — `TR`, `SVG`, `VIDEO` tags automatically behave as `avoid`.
+5. **隐式 avoid** — `TR`、`SVG`、`VIDEO` 标签自动表现为 `avoid`。
 
 ## `calcNextPageStart(page, repeatHeaderManager)`
 
-After deciding to break to a new page, `calcNextPageStart()` computes the new `accumulatedYpx` for the top of the next page.
+决定换页后，`calcNextPageStart()` 计算下一页的新 `accumulatedYpx`。
 
-If the table has a repeat header, the repeat-header height is added to the page-start offset so that content starts below the repeated header.
+若表格有重复表头，表头高度会加到页面起始偏移，使内容从重复表头下方开始。
 
-## Spill Elements
+## Spill 元素
 
-An element whose height > `contentHeightPx` cannot fit on one page and must "spill" across multiple pages.
+高度超过 `contentHeightPx` 的元素无法放入单页，必须跨页"溢出"（spill）。
 
-### Detection
+### 检测
 
-After the single pass, `expandSpillPlacements()` checks each `nodePlacements` entry:
-
-```
-if (node.y + node.height > pageStartOffsets[node.page] + contentHeightPx)
-   → element spills
-```
-
-### Spill Placement Generation
-
-`expandSpillPlacements()` generates one extra placement for each additional page the element spans:
+单次遍历结束后，`expandSpillPlacements()` 检查每个 `nodePlacements` 条目：
 
 ```
-page P+1: offsetYpx = pageStartOffsets[P+1] - node.y
-          isLastSpill = (P+1 is the last page the element spans)
+若 nodeBottomPx > pageContentTopPx + contentHeightPx
+   → 元素溢出（spill）
 ```
 
-The `offsetYpx` value shifts the element up in the render coordinate space so that the correct visual slice appears on each page.
+rowspan TD/TH 使用 `rowSpanActualBottom`（分页后修正值）而非 `y + height`。
 
-### `isLastSpill` Flag
+### Spill Placement 生成
 
-- `isLastSpill = false`: element continues onto the next page. Background extends to full page height. Bottom border is suppressed.
-- `isLastSpill = true`: element ends on this page. Background clips to node bottom. Bottom border is drawn.
+`expandSpillPlacements()` 为元素跨越的每个额外页面生成一个 placement：
 
-## Repeat Headers
+```
+第 P+1 页：offsetYpx = pageStartOffsets[P+1].pageContentTopPx
+           isLastSpill = (P+1 是该元素跨越的最后一页)
+```
 
-When `tables[i].repeatHeader` is configured, `<thead>` rows repeat at the top of every page the table spans.
+`offsetYpx` 将元素在渲染坐标空间中上移，使每页显示正确的视觉切片。
 
-### Setup (`repeat-header-manager.js`)
+### `isLastSpill` 标志
 
-`collectHeaderMetas(nodes, tables)` walks the node array and identifies `<thead>` subtrees for tables that match `tables[i].selector`.
+- `isLastSpill = false`：元素继续延伸到下一页。背景延伸到整页高度，下边框不绘制。
+- `isLastSpill = true`：元素在本页结束。背景裁剪到节点底部，绘制下边框。
 
-Each `headerMeta` stores:
+## 重复表头
 
-- The thead node and its children
-- The table's first and last pages (computed during pagination)
-- The header's height in px
+当 `tables[i].repeatHeader` 已配置时，`<thead>` 行会在表格跨越的每一页顶部重复出现。
 
-### Injection during pagination
+### 准备阶段（`repeat-header-manager.js`）
 
-Inside `streamPaginate()`, on each page break:
+`collectHeaderMetas(nodes, tables)` 遍历节点数组，为匹配 `tables[i].selector` 的表格识别 `<thead>` 子树。
+
+每个 `headerMeta` 存储：
+
+- thead 节点及其子节点
+- 表格的首页和末页（分页期间计算）
+- 表头高度（px）
+
+### 分页时注入
+
+在 `streamPaginate()` 内部，每次换页时：
 
 ```
 headerMeta = repeatHeaderManager.getHeaderMetaForNode(node)
@@ -106,53 +110,56 @@ if (headerMeta && currentPage > 1)
   placements += generateRepeatHeaderPlacements(headerMeta, currentPage, accumulatedYpx)
 ```
 
-`shouldSkipOriginalHeader()` returns `true` for original `<thead>` rows on pages 2+ to prevent double rendering.
+`shouldSkipOriginalHeader()` 对第 2 页及之后的原始 `<thead>` 行返回 `true`，防止重复渲染。
 
 ## `buildNodeLastPageMap()`
 
-After spill expansion, some container nodes span multiple pages but only have one entry in `nodePlacements`. `buildNodeLastPageMap()` computes the actual last page for each node by taking the maximum page of all its children:
+单次遍历结束后，部分容器节点跨越多页但在 `nodePlacements` 中只有一条记录。`buildNodeLastPageMap()` 通过取所有子节点最大页码冒泡到祖先，计算每个节点实际的最后页：
 
 ```
-for each node in reverse DFS order:
-  lastPage[node] = max(lastPage[node], lastPage[child])
+对每个以 _origEl 为键的节点，向其所有祖先（parentElement 链）冒泡最大页码
 ```
 
-This determines `isLastSpill` for container elements.
+这决定了容器元素的 `isLastSpill`。
 
-## `mergePlacements()` — O(n) Dual-Pointer Merge
+## Placement 排序
 
-Three sorted arrays are merged in one pass:
+所有 placements 合并后通过 `comparePlacements` 排序：
 
-1. `spillPlacements` — from `expandSpillPlacements()`
-2. `repeatHeaderPlacements` — from repeat-header manager
-3. `normalPlacements` — from the single pass
+1. **页码升序**
+2. **同页内按 `placementOrder`**：
+   - `0` — 非 rowspan 的 spill（TABLE/TBODY/TR 等容器）→ 最先铺底
+   - `1` — repeat-header
+   - `2` — normal（含普通 TD/TH）
+   - `3` — rowspan TD/TH 的 spill → 最后画，覆盖同页普通 TD
+3. **同 `placementOrder` 内按 `dfsIndex`** — DFS 前序天然保证 TABLE→TBODY→TR→TD→text 的正确顺序
 
-The merge maintains page order. Within the same page, the priority is: `spillPlacements` > `repeatHeaderPlacements` > `normalPlacements`
+> **注意：** 历史上曾有独立的 `paintOrder` 字段（按 CSS §17.5.4 分层），已移除。DFS 前序本身即保证正确的绘制顺序，`paintOrder` 为冗余。
 
-## Spill Closing Lines
+## Spill 闭合线
 
-After `streamPaginate()` returns, `collectPageBreakLines()` uses `allPlacements` to identify which table containers have a page break mid-table and records a "closing line" entry for each such page transition.
+`streamPaginate()` 返回后，`collectPageBreakLines()` 使用 `allPlacements` 识别哪些表格容器在表格中间有分页符，并为每个分页位置记录"闭合线"条目。
 
-`drawSpillClosingLines()` in `render/border.js` then draws a horizontal line at the bottom of the table's last visible row on each page, creating a visual table border at the cut point.
+`render/border.js` 中的 `drawSpillClosingLines()` 在每页最后一个可见行的底部绘制水平线，在切割点创建视觉表格边框。
 
-This is configured via `tables[i].pageBreakBorder: '1px solid #ccc'` in `options.tables`.
+通过 `options.tables` 中的 `tables[i].pageBreakBorder: '1px solid #ccc'` 配置。
 
-## Example: Multi-Page Table with Repeat Header
+## 示例：有重复表头的多页表格
 
 ```
-Page 1:
+第 1 页：
   ┌─────────────────┐
-  │  thead (repeated)│  ← repeat-header placement, page=1
+  │  thead（重复）   │  ← repeat-header placement，page=1
   ├─────────────────┤
-  │  tbody rows...   │  ← normal placements, page=1
-  │  (spill continues)
-└─────────────────┘  ← closing line drawn here
+  │  tbody 行...    │  ← normal placements，page=1
+  │  （spill 继续）
+└─────────────────┘  ← 此处绘制闭合线
 
-Page 2:
+第 2 页：
   ┌─────────────────┐
-  │  thead (repeated)│  ← repeat-header placement, page=2
+  │  thead（重复）   │  ← repeat-header placement，page=2
   ├─────────────────┤
-  │  (spill)        │  ← spill placements for tbody container, page=2
-  │  tbody rows...   │  ← normal placements, page=2
+  │  （spill）       │  ← tbody 容器的 spill placements，page=2
+  │  tbody 行...    │  ← normal placements，page=2
   └─────────────────┘
 ```

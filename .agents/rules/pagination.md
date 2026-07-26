@@ -1,82 +1,88 @@
-# Pagination Rules
+# 分页规则
 
-## Core Concept
+## 核心概念
 
-Pagination is **single-pass**: `streamPaginate()` in `src/core/stream-pagination.js` traverses the flat node array once and produces `allPlacements` — the only data structure that determines what renders on which page and at what Y offset.
+分页是**单次遍历**的：`src/core/stream-pagination.js` 中的 `streamPaginate()` 对扁平节点数组遍历一次，生成 `allPlacements`——决定每个节点在哪一页、在什么 Y 偏移量渲染的唯一数据结构。
 
-**Never add page-break logic to render files.** All decisions about page boundaries belong here.
+**禁止在渲染文件中添加换页逻辑。** 所有关于页面边界的决策都属于 `stream-pagination.js`。
 
-## Key Data Structures
+## 关键数据结构
 
-### `allPlacements` (array of placement objects)
+### `allPlacements`（placement 对象数组）
 
 ```js
 {
-  (node, // reference to the node object from collectNodes()
-    page, // 1-indexed PDF page number
-    offsetYpx, // Y shift applied to this placement (0 for first spill, positive for later)
-    isLastSpill, // boolean — true on the final page of a multi-page spill
-    pageActualBottomPx); // px value of the page bottom for clipping purposes
+  (node, // 指向 collectNodes() 中节点对象的引用
+    page, // 1-indexed PDF 页码
+    offsetYpx, // 当前页内容区起始全局 y（px）
+    type, // 'normal' | 'spill' | 'repeat-header' | 'repeat-header-child'
+    isLastSpill, // boolean — 多页 spill 的最终页为 true
+    dfsIndex, // 原始 DFS 顺序索引，用于排序 tiebreaker
+    clipTopPx, // repeat-header 区域高度（px），spill 时不覆盖表头
+    pageActualBottomPx); // 本页实际内容底部 px，用于裁剪
 }
 ```
 
-### `nodePlacements` (internal, before merge)
+### `nodePlacements`（内部，合并前）
 
-Maps `node → { page, offsetYpx }`. Built during the single-pass traversal.
+遍历过程中构建的 normal placement 数组，用于后续 `expandSpillPlacements()` 展开。
 
-### `pageStartOffsets` (internal)
+### `pageStartOffsets`（内部）
 
-Maps `pageIndex → accumulatedYpx` — the global Y position of the top of each page. Used by `expandSpillPlacements()` to build cross-page spill placements.
+`Map<pageIndex, { pageContentTopPx, pageActualBottomPx, headerHeightPx }>`  
+存储每页内容区起始全局 Y 及相关信息，供 `expandSpillPlacements()` 构建跨页 spill placements。
 
-## Page-Break Decision Logic (in `needsNewPage()`)
+## 换页决策逻辑（`needsNewPage()`）
 
-A new page is triggered when **any** of these conditions is true:
+以下任意条件为真时触发换页：
 
-| Condition | CSS trigger |
+| 条件 | CSS 触发方式 |
 | --- | --- |
-| Natural overflow | node bottom > current page bottom (no CSS needed) |
-| `page-break-before: always` | `break-before: page` or `page-break-before: always` |
-| `page-break-inside: avoid` | `break-inside: avoid` or `page-break-inside: avoid` |
-| Text protect | text node whose parent has `avoid` — prevents orphan text lines |
-| Implicit avoid | `TR`, `SVG`, `VIDEO` elements automatically get avoid behaviour |
+| 自然溢出 | 节点顶部 >= 当前页底部（无需 CSS） |
+| `page-break-before: always` | `break-before: page` 或 `page-break-before: always` |
+| `page-break-inside: avoid` | `break-inside: avoid` 或 `page-break-inside: avoid` |
+| 文本保护 | 父节点有 `avoid` 的文本节点——防止孤行 |
+| 隐式 avoid | `TR`、`SVG`、`VIDEO` 元素自动获得 avoid 行为 |
 
 ## Spill Placements
 
-Elements taller than one page height **spill** across multiple pages.  
-`expandSpillPlacements()` generates one placement per spill-page from `nodePlacements`.
+高度超过一页的元素跨多页**溢出**（spill）。  
+`expandSpillPlacements()` 从 `nodePlacements` 为每个 spill 页生成一个 placement。
 
 ```
-page 1: placement { page:1, offsetYpx:0,          isLastSpill: false }
-page 2: placement { page:2, offsetYpx: -pageH,     isLastSpill: false }
-page 3: placement { page:3, offsetYpx: -pageH*2,   isLastSpill: true  }
+第 1 页：placement { page:1, offsetYpx: pageContentTopPx₁, isLastSpill: false }
+第 2 页：placement { page:2, offsetYpx: pageContentTopPx₂, isLastSpill: false }
+第 3 页：placement { page:3, offsetYpx: pageContentTopPx₃, isLastSpill: true  }
 ```
 
-`offsetYpx` is negative — it shifts the element up so the correct slice is visible on each page.
+`offsetYpx` 是当前页内容区的全局起始 y——渲染时用 `node.y - offsetYpx` 得到页内相对坐标。
 
 ## Repeat-Header Placements
 
-When a `tables[]` config entry specifies `repeatHeader: true`, the table `<thead>` rows are repeated at the top of each page the table spans.
+当 `tables[]` 配置条目指定 `repeatHeader: true` 时，`<thead>` 行在表格跨越的每一页顶部重复。
 
-`generateRepeatHeaderPlacements()` in `repeat-header-manager.js` generates the extra placements and inserts them at the **top of each page** via `mergePlacements()`.
+`repeat-header-manager.js` 中的 `generateRepeatHeaderPlacements()` 生成额外的 placements，在每页顶部插入。
 
-`shouldSkipOriginalHeader()` returns `true` for `<thead>` rows that already appear at the natural position on page 1 — prevents double-rendering.
+`shouldSkipOriginalHeader()` 对第 2 页及之后自然位置的 `<thead>` 行返回 `true`，防止重复渲染。
 
-## `mergePlacements()` — O(n) dual-pointer merge
+## Placement 排序
 
-Spill placements and repeat-header placements are pre-sorted by page.  
-`mergePlacements()` merges them into `allPlacements` in one pass:
+`comparePlacements` 三级排序：
 
-- Spill placements come **before** normal placements on the same page.
-- Repeat-header placements come **before** all other placements on their page.
+1. 页码升序
+2. 同页内按 `placementOrder`：spill 容器（0）→ repeat-header（1）→ normal（2）→ rowspan TD spill（3）
+3. 同 `placementOrder` 内按 `dfsIndex` — DFS 前序天然保证正确渲染顺序
+
+> **注意：** 不再使用 `paintOrder` 字段。DFS 前序收集（TABLE→TBODY→TR→TD→text）本身即符合 CSS §17.5.4 绘制规范，`paintOrder` 已作为冗余层移除。
 
 ## `buildNodeLastPageMap()`
 
-After the single pass, `buildNodeLastPageMap()` bubbles the maximum page number of any child node up to its ancestors. This gives each container node the last page it touches, which is used to correctly set `isLastSpill` for container elements.
+单次遍历结束后，`buildNodeLastPageMap()` 将任意子节点的最大页码向上冒泡到祖先（通过 `_origEl.parentElement` 链）。这为容器元素提供其触及的最后页码，用于正确设置 `isLastSpill`。
 
-## Rules for Modifying Pagination
+## 修改分页的规则
 
-1. **All page-break conditions** live in `needsNewPage()`. Do not add conditions elsewhere.
-2. **`accumulatedYpx`** is the running total of px consumed so far. It resets to `calcNextPageStart()` at each page break.
-3. **`calcNextPageStart()`** returns the new `accumulatedYpx` for the top of the next page, accounting for repeat-header height.
-4. Never mutate `allPlacements` after `streamPaginate()` returns — it is read-only input to the render loop.
-5. When adding a new page-break trigger, add it to `needsNewPage()` and document it here.
+1. **所有换页条件**都在 `needsNewPage()` 中。不要在其他地方添加条件。
+2. **`accumulatedYpx`** 是已消费内容的累计 px，在每次换页时重置为 `calcNextPageStart()` 的返回值。
+3. **`calcNextPageStart()`** 返回下一页顶部的新 `accumulatedYpx`，已计入重复表头高度。
+4. `streamPaginate()` 返回后禁止修改 `allPlacements` — 它是渲染循环的只读输入。
+5. 添加新的换页触发条件时，在 `needsNewPage()` 中添加，并在此文件记录。

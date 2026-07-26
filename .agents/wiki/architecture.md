@@ -1,89 +1,89 @@
-# Architecture — Full Module Interaction Diagram
+# 架构 — 完整模块交互图
 
-## High-Level Data Flow
+## 高层数据流
 
 ```
-User calls htmlpdf(element, options)
-          │
-          ▼
-┌─────────────────────────────────────────────────────────┐
-│  main.js  (12-step pipeline orchestrator)               │
-└─────┬───────────────────────────────────────────────────┘
+用户调用 htmlpdf(element, options)
+           │
+           ▼
+┌──────────────────────────────────────────────────────────┐
+│  main.js  （12步流水线编排器）                             │
+└─────┬────────────────────────────────────────────────────┘
       │
-      │  STEP 1: initContext(element, options)
-      ├──────────────────────────────────────────────────▶  context.js
-      │                                                      returns ctx { doc, scale, toMM, toPdfX... }
+      │  步骤 1：initContext(element, options)
+      ├─────────────────────────────────────────────────▶  context.js
+      │                                                    返回 ctx { doc, scale, toMM, toPdfX... }
       │
-      │  STEP 2: createClonedDocument(element, fonts)
-      ├──────────────────────────────────────────────────▶  document-cloner.js
-      │                  │                                   clones DOM → hidden iframe
-      │                  ├──────────────────────────────▶    font-loader.js  (injectFontsToDocument)
-      │                  └──────────────────────────────▶    wait.js  (waitForStyleSheets, waitForImages, waitForLayout)
-      │                  returns { iframe, cloneRoot }
+      │  步骤 2：createClonedDocument(element, fonts)
+      ├─────────────────────────────────────────────────▶  document-cloner.js
+      │                 │                                  克隆 DOM → 隐藏 iframe
+      │                 ├────────────────────────────────▶ font-loader.js（injectFontsToDocument）
+      │                 └────────────────────────────────▶ wait.js（waitForStyleSheets / waitForImages / waitForLayout）
+      │                 返回 { iframe, cloneRoot }
       │
-      │  STEP 3: collectNodes(element, cloneRoot)
-      ├──────────────────────────────────────────────────▶  node-parser.js
-      │                                                      returns nodes[] (flat, with coords/styles)
+      │  步骤 3：collectNodes(element, cloneRoot)
+      ├─────────────────────────────────────────────────▶  node-parser.js
+      │                                                    返回 nodes[]（扁平数组，含坐标/样式）
       │
-      │  STEP 3b: preloadImages(nodes)
-      ├──────────────────────────────────────────────────▶  image-loader.js
-      │                                                      mutates nodes: adds ._srcCanvas / .bgSrc
+      │  步骤 3b：preloadImages(nodes)
+      ├─────────────────────────────────────────────────▶  image-loader.js
+      │                                                    就地写入 ._srcCanvas / .bgSrc
       │
-      │  STEP 4: destroyClonedDocument(iframe)
-      ├──────────────────────────────────────────────────▶  document-cloner.js
-      │                                                      *** iframe gone, no more DOM access ***
+      │  步骤 4：destroyClonedDocument(iframe)
+      ├─────────────────────────────────────────────────▶  document-cloner.js
+      │                                                    *** iframe 已销毁，禁止再访问 DOM ***
       │
-      │  STEP 5: loadFontsToJsPDF(ctx, fonts)
-      ├──────────────────────────────────────────────────▶  font-loader.js
-      │                                                      registers fonts into ctx.doc
+      │  步骤 5：loadFontsToJsPDF(ctx, fonts)
+      ├─────────────────────────────────────────────────▶  font-loader.js
+      │                                                    将字体注册到 ctx.doc
       │
-      │  STEP 6: createRepeatHeaderManager(nodes, tables)
-      ├──────────────────────────────────────────────────▶  repeat-header-manager.js
-      │                                                      returns repeatHeaderManager
+      │  步骤 6：createRepeatHeaderManager(nodes, tables)
+      ├─────────────────────────────────────────────────▶  repeat-header-manager.js
+      │                                                    返回 repeatHeaderManager
       │
-      │  STEP 6b: getPageBreakLinesMap(nodes, tables)
-      ├──────────────────────────────────────────────────▶  page-break-lines.js
-      │                                                      returns pageBreakBorderMap (WeakMap)
+      │  步骤 6b：getPageBreakLinesMap(nodes, tables)
+      ├─────────────────────────────────────────────────▶  page-break-lines.js
+      │                                                    返回 pageBreakBorderMap（WeakMap）
       │
-      │  STEP 7: streamPaginate({ nodes, ctx, repeatHeaderManager })
-      ├──────────────────────────────────────────────────▶  stream-pagination.js
-      │                  │                                   single-pass pagination
-      │                  └──────────────────────────────▶    repeat-header-manager.js
-      │                                                        (generateRepeatHeaderPlacements, shouldSkipOriginalHeader)
-      │                  returns { totalPages, allPlacements }
+      │  步骤 7：streamPaginate({ nodes, ctx, repeatHeaderManager })
+      ├─────────────────────────────────────────────────▶  stream-pagination.js
+      │                 │                                  单次遍历分页
+      │                 └────────────────────────────────▶ repeat-header-manager.js
+      │                                                      （generateRepeatHeaderPlacements / shouldSkipOriginalHeader）
+      │                 返回 { totalPages, allPlacements }
       │
-      │  STEP 8: collectPageBreakLines({ nodes, allPlacements, ctx, pageBreakBorderMap })
-      ├──────────────────────────────────────────────────▶  page-break-lines.js
-      │                                                      returns spillClosingLinesByPage (Map)
+      │  步骤 8：collectPageBreakLines({ nodes, allPlacements, ctx, pageBreakBorderMap })
+      ├─────────────────────────────────────────────────▶  page-break-lines.js
+      │                                                    返回 spillClosingLinesByPage（Map）
       │
-      │  STEP 9: renderNode loop (allPlacements)
-      ├──────────────────────────────────────────────────▶  render/node.js
-      │                  ├──────────────────────────────▶    render/background.js
-      │                  │         └────────────────────▶      render/gradient.js
-      │                  ├──────────────────────────────▶    render/border.js
-      │                  ├──────────────────────────────▶    render/image.js
-      │                  └──────────────────────────────▶    render/text.js
+      │  步骤 9：renderNode 循环（allPlacements）
+      ├─────────────────────────────────────────────────▶  render/node.js
+      │                 ├────────────────────────────────▶ render/background.js
+      │                 │         └──────────────────────▶   render/gradient.js
+      │                 ├────────────────────────────────▶ render/border.js
+      │                 ├────────────────────────────────▶ render/image.js
+      │                 └────────────────────────────────▶ render/text.js
       │
-      │  STEP 10: drawSpillClosingLines (per page)
-      ├──────────────────────────────────────────────────▶  render/border.js
+      │  步骤 10：drawSpillClosingLines（按页）
+      ├─────────────────────────────────────────────────▶  render/border.js
       │
-      │  STEP 11: renderHeaderFooter(doc, { totalPages, ctx, header, footer })
-      ├──────────────────────────────────────────────────▶  core/page.js
-      │                                                      calls header.render / footer.render callbacks
+      │  步骤 11：renderHeaderFooter(doc, { totalPages, ctx, header, footer })
+      ├─────────────────────────────────────────────────▶  core/page.js
+      │                                                    调用 header.render / footer.render 回调
       │
-      │  STEP 12: ctx.output(output)
-      └──────────────────────────────────────────────────▶  context.js
-                                                             returns Blob | DataURL | ArrayBuffer
+      │  步骤 12：ctx.output(output)
+      └─────────────────────────────────────────────────▶  context.js
+                                                           返回 Blob | DataURL | ArrayBuffer
 ```
 
-## Module Dependency Graph
+## 模块依赖图
 
 ```
 main.js
-├── core/context.js          (no internal deps)
+├── core/context.js           （无内部依赖）
 ├── core/document-cloner.js
-│   ├── core/font-loader.js  (no internal deps)
-│   ├── core/wait.js         (no internal deps)
+│   ├── core/font-loader.js   （无内部依赖）
+│   ├── core/wait.js          （无内部依赖）
 │   └── utils/index.js
 ├── core/node-parser.js
 │   └── utils/index.js
@@ -97,7 +97,7 @@ main.js
 │   └── utils/index.js
 ├── core/stream-pagination.js
 │   └── core/repeat-header-manager.js
-├── core/page.js             (no internal deps)
+├── core/page.js              （无内部依赖）
 ├── render/node.js
 │   ├── render/background.js
 │   │   ├── render/gradient.js
@@ -107,43 +107,49 @@ main.js
 │   │   └── utils/index.js
 │   ├── render/image.js
 │   │   └── utils/index.js
-│   └── render/text.js       (no internal deps on render files)
-└── utils/index.js           (no internal deps)
+│   └── render/text.js        （无 render 层内部依赖）
+└── utils/index.js            （无内部依赖）
 ```
 
-## Node Object Shape
+## 节点对象结构
 
-Nodes produced by `node-parser.js` have this shape (abridged):
+`node-parser.js` 产生三种节点类型：
 
 ```js
+// 元素节点
 {
-  type: 'element' | 'text' | 'pseudo',
+  type: 'element' | 'pseudo-element',
+  pseudoType: 'before' | 'after' | undefined,  // 仅 pseudo-element 有
   tag: 'DIV' | 'P' | 'IMG' | ...,
-  x: number,              // px, relative to root element
-  y: number,              // px, relative to root element
+  x: number,              // px，相对于根元素左上角
+  y: number,              // px，相对于根元素左上角
   width: number,          // px
   height: number,         // px
-  style: CSSStyleDeclaration,   // computed styles from cloned DOM
+  rowSpanChildMaxHeight: number,  // 仅 TR：含 rowspan>1 子 TD 的最大高度
+  rowSpan: number,        // 仅 TD/TH：缓存的 rowSpan 属性值
   pageBreak: 'avoid' | 'before' | null,
-  pdfFont: string | null, // from data-pdf-font attribute
-  _el: Element,           // reference to original DOM element
-  _origEl: Element,       // same as _el for non-clones
+  _el: Element | null,    // IMG → 克隆元素；CANVAS → 原始元素；其他 → null
+  _origEl: Element | null, // 原始 DOM 元素引用（供 contains/matchesSelector 使用）
+  style: { backgroundColor, backgroundImage, ..., borderTopWidth, ... },
+}
 
-  // text nodes only:
-  text: string,
-  lineIndex: number,
-
-  // image nodes only (set by image-loader.js):
-  _srcCanvas: HTMLCanvasElement,
-
-  // background-image nodes (set by image-loader.js):
-  bgSrc: string,          // base64 data URL
-  bgNaturalWidth: number,
-  bgNaturalHeight: number,
+// 文本节点
+{
+  type: 'text',
+  tag: '#text',
+  text: string,           // 规范化后的单行文本内容
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  style: { color, fontSize, fontFamily, fontWeight, fontStyle,
+           textAlign, lineHeight, textDecoration, direction },
+  pdfFont: string | null, // 父元素的 data-pdf-font 属性值
+  _origEl: Element | null, // 原始树中的父元素（伪元素文本为 null）
 }
 ```
 
-## Context Object Shape (`ctx`)
+## Context 对象结构（`ctx`）
 
 ```js
 {
@@ -156,14 +162,37 @@ Nodes produced by `node-parser.js` have this shape (abridged):
   pageHeight: number,          // mm
   contentWidth: number,        // mm
   contentHeight: number,       // mm
-  contentHeightPx: number,     // px (contentHeight / scale)
+  contentHeightPx: number,     // px（= contentHeight / scale）
 
-  // coordinate helpers:
-  toMM(px): number,            // px → mm (scale only, no offset)
-  toPdfX(x): number,           // px x → mm X on PDF page (includes left margin)
-  toPdfY(y): number,           // px y → mm Y on PDF page (includes top margin + headerHeight)
-  toPdfYmm(ymm): number,       // mm y → mm Y on PDF page (skips scale)
-  toPt(px): number,            // px → pt (for font sizes)
-  output(format): any,         // wraps doc.output()
+  // 坐标转换辅助函数：
+  toMM(px): number,            // px → mm（仅缩放，无偏移）
+  toPdfX(x): number,           // px x → PDF 页面绝对 X（含左边距）
+  toPdfY(y): number,           // px y → PDF 页面绝对 Y（含上边距 + headerHeight）
+  toPdfYmm(ymm): number,       // mm y → PDF 页面绝对 Y（跳过缩放）
+  toPt(px): number,            // px → pt（用于字号）
+  output(format): any,         // 封装 doc.output()
 }
 ```
+
+## Placement 对象结构
+
+`streamPaginate()` 返回的 `allPlacements` 数组中每个元素的结构：
+
+```js
+{
+  page: number,              // 目标页码（1-indexed）
+  node: Object,              // 指向 nodes 数组中某节点的引用
+  offsetYpx: number,         // 当前页内容区起始全局 y（px）
+  type: 'normal' | 'spill' | 'repeat-header' | 'repeat-header-child',
+  isLastSpill: boolean,      // 是否是该节点最后一个 spill placement
+  dfsIndex: number,          // 原始 DFS 顺序索引，用于排序 tiebreaker
+  clipTopPx: number,         // repeat-header 区域高度（px），spill 时不覆盖表头
+  pageActualBottomPx: number | null, // 本页实际内容底部（全局 px）
+}
+```
+
+**排序规则**（`comparePlacements`）：
+
+1. 页码升序
+2. 同页内按 `placementOrder`：spill 容器（0）→ repeat-header（1）→ normal（2）→ rowspan TD spill（3）
+3. 同 `placementOrder` 内按 `dfsIndex`（DFS 前序天然保证正确渲染顺序）

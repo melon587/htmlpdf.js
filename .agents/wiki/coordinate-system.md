@@ -1,123 +1,125 @@
-# Coordinate System
+# 坐标系统
 
-## Three Coordinate Spaces
+## 三个坐标空间
 
-The library works with three different unit spaces. Never mix them.
+本库使用三种单位空间，绝对不能混用。
 
-| Space | Unit | Used in |
-| --- | --- | --- |
-| **DOM/px** | pixels | Node coordinates, computed styles, image sizes |
-| **PDF/mm** | millimetres | jsPDF API calls (`doc.rect`, `doc.line`, `doc.text`, etc.) |
-| **PDF/pt** | points | Font sizes only (`doc.setFontSize`) |
+| 空间       | 单位 | 使用场景                                                |
+| ---------- | ---- | ------------------------------------------------------- |
+| **DOM/px** | 像素 | 节点坐标、计算样式、图片尺寸                            |
+| **PDF/mm** | 毫米 | jsPDF API 调用（`doc.rect`、`doc.line`、`doc.text` 等） |
+| **PDF/pt** | 点   | 仅用于字号（`doc.setFontSize`）                         |
 
-## Pixel Space
+## 像素空间
 
-- All node coordinates (`node.x`, `node.y`, `node.width`, `node.height`) are in **px**.
-- These are measured from `rootElement.getBoundingClientRect()` during `collectNodes()`.
-- `contentHeightPx = contentHeight(mm) / scale` — the page height in px units.
-- `accumulatedYpx` in the paginator is a running px counter of how far down the content we've gone.
+- 所有节点坐标（`node.x`、`node.y`、`node.width`、`node.height`）均为 **px**。
+- 坐标在 `collectNodes()` 期间通过 `rootElement.getBoundingClientRect()` 测量，原点为根元素左上角。
+- `contentHeightPx = contentHeight(mm) / scale` — 单页内容区高度（px 单位）。
+- 分页器中的 `accumulatedYpx` 是已消费内容的累计 px 计数器（全局 Y 游标）。
 
-## Scale Factor
+## 缩放因子
 
 ```
 scale = contentWidth(mm) / rootElement.width(px)
 ```
 
-The scale factor maps px distances to mm distances on the PDF page.  
-It is computed once in `initContext()` and stored on `ctx.scale`.
+缩放因子将 px 距离映射为 PDF 页面上的 mm 距离。  
+在 `initContext()` 中计算一次，存储在 `ctx.scale`。
 
-## `ctx` Coordinate Helpers
+## `ctx` 坐标转换辅助函数
 
-All conversions go through these helpers — never do raw arithmetic:
+所有单位转换必须通过这些辅助函数完成，禁止直接做原始算术：
 
 ```js
 ctx.toMM(px);
-// Converts a distance in px to mm.
-// Use for widths, heights, offsets.
+// 将距离从 px 转换为 mm。
+// 用于宽度、高度、偏移量。
 // = px * scale
 
 ctx.toPdfX(x);
-// Converts a node's left-edge x (px, relative to root) to absolute PDF X (mm).
+// 将节点左边缘 x（px，相对于根元素）转换为 PDF 绝对 X（mm）。
 // = margin + x * scale
 
 ctx.toPdfY(y);
-// Converts a node's top-edge y (px, relative to root) to absolute PDF Y (mm),
-// adjusted for margin and header height.
-// BUT in the render loop, y must be further adjusted for offsetYpx:
+// 将节点顶边缘 y（px，相对于根元素）转换为 PDF 绝对 Y（mm），
+// 已计入边距和页眉高度。
+// 但在渲染循环中，y 必须先减去 offsetYpx：
 //   effective_y_px = node.y - offsetYpx
 //   pdfY = ctx.toPdfY(effective_y_px)
 // = margin + headerHeight + y * scale
 
 ctx.toPdfYmm(ymm);
-// Same as toPdfY but takes mm input (skips scale).
-// Used when you already have a mm value but need to add margin+header.
+// 与 toPdfY 相同，但接收 mm 输入（跳过缩放）。
+// 用于已有 mm 值但需要加上 margin+header 的场景。
 // = margin + headerHeight + ymm
 
 ctx.toPt(px);
-// Converts px to points for font size.
+// 将 px 转换为点（pt），用于字号。
 // = px * scale * 2.8346
 ```
 
-## `offsetYpx` in the Render Loop
+## 渲染循环中的 `offsetYpx`
 
-Each placement carries an `offsetYpx`:
+每个 placement 携带一个 `offsetYpx`：
 
-- For non-spill placements (single-page elements): `offsetYpx = 0`
-- For spill placements on page N: `offsetYpx = (N-1) * contentHeightPx` (negative values shift the element upward so the correct slice is visible)
+- normal placement（单页元素）：`offsetYpx = pageContentTopPx`（当前页内容区全局起始 y）
+- spill placement 在第 N 页：`offsetYpx = pageStartOffsets[N].pageContentTopPx`
 
-Inside render functions, the effective node-top in px is:
+在渲染函数内部，节点顶部的有效 px 坐标为：
 
 ```
 effectiveTopPx = node.y - offsetYpx
 ```
 
-And the PDF Y coordinate is:
+对应的 PDF Y 坐标为：
 
 ```
 pdfY = ctx.toPdfY(effectiveTopPx)
      = margin + headerHeight + effectiveTopPx * scale
 ```
 
-## `clipBottom` — The Page Clip Boundary
+## `clipBottom` — 页面裁剪边界
 
 ```
 clipBottom (mm) = ctx.toMM(pageActualBottomPx - offsetYpx)
 ```
 
-`clipBottom` is the maximum visible Y coordinate (mm, relative to the node's top-left corner) on the current page. All render functions clip their output to `[0 … clipBottom]`.
+`clipBottom` 是当前页可见的最大 Y 坐标（mm，相对于节点左上角）。所有渲染函数必须将输出裁剪到 `[0 … clipBottom]`。
 
-For the **last spill page** (`isLastSpill = true`), `clipBottom` equals the actual node bottom.  
-For **middle spill pages** (`isLastSpill = false`), `clipBottom` equals the full page height.
+`clipTop` 在有 repeat-header 时等于表头高度（mm），确保 spill 背景不覆盖重复表头区域。
 
-## Margin & Header Space
+- **最后一个 spill 页**（`isLastSpill = true`）：`clipBottom` 等于节点实际底部。
+- **中间 spill 页**（`isLastSpill = false`）：`clipBottom` 等于整页高度。
 
-The PDF page has this vertical layout:
+## 边距与页眉空间
+
+PDF 页面的垂直布局如下：
 
 ```
 ┌─────────────────────────────┐  ← y = 0
-│  margin (mm)                │
+│  margin（mm）                │
 ├─────────────────────────────┤  ← y = margin
-│  header area (headerHeight) │
+│  页眉区域（headerHeight）    │
 ├─────────────────────────────┤  ← y = margin + headerHeight
 │                             │
-│  content area               │  ← node coordinates map here
-│  (contentHeight mm)         │
+│  内容区                      │  ← 节点坐标映射到此区域
+│  （contentHeight mm）        │
 │                             │
 ├─────────────────────────────┤  ← y = margin + headerHeight + contentHeight
-│  footer area (footerHeight) │
+│  页脚区域（footerHeight）    │
 ├─────────────────────────────┤
-│  margin (mm)                │
+│  margin（mm）                │
 └─────────────────────────────┘  ← y = pageHeight
 ```
 
-`toPdfY()` always adds `margin + headerHeight` to ensure nodes land in the content area.
+`toPdfY()` 始终加上 `margin + headerHeight`，确保节点落在内容区内。
 
-## Common Mistakes
+## 常见错误
 
-| Mistake | Correct approach |
+| 错误 | 正确做法 |
 | --- | --- |
-| Passing a raw px value to `doc.rect()` | `ctx.toPdfX(node.x), ctx.toPdfY(node.y)` |
-| Passing a raw mm value to `doc.setFontSize()` | `ctx.toPt(node.style.fontSize)` |
-| Manually adding margin to coordinates | Use `toPdfX` / `toPdfY` — they already include margin |
-| Forgetting `offsetYpx` when computing Y | `effectiveTopPx = node.y - offsetYpx` always |
-| Using `toPdfY` for a width or height | Use `toMM` for distances, `toPdfX/Y` for positions |
+| 将原始 px 值传给 `doc.rect()` | 使用 `ctx.toPdfX(node.x), ctx.toPdfY(node.y)` |
+| 将原始 mm 值传给 `doc.setFontSize()` | 使用 `ctx.toPt(node.style.fontSize)` |
+| 手动将 margin 加到坐标上 | 使用 `toPdfX` / `toPdfY`，它们已包含 margin |
+| 计算 Y 坐标时忘记减去 `offsetYpx` | 始终使用 `effectiveTopPx = node.y - offsetYpx` |
+| 对宽度/高度使用 `toPdfY` | 距离用 `toMM`，位置用 `toPdfX/Y` |

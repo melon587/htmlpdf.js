@@ -1,116 +1,116 @@
-# Font System — Deep Dive
+# 字体系统 — 深入解析
 
-## Overview
+## 概述
 
-The font system handles two separate concerns:
+字体系统处理两个独立的关注点：
 
-1. **Layout fidelity** — ensuring the cloned iframe uses the correct fonts so that text measurements (character widths, line heights) match what will appear in the PDF.
-2. **PDF embedding** — registering fonts into jsPDF so they are embedded in the output file.
+1. **布局保真** — 确保克隆 iframe 使用正确的字体，使文本测量结果（字符宽度、行高）与 PDF 输出一致。
+2. **PDF 嵌入** — 将字体注册到 jsPDF，使其嵌入输出文件。
 
-Both concerns are handled by `src/core/font-loader.js`, executed at different pipeline steps.
+两个关注点均由 `src/core/font-loader.js` 处理，在流水线的不同步骤执行。
 
-## Font Config Reference
+## 字体配置参考
 
 ```js
 options.fonts = [
   {
-    family: 'NotoSansSC', // required — CSS font-family name
-    src: 'https://cdn/.../NotoSansSC-Regular.ttf', // required (or use data)
-    data: '<base64 string>', // alternative to src
-    style: 'normal', // optional: 'normal' | 'italic'
-    weight: '400', // optional: '400' | '700' | 'bold' etc.
+    family: 'NotoSansSC', // 必填 — CSS font-family 名称
+    src: 'https://cdn/.../NotoSansSC-Regular.ttf', // 必填（或使用 data）
+    data: '<base64 字符串>', // 替代 src 的内联 base64 数据
+    style: 'normal', // 可选：'normal' | 'italic'
+    weight: '400', // 可选：'400' | '700' | 'bold' 等
     charRanges: [
-      // optional: unicode codepoint pairs
-      [0x4e00, 0x9fff], // CJK Unified Ideographs
-      [0x3040, 0x309f], // Hiragana
+      // 可选：Unicode 码点范围对
+      [0x4e00, 0x9fff], // CJK 统一表意文字
+      [0x3040, 0x309f], // 平假名
     ],
   },
 ];
 ```
 
-Fields that do **NOT** exist and must not be added:
+**不存在且不得添加的字段：**
 
-- `priority` — no such field. Selection order is determined by array position.
-- `fallback` — no such field.
+- `priority` — 不存在。选择顺序由数组位置决定。
+- `fallback` — 不存在。
 
-## Phase 1: Injecting Fonts into the iframe (`injectFontsToDocument`)
+## 阶段一：向 iframe 注入字体（`injectFontsToDocument`）
 
-Called inside `createClonedDocument()` **before** layout is measured.
+在 `createClonedDocument()` 内部、**布局测量之前**调用。
 
-For each font config:
+对每个字体配置：
 
-1. `getFontBase64(config)` — returns base64 either from `config.data` or by fetching `config.src`.
-2. `buildFontFaceRule(config, base64)` in `utils/index.js` constructs a `@font-face` CSS rule including the `unicode-range` descriptor (from `buildUnicodeRange(charRanges)`).
-3. A `<style>` element containing all `@font-face` rules is injected into the iframe's `<head>`.
+1. `getFontBase64(config)` — 从 `config.data` 或通过 fetch `config.src` 获取 base64。
+2. `buildFontFaceRule(config, base64)`（`utils/index.js`）— 构造包含 `unicode-range` 描述符的 `@font-face` CSS 规则（通过 `buildUnicodeRange(charRanges)` 生成）。
+3. 将包含所有 `@font-face` 规则的 `<style>` 元素注入 iframe 的 `<head>`。
 
-After injection, the browser applies the fonts to the cloned DOM, so `getBoundingClientRect()` and range measurements in `node-parser.js` reflect the real font metrics.
+注入后，浏览器将字体应用到克隆 DOM，使 `node-parser.js` 中的 `getBoundingClientRect()` 和 Range 测量反映真实字体度量。
 
-## Phase 2: Loading Fonts into jsPDF (`loadFontsToJsPDF`)
+## 阶段二：向 jsPDF 加载字体（`loadFontsToJsPDF`）
 
-Called after the iframe is destroyed (step 5).
+在 iframe 销毁后（步骤 5）调用。
 
-For each font config:
+对每个字体配置：
 
-1. `getFontBase64(config)` — fetches or retrieves from `fontCache`.
-2. `doc.addFileToVFS(filename, base64)` — registers the font file in jsPDF's virtual file system.
-3. `doc.addFont(filename, family, style)` — makes jsPDF aware of the font for use with `setFont`.
+1. `getFontBase64(config)` — 从 `fontCache` 获取或重新 fetch。
+2. `doc.addFileToVFS(filename, base64)` — 在 jsPDF 的虚拟文件系统中注册字体文件。
+3. `doc.addFont(filename, family, style)` — 使 jsPDF 可通过 `setFont` 使用该字体。
 
-The `fontCache` Map in `font-loader.js` ensures each URL is fetched only once across both phases.
+`font-loader.js` 中的 `fontCache` Map 确保每个 URL 在两个阶段中只 fetch 一次。
 
-## Font Selection at Render Time
+## 渲染时的字体选择
 
-`drawText()` in `src/render/text.js` selects the font per character segment.
+`src/render/text.js` 中的 `drawText()` 按字符分段选择字体。
 
-### Step 1: `buildEffectiveFontConfig(node, sortedFontConfig)`
+### 步骤一：`buildEffectiveFontConfig(node, sortedFontConfig)`
 
-Builds an ordered list of font configs to try for this node.
+为当前节点构建有序的候选字体配置列表。
 
-- If `node.pdfFont` is set (from `data-pdf-font` attribute), only fonts whose `family` appears in that space-separated list are included (in order they appear in `options.fonts`).
-- Otherwise, all fonts from `options.fonts` are candidates.
+- 若 `node.pdfFont` 已设置（来自 `data-pdf-font` 属性），只有 `family` 出现在该空格分隔列表中的字体会被纳入（按其在 `options.fonts` 中的顺序）。
+- 否则，`options.fonts` 中的所有字体均为候选。
 
-### Step 2: `segmentTextByFont(text, effectiveFontConfig)`
+### 步骤二：`segmentTextByFont(text, effectiveFontConfig)`
 
-Splits the text string into segments, where each segment uses a single font.
+将文本字符串拆分为多个分段，每段使用单一字体。
 
-For each character:
+对每个字符：
 
-1. Get the Unicode codepoint.
-2. Call `findFontForChar(code, effectiveFontConfig)`:
-   - Iterates the effective config list.
-   - If a config has `charRanges`, checks whether the codepoint falls in any range.
-   - If a config has no `charRanges`, it matches any character.
-   - Returns the first matching config.
-3. If no config matches → use Helvetica (jsPDF built-in).
-4. Group consecutive characters that use the same font into one segment.
+1. 获取 Unicode 码点。
+2. 调用 `findFontForChar(code, effectiveFontConfig)`：
+   - 遍历有效配置列表。
+   - 若配置有 `charRanges`，检查码点是否落在任意范围内。
+   - 若配置无 `charRanges`，则匹配任意字符。
+   - 返回第一个匹配的配置。
+3. 若无配置匹配 → 使用 Helvetica（jsPDF 内置）。
+4. 将使用相同字体的连续字符合并为一个分段。
 
-### Step 3: `measureSegmentWidths(segments, fontStyle, ctx)`
+### 步骤三：`measureSegmentWidths(segments, fontStyle, ctx)`
 
-Temporarily sets each segment's font and calls `doc.getTextWidth()` to measure it. This is used for alignment calculations.
+临时设置每个分段的字体，调用 `doc.getTextWidth()` 测量宽度，用于对齐计算。
 
-### Step 4: `drawMultiSegmentAligned()`
+### 步骤四：`drawMultiSegmentAligned()`
 
-Renders each segment at the correct X position, accounting for overall text alignment (left / center / right) and RTL direction.
+在正确的 X 位置渲染每个分段，考虑整体文本对齐（左/居中/右）和 RTL 方向。
 
-## `data-pdf-font` Attribute
+## `data-pdf-font` 属性
 
-HTML elements can request specific fonts via this attribute:
+HTML 元素可通过此属性指定首选字体：
 
 ```html
-<!-- Force NotoSansSC for this element -->
+<!-- 为该元素强制使用 NotoSansSC -->
 <p data-pdf-font="NotoSansSC">中文内容</p>
 
-<!-- Prefer NotoSansSC, then Roboto for this element -->
+<!-- 为该元素优先使用 NotoSansSC，其次使用 Roboto -->
 <span data-pdf-font="NotoSansSC Roboto">混合内容 mixed</span>
 ```
 
-During DOM enhancement in `document-cloner.js`:
+在 `document-cloner.js` 的 DOM 增强阶段：
 
-- `propagatePdfFontToElement()` walks the DOM tree and copies the attribute from parents to children that don't have their own `data-pdf-font` declaration.
-- `getPdfFont()` in `utils/index.js` reads the attribute, walking up ancestors if needed.
+- `propagatePdfFontToElement()` 遍历 DOM 树，将属性从父元素复制到没有自己声明的子元素。
+- `node-parser.js` 在解析文本节点时读取父元素的 `pdf-font` 属性，存入 `node.pdfFont`。
 
-## `charRanges` and CSS `unicode-range`
+## `charRanges` 与 CSS `unicode-range`
 
-### In JS font config
+### JS 字体配置中的写法
 
 ```js
 charRanges: [
@@ -119,43 +119,43 @@ charRanges: [
 ];
 ```
 
-### Converted to CSS by `buildUnicodeRange()`
+### 通过 `buildUnicodeRange()` 转换为 CSS
 
 ```css
 unicode-range: U+4E00-9FFF, U+3400-4DBF;
 ```
 
-This CSS is included in the `@font-face` rule injected into the iframe, so the browser applies the font to matching characters during layout.
+此 CSS 包含在注入 iframe 的 `@font-face` 规则中，使浏览器在布局时将字体应用到匹配字符。
 
-At render time, the same `charRanges` are used by `findFontForChar()` to select the correct font for each character in jsPDF.
+渲染时，同样的 `charRanges` 被 `findFontForChar()` 用于在 jsPDF 中为每个字符选择正确字体。
 
-## Font Style / Weight Mapping
+## 字体样式 / 字重映射
 
-| CSS `font-style`    | CSS `font-weight` | jsPDF style string |
-| ------------------- | ----------------- | ------------------ |
-| `normal`            | `400`, `normal`   | `'normal'`         |
-| `normal`            | `700`, `bold`     | `'bold'`           |
-| `italic`, `oblique` | `400`, `normal`   | `'italic'`         |
-| `italic`, `oblique` | `700`, `bold`     | `'bolditalic'`     |
+| CSS `font-style`    | CSS `font-weight` | jsPDF 样式字符串 |
+| ------------------- | ----------------- | ---------------- |
+| `normal`            | `400`、`normal`   | `'normal'`       |
+| `normal`            | `700`、`bold`     | `'bold'`         |
+| `italic`、`oblique` | `400`、`normal`   | `'italic'`       |
+| `italic`、`oblique` | `700`、`bold`     | `'bolditalic'`   |
 
-`getCombinedFontStyle(fontStyle, fontWeight)` in `text.js` handles this mapping.
+`text.js` 中的 `getCombinedFontStyle(fontStyle, fontWeight)` 处理此映射。
 
-For a font to support bold/italic variants, separate font config entries with the corresponding `style` and `weight` values must be present in `options.fonts`.
+若要支持粗体/斜体变体，必须在 `options.fonts` 中添加对应 `style` 和 `weight` 的独立字体配置条目。
 
-## Fallback Chain
+## 回退链
 
-1. **`data-pdf-font` restricted set** — fonts whose family is listed in the attribute
-2. **Full `options.fonts` list** — all configured fonts, checked by `charRanges`
-3. **Helvetica** — jsPDF built-in, always available, covers basic Latin
+1. **`data-pdf-font` 限定集** — 属性列出的字体
+2. **完整 `options.fonts` 列表** — 所有已配置字体，按 `charRanges` 检查
+3. **Helvetica** — jsPDF 内置，始终可用，覆盖基本拉丁字符
 
-There is no `fonts[0]` fallback layer — if `charRanges` narrows all fonts out for a given character, the system falls directly to Helvetica.
+不存在 `fonts[0]` 回退层——若 `charRanges` 使所有字体对某字符不匹配，系统直接回退到 Helvetica。
 
-## Common Font Bugs and Causes
+## 常见字体问题及原因
 
-| Symptom | Likely cause |
+| 症状 | 可能原因 |
 | --- | --- |
-| Text shows as boxes / tofu | Font not registered in jsPDF (Phase 2 failed) |
-| Text correct in browser but wrong in PDF | Font not injected into iframe (Phase 1 failed) |
-| Wrong characters appear | `charRanges` overlapping across fonts |
-| Bold text not bold in PDF | Missing bold variant in `options.fonts` (same family, `weight: '700'`) |
-| `data-pdf-font` has no effect | Attribute not being propagated by `document-cloner.js` |
+| 文字显示为方块 / 豆腐块 | jsPDF 中未注册字体（阶段二失败） |
+| 浏览器显示正确但 PDF 不对 | iframe 中未注入字体（阶段一失败） |
+| 出现错误字符 | `charRanges` 在多个字体间重叠 |
+| PDF 中粗体文字不粗 | `options.fonts` 中缺少粗体变体（同 family，`weight: '700'`） |
+| `data-pdf-font` 无效 | `document-cloner.js` 未传播该属性 |
