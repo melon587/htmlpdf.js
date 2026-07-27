@@ -112,16 +112,12 @@ function drawBackground({
    * 调用方需自行 saveGraphicsState / restoreGraphicsState
    */
   function applyClip() {
-    if (useRadius) {
-      if (isFirstPage && isLastPage) {
-        addRoundedRectPath({ doc, x, y, w, h, r: radius });
-      } else if (isFirstPage) {
-        addFirstPagePath({ doc, x, y, w, segH: h, r: radius });
-      } else if (isLastPage) {
-        addLastPagePath({ doc, x, y, w, segH: h, r: radius });
-      } else {
-        doc.rect(x, y, w, h, null);
-      }
+    if (useRadius && isFirstPage && isLastPage) {
+      addRoundedRectPath({ doc, x, y, w, h, r: radius });
+    } else if (useRadius && isFirstPage) {
+      addFirstPagePath({ doc, x, y, w, segH: h, r: radius });
+    } else if (useRadius && isLastPage) {
+      addLastPagePath({ doc, x, y, w, segH: h, r: radius });
     } else {
       doc.rect(x, y, w, h, null);
     }
@@ -134,15 +130,10 @@ function drawBackground({
   const color = parseColor(style.backgroundColor);
   if (color) {
     doc.setFillColor(color[0], color[1], color[2]);
-
-    if (useRadius) {
-      doc.saveGraphicsState();
-      applyClip();
-      doc.rect(x, y, w, h, 'F');
-      doc.restoreGraphicsState();
-    } else {
-      doc.rect(x, y, w, h, 'F');
-    }
+    doc.saveGraphicsState();
+    applyClip();
+    doc.rect(x, y, w, h, 'F');
+    doc.restoreGraphicsState();
   }
 
   // 2. 渐变背景（linear-gradient）：解析 → 直接绘制当前页片段 canvas → addImage

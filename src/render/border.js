@@ -1,5 +1,5 @@
 import { parsePx, parseColor } from '../utils';
-import { parseRadius, hasRadius, addRoundedRectPath } from './radius';
+import { parseRadius, hasRadius, addRoundedRectPath, ARC_K } from './radius';
 
 /**
  * 解析 CSS border 简写字符串，例如 '1px solid #d9d9d9' 或 '1px solid rgb(200,200,200)'
@@ -23,9 +23,6 @@ function parseBorderString(borderStr) {
 
   return { bw, color };
 }
-
-// ARC_K 贝塞尔圆弧近似系数，与 radius.js 一致
-const ARC_K = (4 / 3) * (Math.SQRT2 - 1);
 
 /**
  * 描边 top 边：仅画顶部直线段，路径向内偏移 o（= lineWidth/2）
@@ -275,7 +272,6 @@ function drawBorder({
   const yBottom = toPdfYmm(drawBottom);
   const isFirstPage = nodeTop >= clipTop;
   const isLastPage = isLastSpill && nodeBottom <= clipBottom;
-  const leftRightBottom = isLastSpill ? yBottom : toPdfYmm(clipBottom);
 
   const sides = [
     {
@@ -325,6 +321,9 @@ function drawBorder({
     return;
   }
 
+  // 直角 fallback：逐边画线
+  const lrBottom = isLastSpill ? yBottom : toPdfYmm(clipBottom);
+
   for (const { bw, color, borderStyle, side } of sides) {
     if (!borderStyle || borderStyle === 'none' || borderStyle === 'hidden')
       continue;
@@ -345,9 +344,9 @@ function drawBorder({
     } else if (side === 'bottom') {
       if (isLastPage) doc.line(x, yBottom - o, x + w, yBottom - o);
     } else if (side === 'left') {
-      doc.line(x + o, yTop, x + o, leftRightBottom);
+      doc.line(x + o, yTop, x + o, lrBottom);
     } else {
-      doc.line(x + w - o, yTop, x + w - o, leftRightBottom);
+      doc.line(x + w - o, yTop, x + w - o, lrBottom);
     }
   }
 }

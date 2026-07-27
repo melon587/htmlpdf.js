@@ -4,7 +4,7 @@ import { parsePx } from '../utils';
  * 贝塞尔圆弧近似系数 K = 4/3*(√2-1) ≈ 0.5523
  * 用于将圆角 arc 近似为三次贝塞尔曲线
  */
-const ARC_K = (4 / 3) * (Math.SQRT2 - 1);
+export const ARC_K = (4 / 3) * (Math.SQRT2 - 1);
 
 /**
  * 解析四角圆角半径（px → mm），并 clamp 到 w/2, h/2
@@ -167,6 +167,5 @@ export function addLastPagePath({ doc, x, y, w, segH, r }) {
   arcBottomRight({ doc, x, y, w, h: segH, br });
   doc.lineTo(x + bl, y + segH);
   arcBottomLeft({ doc, x, y, h: segH, bl });
-  doc.lineTo(x, y);
   doc.close();
 }

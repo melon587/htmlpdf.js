@@ -42,10 +42,8 @@ function drawImage({ node, ctx, offsetYpx = 0 }) {
   if (visibleBottomPx <= visibleTopPx) return;
 
   // 可见区域对应原始图片的像素范围
-  const ratioTop =
-    imgHeightPx > 0 ? (visibleTopPx - globalNodeTopPx) / imgHeightPx : 0;
-  const ratioBottom =
-    imgHeightPx > 0 ? (visibleBottomPx - globalNodeTopPx) / imgHeightPx : 1;
+  const ratioTop = (visibleTopPx - globalNodeTopPx) / imgHeightPx;
+  const ratioBottom = (visibleBottomPx - globalNodeTopPx) / imgHeightPx;
 
   const srcY = Math.round(ratioTop * natH);
   const srcH = Math.round((ratioBottom - ratioTop) * natH);
