@@ -395,6 +395,19 @@ export function copyPseudoStyles(span, pseudoStyle) {
 }
 
 /**
+ * 将 canvas 元素转换为 data URL
+ * 有透明像素用 PNG 保留透明度，否则用 JPEG（0.92 质量，体积更小）
+ * @param {HTMLCanvasElement} canvasEl
+ * @param {boolean} hasAlpha - 是否含透明像素
+ * @returns {string} data URL
+ */
+export function canvasToDataUrl(canvasEl, hasAlpha) {
+  return hasAlpha
+    ? canvasEl.toDataURL('image/png')
+    : canvasEl.toDataURL('image/jpeg', 0.92);
+}
+
+/**
  * 将 output 选项映射为 jsPDF doc.output() 所需的类型字符串
  * @param {string} output - 用户传入的 output 选项（'blob' | 'dataurl' | 'arraybuffer'）
  * @returns {string} jsPDF output 类型（默认 'blob'）

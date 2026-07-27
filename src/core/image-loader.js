@@ -8,7 +8,7 @@
  * - background-image → loadImageAsBase64() → base64 + 原始尺寸
  */
 
-import { canvasHasAlpha, parseBgImageUrl } from '../utils';
+import { canvasHasAlpha, canvasToDataUrl, parseBgImageUrl } from '../utils';
 
 /**
  * 用 Image 加载 url → canvas → base64，同时记录原始尺寸
@@ -43,9 +43,7 @@ function loadImageAsBase64(url, timeout = 30000) {
       const hasAlpha = canvasHasAlpha(canvas);
 
       resolve({
-        src: hasAlpha
-          ? canvas.toDataURL('image/png')
-          : canvas.toDataURL('image/jpeg', 0.92),
+        src: canvasToDataUrl(canvas, hasAlpha),
         format: hasAlpha ? 'PNG' : 'JPEG',
         w: img.naturalWidth,
         h: img.naturalHeight,
@@ -107,9 +105,7 @@ export async function preloadImages(nodes) {
           canvas.getContext('2d').drawImage(imgEl, 0, 0);
           // 检测透明通道：有 alpha 像素用 PNG 保留透明度，否则用 JPEG 减小体积
           const hasAlpha = canvasHasAlpha(canvas);
-          e.src = hasAlpha
-            ? canvas.toDataURL('image/png')
-            : canvas.toDataURL('image/jpeg', 0.92);
+          e.src = canvasToDataUrl(canvas, hasAlpha);
           e.naturalWidth = natW;
           e.naturalHeight = natH;
           e._srcCanvas = canvas;

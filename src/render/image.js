@@ -1,3 +1,5 @@
+import { canvasToDataUrl } from '../utils';
+
 /**
  * 渲染图片节点到 PDF，支持跨页裁切
  * node._srcCanvas 为 preloadImages 阶段预绘的全图 canvas；
@@ -55,10 +57,7 @@ function drawImage({ node, ctx, offsetYpx = 0 }) {
     .getContext('2d')
     .drawImage(srcCanvas, 0, srcY, natW, srcH, 0, 0, natW, srcH);
 
-  const dataUrl =
-    format === 'PNG'
-      ? cropCanvas.toDataURL('image/png')
-      : cropCanvas.toDataURL('image/jpeg', 0.92);
+  const dataUrl = canvasToDataUrl(cropCanvas, format === 'PNG');
 
   try {
     doc.addImage(dataUrl, format, pdfX, pdfY, pdfW, pdfH);

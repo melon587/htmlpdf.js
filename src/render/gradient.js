@@ -1,7 +1,7 @@
 // gradient.js
 // linear-gradient CSS 解析 + Canvas 渲染工具
 
-import { canvasHasAlpha } from '../utils';
+import { canvasHasAlpha, canvasToDataUrl } from '../utils';
 
 // ─── linear-gradient 解析 ────────────────────────────────────────────────────
 
@@ -226,9 +226,7 @@ function renderGradientSlice({ gradient, natW, natH, srcY, srcH }) {
 
   const hasAlpha = canvasHasAlpha(canvas);
   const format = hasAlpha ? 'PNG' : 'JPEG';
-  const dataUrl = hasAlpha
-    ? canvas.toDataURL('image/png')
-    : canvas.toDataURL('image/jpeg', 0.92);
+  const dataUrl = canvasToDataUrl(canvas, hasAlpha);
 
   return { dataUrl, format };
 }
