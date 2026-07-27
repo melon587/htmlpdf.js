@@ -361,10 +361,34 @@ export function copyPseudoStyles(span, pseudoStyle) {
         : null,
 
     // 定位属性（如果是绝对/固定定位）
-    top: isPositioned ? pseudoStyle.top : null,
-    left: isPositioned ? pseudoStyle.left : null,
-    right: isPositioned ? pseudoStyle.right : null,
-    bottom: isPositioned ? pseudoStyle.bottom : null,
+    // getComputedStyle 对绝对定位元素会同时把 top/bottom/left/right 全部
+    // 解析为像素值（即使 CSS 只写了 bottom:8px，top 也被推算为非 auto 值）。
+    // CSS 规范：top 优先于 bottom，left 优先于 right（LTR）。
+    // 若四个方向都复制，推算值（top/left）会覆盖 CSS 原始意图（bottom/right）。
+    //
+    // 判断策略：值更小的方向 ≈ CSS 显式写的（贴近该边），另一方向为推算值，不复制。
+    // 例：top=83px bottom=8px → bottom 更小 → 只复制 bottom；
+    //     top=8px  bottom=53px → top 更小  → 只复制 top。
+    top:
+      isPositioned &&
+      parseFloat(pseudoStyle.top) <= parseFloat(pseudoStyle.bottom)
+        ? pseudoStyle.top
+        : null,
+    bottom:
+      isPositioned &&
+      parseFloat(pseudoStyle.bottom) < parseFloat(pseudoStyle.top)
+        ? pseudoStyle.bottom
+        : null,
+    left:
+      isPositioned &&
+      parseFloat(pseudoStyle.left) <= parseFloat(pseudoStyle.right)
+        ? pseudoStyle.left
+        : null,
+    right:
+      isPositioned &&
+      parseFloat(pseudoStyle.right) < parseFloat(pseudoStyle.left)
+        ? pseudoStyle.right
+        : null,
 
     // 注意：opacity 暂不支持（jsPDF 需要 GState，渲染层未实现）
     // TODO: 未来可通过 doc.setGState(new doc.GState({ opacity: ... })) 实现
