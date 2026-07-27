@@ -1,5 +1,12 @@
 import { parseColor, parseBgSizeVal, parseBgPosVal } from '../utils';
 import { parseLinearGradient, renderGradientSlice } from './gradient';
+import {
+  parseRadius,
+  hasRadius,
+  addRoundedRectPath,
+  addFirstPagePath,
+  addLastPagePath,
+} from './radius';
 
 // ─── 背景图尺寸/位置计算 ─────────────────────────────────────────────────────
 
@@ -90,11 +97,52 @@ function drawBackground({
   const w = toMM(node.width);
   const h = drawBottom - drawTop;
 
+  // 圆角：根据节点在本页所处位置决定用哪段路径
+  // isFirstPage：节点顶部在本页可见（本页是首页）
+  // isLastPage ：节点底部在本页可见（本页是末页）
+  const isFirstPage = nodeTop >= clipTop;
+  const isLastPage = isLastSpill && nodeBottom <= clipBottom;
+  // 完整节点高度（用于 parseRadius 的 clamp 基准）
+  const fullH = toMM(node.height);
+  const radius = parseRadius({ style, toMM, w, h: fullH });
+  const useRadius = hasRadius(radius);
+
+  /**
+   * 建立当前片段的剪切路径（圆角或直角，三段式）
+   * 调用方需自行 saveGraphicsState / restoreGraphicsState
+   */
+  function applyClip() {
+    if (useRadius) {
+      if (isFirstPage && isLastPage) {
+        addRoundedRectPath({ doc, x, y, w, h, r: radius });
+      } else if (isFirstPage) {
+        addFirstPagePath({ doc, x, y, w, segH: h, r: radius });
+      } else if (isLastPage) {
+        addLastPagePath({ doc, x, y, w, segH: h, r: radius });
+      } else {
+        doc.rect(x, y, w, h, null);
+      }
+    } else {
+      doc.rect(x, y, w, h, null);
+    }
+
+    doc.clip();
+    doc.discardPath();
+  }
+
   // 1. 先画背景色
   const color = parseColor(style.backgroundColor);
   if (color) {
     doc.setFillColor(color[0], color[1], color[2]);
-    doc.rect(x, y, w, h, 'F');
+
+    if (useRadius) {
+      doc.saveGraphicsState();
+      applyClip();
+      doc.rect(x, y, w, h, 'F');
+      doc.restoreGraphicsState();
+    } else {
+      doc.rect(x, y, w, h, 'F');
+    }
   }
 
   // 2. 渐变背景（linear-gradient）：解析 → 直接绘制当前页片段 canvas → addImage
@@ -119,9 +167,7 @@ function drawBackground({
       });
       try {
         doc.saveGraphicsState();
-        doc.rect(x, y, w, h, null);
-        doc.clip();
-        doc.discardPath();
+        applyClip();
         doc.addImage(dataUrl, format, x, y, w, h);
         doc.restoreGraphicsState();
       } catch (e) {
@@ -158,12 +204,8 @@ function drawBackground({
       const imgY = toPdfYmm(nodeTop + offY);
 
       try {
-        // 用裁剪区域限制背景图只在当前页可见范围内绘制
-        // style=null：只建路径不执行 stroke/fill，避免意外描边
         doc.saveGraphicsState();
-        doc.rect(x, y, w, h, null);
-        doc.clip();
-        doc.discardPath();
+        applyClip();
         doc.addImage(
           node.bgSrc,
           node.bgFormat || 'JPEG',

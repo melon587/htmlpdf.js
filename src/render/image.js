@@ -1,9 +1,12 @@
-import { canvasToDataUrl } from '../utils';
+import { canvasToDataUrl, parsePx } from '../utils';
 
 /**
  * 渲染图片节点到 PDF，支持跨页裁切
  * node._srcCanvas 为 preloadImages 阶段预绘的全图 canvas；
  * 内部通过加回 offsetYpx 还原全局坐标，裁出当前页可见片段写入 PDF。
+ *
+ * 图片只渲染在 padding-box（border-box 减去四边 border 宽度）内，
+ * 使 border 不被图片覆盖，与浏览器行为一致。
  *
  * @param {Object} node      - 图片节点（y 为页内相对坐标）
  * @param {Object} ctx       - 渲染上下文
@@ -18,34 +21,41 @@ function drawImage({ node, ctx, offsetYpx = 0 }) {
   const natH = node.naturalHeight;
   if (!natW || !natH) return;
 
-  // 还原全局坐标
-  const globalNodeTopPx = node.y + offsetYpx;
-  const globalNodeBottomPx = globalNodeTopPx + node.height;
+  // border 宽度（px），图片渲染区域向内缩进
+  const { style } = node;
+  const bTop = parsePx(style.borderTopWidth);
+  const bRight = parsePx(style.borderRightWidth);
+  const bBottom = parsePx(style.borderBottomWidth);
+  const bLeft = parsePx(style.borderLeftWidth);
+
+  // 图片内容区（padding-box）在全局坐标中的位置
+  const globalNodeTopPx = node.y + offsetYpx + bTop;
+  const globalNodeBottomPx = node.y + offsetYpx + node.height - bBottom;
+  const imgHeightPx = node.height - bTop - bBottom;
 
   const pageBottomGlobalPx = offsetYpx + contentHeightPx;
 
-  // 当前页内可见的全局 px 范围
+  // 当前页内可见的全局 px 范围（限定在 padding-box 内）
   const visibleTopPx = Math.max(globalNodeTopPx, offsetYpx);
   const visibleBottomPx = Math.min(globalNodeBottomPx, pageBottomGlobalPx);
 
   if (visibleBottomPx <= visibleTopPx) return;
 
   // 可见区域对应原始图片的像素范围
-  // 分母用 node.height（CSS 渲染高度）而非 natH（图片原始像素高度）：
-  // 此处计算的是"当前页可见区域占整个渲染区域的比例"，再映射到 natH，
-  // 与图片的渲染拉伸/压缩行为保持一致。
-  const ratioTop = (visibleTopPx - globalNodeTopPx) / node.height;
-  const ratioBottom = (visibleBottomPx - globalNodeTopPx) / node.height;
+  const ratioTop =
+    imgHeightPx > 0 ? (visibleTopPx - globalNodeTopPx) / imgHeightPx : 0;
+  const ratioBottom =
+    imgHeightPx > 0 ? (visibleBottomPx - globalNodeTopPx) / imgHeightPx : 1;
 
   const srcY = Math.round(ratioTop * natH);
   const srcH = Math.round((ratioBottom - ratioTop) * natH);
 
   if (srcH <= 0) return;
 
-  // PDF 目标坐标（可见区域在页面上的位置）
-  const pdfX = toPdfX(node.x);
+  // PDF 目标坐标（padding-box 可见区域，向内缩进 border）
+  const pdfX = toPdfX(node.x + bLeft);
   const pdfY = toPdfY(visibleTopPx - offsetYpx);
-  const pdfW = toMM(node.width);
+  const pdfW = toMM(node.width - bLeft - bRight);
   const pdfH = toMM(visibleBottomPx - visibleTopPx);
 
   // 从全图 canvas 裁出当前页可见片段（IMG→JPEG，CANVAS→PNG 保留透明通道）
