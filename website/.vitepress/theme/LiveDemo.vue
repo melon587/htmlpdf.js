@@ -1749,30 +1749,30 @@ async function onClick() {
           fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
           fontWeight: 400,
           fontStyle: 'normal',
-          charRanges: [
-            [0x0600, 0x06ff], // 阿拉伯语基本区
-            [0x0750, 0x077f], // 阿拉伯语补充区
-            [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
-            [0x0030, 0x0039], // ASCII 数字 0-9
-            [0x0025, 0x0025], // % 百分号
-            [0x003a, 0x003a], // : 冒号
-            [0x0020, 0x002f], // 空格及基本标点 !"#$%&'()*+,-./
-          ],
+          // charRanges: [
+          //   [0x0600, 0x06ff], // 阿拉伯语基本区
+          //   [0x0750, 0x077f], // 阿拉伯语补充区
+          //   [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
+          //   [0x0030, 0x0039], // ASCII 数字 0-9
+          //   [0x0025, 0x0025], // % 百分号
+          //   [0x003a, 0x003a], // : 冒号
+          //   [0x0020, 0x002f], // 空格及基本标点 !"#$%&'()*+,-./
+          // ],
         },
         {
           fontFamily: 'noto-sans-arabic',
           fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
           fontWeight: 700,
           fontStyle: 'normal',
-          charRanges: [
-            [0x0600, 0x06ff],
-            [0x0750, 0x077f],
-            [0x0660, 0x0669],
-            [0x0030, 0x0039],
-            [0x0025, 0x0025],
-            [0x003a, 0x003a],
-            [0x0020, 0x002f],
-          ],
+          // charRanges: [
+          //   [0x0600, 0x06ff],
+          //   [0x0750, 0x077f],
+          //   [0x0660, 0x0669],
+          //   [0x0030, 0x0039],
+          //   [0x0025, 0x0025],
+          //   [0x003a, 0x003a],
+          //   [0x0020, 0x002f],
+          // ],
         },
         {
           fontFamily: 'noto-sans-sc',
