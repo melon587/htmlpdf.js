@@ -45,6 +45,131 @@ import { isVisible, getPageBreak } from '../utils';
 
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
 
+/** 表格单元格标签集合 */
+const CELL_TAGS = new Set(['TD', 'TH']);
+
+/**
+ * 表格结构标签集合。
+ * 供外部（render 层等）统一判断一个节点是否属于表格结构，
+ * 避免各处散落 tag === 'TD' || tag === 'TH' 的重复条件。
+ */
+export const TABLE_TAGS = new Set([
+  'TABLE',
+  'THEAD',
+  'TBODY',
+  'TFOOT',
+  'TR',
+  'TD',
+  'TH',
+]);
+
+/**
+ * 检测 td/th 是否处于 border-collapse 表格中。
+ * 是则返回 table 元素，否则返回 null。
+ */
+function getCollapseTable(cellEl, win) {
+  const tableEl = cellEl.closest('table');
+  if (!tableEl) return null;
+
+  const tableStyle = win.getComputedStyle(tableEl);
+
+  return tableStyle.borderCollapse === 'collapse' ? tableEl : null;
+}
+
+/**
+ * 在 border-collapse 表格中，判断 td/th 是否非首行
+ * （非首行则 borderTop 与上一行 borderBottom 重叠，应抑制）。
+ */
+function shouldSuppressCellBorderTop(cellEl, win) {
+  if (!getCollapseTable(cellEl, win)) return false;
+
+  const tr = cellEl.closest('tr');
+  if (!tr) return false;
+
+  // tr 的父节点可能是 thead / tbody / tfoot / table
+  const trParent = tr.parentElement;
+  if (!trParent) return false;
+
+  const firstTr = [...trParent.children].find((c) => c.tagName === 'TR');
+
+  return tr !== firstTr;
+}
+
+/**
+ * 在 border-collapse 表格中，判断 td/th 是否非首列
+ * （非首列则 borderLeft 与左侧格子 borderRight 重叠，应抑制）。
+ */
+function shouldSuppressCellBorderLeft(cellEl, win) {
+  if (!getCollapseTable(cellEl, win)) return false;
+
+  const tr = cellEl.closest('tr');
+  if (!tr) return false;
+
+  const firstCell = [...tr.children].find((c) => CELL_TAGS.has(c.tagName));
+
+  return cellEl !== firstCell;
+}
+
+/**
+ * 针对 border-collapse 表格中的 td/th，计算需要覆盖的 border 值。
+ * 非 td/th、伪元素、或非 collapse 表格时返回 null（不覆盖）。
+ *
+ * @returns {{ top, left } | null}
+ *   top / left 各为 { width, color, style } 覆盖对象，或 null（不抑制）
+ */
+function resolveCellBorderOverrides(tag, isPseudo, measEl, win) {
+  if (!CELL_TAGS.has(tag) || isPseudo) return null;
+
+  const suppressTop = shouldSuppressCellBorderTop(measEl, win);
+  const suppressLeft = shouldSuppressCellBorderLeft(measEl, win);
+
+  if (!suppressTop && !suppressLeft) return null;
+
+  const zero = { width: '0px', color: 'transparent', style: 'none' };
+
+  return {
+    top: suppressTop ? zero : null,
+    left: suppressLeft ? zero : null,
+  };
+}
+
+/**
+ * 计算 TR 节点的 rowSpanChildMaxHeight：
+ * TR 内含 rowspan>1 的 TD/TH 时，取这些格子高度的最大值；
+ * 非 TR 或伪元素时返回 0。
+ */
+function calcRowSpanChildMaxHeight(tag, isPseudo, measEl) {
+  if (tag !== 'TR' || isPseudo) return 0;
+
+  const heights = [...measEl.children]
+    .filter((c) => CELL_TAGS.has(c.tagName) && (c.rowSpan || 1) > 1)
+    .map((c) => c.getBoundingClientRect().height);
+
+  return heights.length > 0 ? Math.max(0, ...heights) : 0;
+}
+
+/**
+ * 读取 TD/TH 的 rowSpan 属性并缓存，避免 iframe 销毁后依赖活 DOM 引用。
+ * 非 TD/TH 或伪元素时返回 1。
+ */
+function getCellRowSpan(tag, isPseudo, origEl) {
+  return CELL_TAGS.has(tag) && !isPseudo ? origEl?.rowSpan || 1 : 1;
+}
+
+/**
+ * 解析节点对应的媒体元素引用（_el）：
+ * - IMG  → 取克隆树的 measEl（含 src 预加载结果）
+ * - CANVAS → 取原始树的 origEl（克隆 canvas 像素为空）
+ * - 其他  → null
+ */
+function getMediaEl(origEl, measEl) {
+  if (origEl?.tagName === 'IMG') return measEl;
+
+  if (origEl?.tagName === 'CANVAS') return origEl;
+
+  return null;
+}
+
 /**
  * 解析元素节点，提取坐标、尺寸和样式
  * @param {Element|null} origEl - 原始 DOM 元素；伪元素传 null（原始 DOM 中不存在）
@@ -68,6 +193,25 @@ function parseElement(origEl, measEl, rootRect, win) {
   // origEl 对伪元素为 null（原始 DOM 中不存在对应节点），回退到 measEl.tagName
   const tag = origEl ? origEl.tagName : measEl.tagName;
 
+  // border-collapse 去重：非首行的 td/th 抑制 borderTop，
+  // 非首列的 td/th 抑制 borderLeft，避免相邻格子重叠画线。
+  const borderOverrides = resolveCellBorderOverrides(
+    tag,
+    isPseudo,
+    measEl,
+    win,
+  );
+  const bTop = borderOverrides?.top;
+  const bLeft = borderOverrides?.left;
+
+  const borderTopWidth = bTop ? bTop.width : style.borderTopWidth;
+  const borderTopColor = bTop ? bTop.color : style.borderTopColor;
+  const borderTopStyle = bTop ? bTop.style : style.borderTopStyle;
+
+  const borderLeftWidth = bLeft ? bLeft.width : style.borderLeftWidth;
+  const borderLeftColor = bLeft ? bLeft.color : style.borderLeftColor;
+  const borderLeftStyle = bLeft ? bLeft.style : style.borderLeftStyle;
+
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
     pseudoType: isPseudo ? measEl.getAttribute('data-pseudo') : undefined,
@@ -76,29 +220,10 @@ function parseElement(origEl, measEl, rootRect, win) {
     y,
     width: rect.width,
     height: rect.height,
-    rowSpanChildMaxHeight:
-      tag === 'TR' && !isPseudo
-        ? Math.max(
-            0,
-            ...[...measEl.children]
-              .filter(
-                (c) =>
-                  (c.tagName === 'TD' || c.tagName === 'TH') &&
-                  (c.rowSpan || 1) > 1,
-              )
-              .map((c) => c.getBoundingClientRect().height),
-          )
-        : 0,
-    // 缓存 TD/TH 的 rowSpan 属性值，避免 iframe 销毁后仍依赖活 DOM 引用
-    rowSpan:
-      (tag === 'TD' || tag === 'TH') && !isPseudo ? origEl?.rowSpan || 1 : 1,
+    rowSpanChildMaxHeight: calcRowSpanChildMaxHeight(tag, isPseudo, measEl),
+    rowSpan: getCellRowSpan(tag, isPseudo, origEl),
     pageBreak: origEl ? getPageBreak(origEl) : null,
-    _el:
-      origEl?.tagName === 'IMG'
-        ? measEl
-        : origEl?.tagName === 'CANVAS'
-          ? origEl
-          : null,
+    _el: getMediaEl(origEl, measEl),
     _origEl: origEl,
     style: {
       backgroundColor: style.backgroundColor,
@@ -114,18 +239,18 @@ function parseElement(origEl, measEl, rootRect, win) {
       textAlign: style.textAlign,
       lineHeight: style.lineHeight,
       textDecoration: style.textDecoration,
-      borderTopWidth: style.borderTopWidth,
+      borderTopWidth: borderTopWidth,
       borderRightWidth: style.borderRightWidth,
       borderBottomWidth: style.borderBottomWidth,
-      borderLeftWidth: style.borderLeftWidth,
-      borderTopColor: style.borderTopColor,
+      borderLeftWidth: borderLeftWidth,
+      borderTopColor: borderTopColor,
       borderRightColor: style.borderRightColor,
       borderBottomColor: style.borderBottomColor,
-      borderLeftColor: style.borderLeftColor,
-      borderTopStyle: style.borderTopStyle,
+      borderLeftColor: borderLeftColor,
+      borderTopStyle: borderTopStyle,
       borderRightStyle: style.borderRightStyle,
       borderBottomStyle: style.borderBottomStyle,
-      borderLeftStyle: style.borderLeftStyle,
+      borderLeftStyle: borderLeftStyle,
       borderTopLeftRadius: style.borderTopLeftRadius,
       borderTopRightRadius: style.borderTopRightRadius,
       borderBottomLeftRadius: style.borderBottomLeftRadius,
