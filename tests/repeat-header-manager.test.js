@@ -28,39 +28,42 @@ describe('createRepeatHeaderManager', () => {
     // 设置 contains 逻辑
     tableEl.contains = (el) => el === headerEl;
 
-    const nodes = [
-      { _origEl: tableEl, y: 0, height: 500 },
-      { _origEl: headerEl, y: 0, height: 50 },
-    ];
+    const headerNode = { _origEl: headerEl, y: 0, height: 50 };
+    const nodes = [{ _origEl: tableEl, y: 0, height: 500 }, headerNode];
 
     const tables = [{ selector: '#my-table', repeatHeader: '#header' }];
 
     const manager = createRepeatHeaderManager(nodes, tables);
 
     expect(manager).not.toBeNull();
-    expect(manager.headerMetas).toHaveLength(1);
     expect(manager.getHeaderMetaForNode).toBeDefined();
+    expect(manager.setMeta).toBeDefined();
+    // headerNode 在 table 范围内，应能查到 meta
+    expect(manager.getHeaderMetaForNode(headerNode)).not.toBeNull();
   });
 
-  it('找不到表格容器：打印警告，返回空 metas', () => {
+  it('找不到表格容器：打印警告，仍返回管理器（所有节点 meta 为 null）', () => {
     const nodes = [];
     const tables = [{ selector: '#non-existent', repeatHeader: '#header' }];
 
     const manager = createRepeatHeaderManager(nodes, tables);
 
     expect(manager).not.toBeNull();
-    expect(manager.headerMetas).toHaveLength(0);
+    // 无匹配容器，任意节点查询均返回 null
+    expect(manager.getHeaderMetaForNode({})).toBeNull();
   });
 
-  it('找不到表头：打印警告，跳过该表格', () => {
+  it('找不到表头：打印警告，跳过该表格（节点 meta 为 null）', () => {
     const tableEl = { tagName: 'TABLE', id: 'table', contains: () => false };
-    const nodes = [{ _origEl: tableEl, y: 0, height: 500 }];
+    const dataNode = { _origEl: {}, y: 100, height: 20 };
+    const nodes = [{ _origEl: tableEl, y: 0, height: 500 }, dataNode];
     const tables = [{ selector: '#table', repeatHeader: '#non-existent' }];
 
     const manager = createRepeatHeaderManager(nodes, tables);
 
     expect(manager).not.toBeNull();
-    expect(manager.headerMetas).toHaveLength(0);
+    // 未找到表头，节点不应被映射到任何 meta
+    expect(manager.getHeaderMetaForNode(dataNode)).toBeNull();
   });
 
   it('多个表格配置', () => {
@@ -80,11 +83,13 @@ describe('createRepeatHeaderManager', () => {
     table1El.contains = (el) => el === header1El;
     table2El.contains = (el) => el === header2El;
 
+    const header1Node = { _origEl: header1El, y: 0, height: 50 };
+    const header2Node = { _origEl: header2El, y: 600, height: 50 };
     const nodes = [
       { _origEl: table1El, y: 0, height: 500 },
-      { _origEl: header1El, y: 0, height: 50 },
+      header1Node,
       { _origEl: table2El, y: 600, height: 500 },
-      { _origEl: header2El, y: 600, height: 50 },
+      header2Node,
     ];
 
     const tables = [
@@ -94,7 +99,13 @@ describe('createRepeatHeaderManager', () => {
 
     const manager = createRepeatHeaderManager(nodes, tables);
 
-    expect(manager.headerMetas).toHaveLength(2);
+    // 两个表格各自的表头节点都应能查到各自的 meta
+    const meta1 = manager.getHeaderMetaForNode(header1Node);
+    const meta2 = manager.getHeaderMetaForNode(header2Node);
+    expect(meta1).not.toBeNull();
+    expect(meta2).not.toBeNull();
+    // 两个 meta 应独立（指向不同表格）
+    expect(meta1).not.toBe(meta2);
   });
 });
 
@@ -180,6 +191,7 @@ describe('generateRepeatHeaderPlacements', () => {
       offsetYpx: 1000,
       type: 'repeat-header',
       isLastSpill: true,
+      dfsIndex: -1, // childCount=0, so -(0+1) = -1
     });
   });
 
