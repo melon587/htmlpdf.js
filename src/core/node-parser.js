@@ -65,72 +65,46 @@ export const TABLE_TAGS = new Set([
 
 /**
  * 检测 td/th 是否处于 border-collapse 表格中。
- * 是则返回 table 元素，否则返回 null。
+ * 是则返回 true，否则返回 false。
  */
-function getCollapseTable(cellEl, win) {
+function isCollapseTable(cellEl, win) {
   const tableEl = cellEl.closest('table');
-  if (!tableEl) return null;
+  if (!tableEl) return false;
 
-  const tableStyle = win.getComputedStyle(tableEl);
-
-  return tableStyle.borderCollapse === 'collapse' ? tableEl : null;
+  return win.getComputedStyle(tableEl).borderCollapse === 'collapse';
 }
 
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非末行
- * （非末行则 borderBottom 与下一行 borderTop 重叠，应抑制 bottom，
- *  保留 top，使每行用自己的 borderTop 画分割线，跨页后不丢线）。
+ * 在 border-collapse 表格中，判断 td/th 是否非末行。
+ * 对于 rowspan>1 的单元格，视觉末行 = DOM 行索引 + rowSpan - 1。
  *
- * 对于 rowspan>1 的单元格，其视觉底边所在行号 = DOM 行索引 + rowSpan - 1。
- * 若该视觉末行 >= section 末行，则不抑制（单元格底边就是 section 的外框线）。
+ * 注意：以整张 table 的所有 tr 为范围（跨越 thead/tbody/tfoot），
+ * 确保 thead 末行与 tbody 首行之间的边框也能正确去重。
  */
-function shouldSuppressCellBorderBottom(cellEl, win) {
-  if (!getCollapseTable(cellEl, win)) return false;
-
+function isNonLastRow(cellEl) {
   const tr = cellEl.closest('tr');
   if (!tr) return false;
 
-  // tr 的父节点可能是 thead / tbody / tfoot / table
-  const trParent = tr.parentElement;
-  if (!trParent) return false;
+  const table = tr.closest('table');
+  if (!table) return false;
 
-  const trs = [...trParent.children].filter((c) => c.tagName === 'TR');
-  const trIndex = trs.indexOf(tr);
+  const allTrs = [...table.querySelectorAll('tr')];
+  const visualLastIndex = allTrs.indexOf(tr) + (cellEl.rowSpan || 1) - 1;
 
-  // rowspan 跨越的行数（DOM 属性，1 表示普通单元格）
-  const rowSpan = cellEl.rowSpan || 1;
-
-  // 视觉末行索引（0-based）
-  const visualLastIndex = trIndex + rowSpan - 1;
-
-  // 若视觉末行覆盖到 section 末行，保留 borderBottom（外框线）
-  return visualLastIndex < trs.length - 1;
+  return visualLastIndex < allTrs.length - 1;
 }
 
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非末列
- * （非末列则 borderRight 与右侧格子 borderLeft 重叠，应抑制 right，
- *  保留 left，使每列用自己的 borderLeft 画分割线）。
- *
- * 对于 colspan>1 的单元格，其视觉右边所在列索引 = DOM 列索引 + colSpan - 1。
- * 若该视觉末列 >= 行末列，则不抑制（单元格右边就是行的外框线）。
+ * 在 border-collapse 表格中，判断 td/th 是否非末列。
+ * 对于 colspan>1 的单元格，视觉末列 = DOM 列索引 + colSpan - 1。
  */
-function shouldSuppressCellBorderRight(cellEl, win) {
-  if (!getCollapseTable(cellEl, win)) return false;
-
+function isNonLastCol(cellEl) {
   const tr = cellEl.closest('tr');
   if (!tr) return false;
 
   const cells = [...tr.children].filter((c) => CELL_TAGS.has(c.tagName));
-  const cellIndex = cells.indexOf(cellEl);
+  const visualLastIndex = cells.indexOf(cellEl) + (cellEl.colSpan || 1) - 1;
 
-  // colspan 跨越的列数（DOM 属性，1 表示普通单元格）
-  const colSpan = cellEl.colSpan || 1;
-
-  // 视觉末列索引（0-based）
-  const visualLastIndex = cellIndex + colSpan - 1;
-
-  // 若视觉末列覆盖到行末列，保留 borderRight（外框线）
   return visualLastIndex < cells.length - 1;
 }
 
@@ -138,23 +112,39 @@ function shouldSuppressCellBorderRight(cellEl, win) {
  * 针对 border-collapse 表格中的 td/th，计算需要覆盖的 border 值。
  * 非 td/th、伪元素、或非 collapse 表格时返回 null（不覆盖）。
  *
- * 策略：抑制 borderBottom（非末行）和 borderRight（非末列），
- * 保留 borderTop 和 borderLeft。
- * 每个格子用自身的 borderTop/borderLeft 画分割线，
- * 跨页后第一行仍有 borderTop，不会丢失内边框。
+ * 智能检测策略：
+ *   横向（上下）：
+ *     - td 有 borderTop → 非末行时抑制 bottom，保留 top
+ *     - td 无 borderTop → 非末行时抑制 top（即不抑制 bottom），保留 bottom
+ *   纵向（左右）：
+ *     - td 有 borderLeft → 非末列时抑制 right，保留 left
+ *     - td 无 borderLeft → 非末列时抑制 left（即不抑制 right），保留 right
+ *
+ * 跨页安全：无论保留哪侧，每行/每列都只保留一侧，分割线不丢失。
  *
  * @returns {{ bottom, right } | null}
- *   bottom / right 各为 { width, color, style } 覆盖对象，或 null（不抑制）
+ *   各方向为 { width, color, style } 覆盖对象，或 null（不抑制该方向）
  */
-function resolveCellBorderOverrides(tag, isPseudo, measEl, win) {
+function resolveCellBorderOverrides({ tag, isPseudo, measEl, win, style }) {
   if (!CELL_TAGS.has(tag) || isPseudo) return null;
 
-  const suppressBottom = shouldSuppressCellBorderBottom(measEl, win);
-  const suppressRight = shouldSuppressCellBorderRight(measEl, win);
+  if (!isCollapseTable(measEl, win)) return null;
 
-  if (!suppressBottom && !suppressRight) return null;
+  const nonLastRow = isNonLastRow(measEl);
+  const nonLastCol = isNonLastCol(measEl);
+
+  if (!nonLastRow && !nonLastCol) return null;
 
   const zero = { width: '0px', color: 'transparent', style: 'none' };
+  const hasTop = style.borderTopWidth !== '0px';
+  const hasLeft = style.borderLeftWidth !== '0px';
+
+  // 横向：有 top 则抑制 bottom；无 top 则 bottom 是唯一来源，不抑制
+  const suppressBottom = nonLastRow && hasTop;
+  // 纵向：有 left 则抑制 right；无 left 则 right 是唯一来源，不抑制
+  const suppressRight = nonLastCol && hasLeft;
+
+  if (!suppressBottom && !suppressRight) return null;
 
   return {
     bottom: suppressBottom ? zero : null,
@@ -222,16 +212,17 @@ function parseElement(origEl, measEl, rootRect, win) {
   // origEl 对伪元素为 null（原始 DOM 中不存在对应节点），回退到 measEl.tagName
   const tag = origEl ? origEl.tagName : measEl.tagName;
 
-  // border-collapse 去重：非末行的 td/th 抑制 borderBottom，
-  // 非末列的 td/th 抑制 borderRight，保留 borderTop/borderLeft。
-  // 每个格子用自身的 borderTop/borderLeft 画分割线，
-  // 跨页后第一行仍有 borderTop，不会丢失内边框。
-  const borderOverrides = resolveCellBorderOverrides(
+  // border-collapse 智能去重：按 td 实际有值的边决定保留方向。
+  // 有 top → 非末行抑制 bottom（保留 top）；无 top → 不抑制 bottom（bottom 是唯一来源）。
+  // 有 left → 非末列抑制 right（保留 left）；无 left → 不抑制 right（right 是唯一来源）。
+  // 跨页安全：每行/每列保留一侧，分割线不丢失。
+  const borderOverrides = resolveCellBorderOverrides({
     tag,
     isPseudo,
     measEl,
     win,
-  );
+    style,
+  });
   const bBottom = borderOverrides?.bottom;
   const bRight = borderOverrides?.right;
 
