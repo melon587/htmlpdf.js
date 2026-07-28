@@ -4,6 +4,60 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [1.0.5] - 2026-07-27
+
+### ✨ 新功能
+
+#### Border Radius（圆角）支持
+
+- **新增 `border-radius` 渲染** - PDF 输出现在完整支持圆角绘制
+  - 新增 `src/render/radius.js` 模块：解析全部八个 `border-radius` CSS 值并生成三次贝塞尔弧形路径
+  - `border.js`：重构为使用 `strokeRoundedSides()` 逐边圆角描边，支持跨页（顶部弧仅在首页绘制，底部弧仅在末页绘制）
+  - `background.js`：纯色与渐变填充前先应用圆角裁切蒙版；背景图片同样遵循 `border-radius`
+  - `image.js`：跨页图片裁切在首页和末页 spill 时裁切到圆角边界
+
+#### 渲染绘制顺序（CSS §17.5.4 表格绘制顺序）
+
+- **实现正确的 CSS 表格绘制顺序** - 与浏览器的 `TABLE → TBODY → TR → TD → text` 绘制顺序一致，确保背景和边框正确分层
+  - `stream-pagination.js`：`placementOrder()` 为各类型分配渲染权重——容器 spill（TABLE/TBODY/TR）最先绘制，其次是 repeat-header，再次是 normal 节点，rowspan TD/TH 的 spill 最后绘制（覆盖同列普通格子之上）
+  - 修复了 rowspan 格子背景被相邻普通格子背景错误遮盖的问题
+
+### 🐛 Bug 修复
+
+#### Repeat-Header 边界情况
+
+- **修复第一行数据 TR 触发换页时 repeat-header 渲染异常** - 当第一行数据本身需要换页时，表头可能被跳过或渲染位置错误
+  - `repeat-header-manager.js` 与 `stream-pagination.js`：新增联动检测——当 THEAD 检测到无法与第一行数据 TR 共享同一页时，在 THEAD 处提前触发换页，保证表头与第一行数据始终从新页顶部开始
+  - 解决了 repeat-header 单独孤立停留在页面底部（下方无数据行）的问题
+
+#### 伪元素样式继承
+
+- **修复伪元素计算样式未正确继承父元素 CSS 属性的问题** - 部分属性（如 `color`、`fontSize`）未传播到克隆文档中物化的 `::before` / `::after` span
+  - `src/utils/index.js`：扩展 `copyPseudoStyles()`，将父元素完整的文字和布局计算样式复制到注入的 span 元素中
+
+### ♻️ 重构
+
+#### `node-parser.js` — Border Collapse 去重与辅助函数提取
+
+- **`border-collapse` 边框去重** - `getComputedStyle` 在 `border-collapse` 表格中返回每个 td/th 各自声明的边框值，不经过合并处理。若不修正，相邻格子会产生重叠双线
+  - `resolveCellBorderOverrides()`：对 `border-collapse` 表格中的 td/th，抑制非首行格子的 `borderTop` 和非首列格子的 `borderLeft`，每对相邻格子之间只保留一条共享边
+  - 导出 `TABLE_TAGS` 常量：包含所有表格结构标签名（TABLE、THEAD、TBODY、TFOOT、TR、TD、TH），供渲染层统一使用
+
+- **将 `parseElement` 内的内联逻辑提取为独立辅助函数**，降低圈复杂度，提升可读性：
+  - `calcRowSpanChildMaxHeight(tag, isPseudo, measEl)` — 计算 TR 内 rowspan>1 子格的最大高度
+  - `getCellRowSpan(tag, isPseudo, origEl)` — 读取并缓存 `rowSpan` 属性值
+  - `getMediaEl(origEl, measEl)` — 解析 `_el` 引用（IMG → 克隆，CANVAS → 原始，其他 → null）
+
+#### `src/utils/index.js` — 共享工具函数
+
+- **新增 `isCanvasBlank(canvas)` 工具函数**，用于检测空白 canvas 元素，从 `image-loader.js` 和 `image.js` 中提取以消除重复代码
+
+### 📦 迁移指南
+
+无破坏性变更 - 此版本与 v1.0.4 完全向后兼容。
+
+---
+
 ## [1.0.4] - 2026-07-19
 
 ### 🐛 Bug 修复
@@ -279,6 +333,7 @@ htmlpdf(element, {
 
 ---
 
+[1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
 [1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
 [1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
 [1.0.2]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.2

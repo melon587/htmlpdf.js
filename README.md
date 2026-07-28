@@ -17,6 +17,7 @@ A lightweight HTML to PDF converter library based on jsPDF, supporting custom fo
 - 🖼️ **Cross-page cropping** - Images and canvases that span multiple pages are automatically cropped and rendered across pages
 - 🎭 **Pseudo-elements** - Support for `::before` and `::after` pseudo-elements with string content
 - 🌈 **Linear gradients** - Render CSS `linear-gradient()` backgrounds (to top/bottom/left/right, angles, multiple color stops)
+- 🔲 **Border radius** - Rounded corners (`border-radius`) are fully rendered in backgrounds, borders, and images
 - 🗜️ **Compression** - Built-in PDF compression support
 - 🎯 **Content-based rendering** - Uses browser's computed layout (`getBoundingClientRect()`) to capture element positions, supporting Flexbox, Grid, and most CSS layouts
 
@@ -388,7 +389,7 @@ Returns a `Promise` that resolves to:
 
 - **Text**: `color`, `fontSize`, `fontFamily`, `fontWeight`, `fontStyle`, `textAlign`, `lineHeight`, `textDecoration`
 - **Backgrounds**: Solid colors (`background-color`), linear gradients (`linear-gradient()`), background images (`background-image: url(...)`) with `background-size` and `background-position` support
-- **Borders**: All border styles (`border-width`, `border-color`, `border-style`). Note: `border-radius` is parsed but **not rendered** (rounded corners are not supported)
+- **Borders**: All border styles (`border-width`, `border-color`, `border-style`, `border-radius`) including rounded corners
 - **Images**: `<img>` tags with cross-page cropping support
 - **Canvas**: `<canvas>` elements with cross-page cropping support
 - **Pseudo-elements**: `::before` and `::after` with string content
@@ -504,7 +505,6 @@ CSS `transform` (rotate, scale, skew, matrix, translate) is **not rendered**. El
 
 - Box shadows, text shadows, `filter`, `backdrop-filter`
 - CSS animations and transitions (only the static initial state is captured)
-- `border-radius` (parsed but not drawn — corners are square in the PDF)
 - Radial gradients, conic gradients, repeating gradients
 - `clip-path`, `mask`, `overflow: hidden` on non-rectangular areas
 

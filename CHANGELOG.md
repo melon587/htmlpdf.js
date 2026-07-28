@@ -4,6 +4,60 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-07-27
+
+### ✨ Features
+
+#### Border Radius Support
+
+- **Added `border-radius` rendering** - Rounded corners are now fully rendered in PDF output
+  - New `src/render/radius.js` module: parses all eight `border-radius` CSS values (`border-top-left-radius`, `border-top-right-radius`, `border-bottom-right-radius`, `border-bottom-left-radius`) and generates cubic Bézier arc paths
+  - `border.js`: refactored to use `strokeRoundedSides()` for per-side arc rendering with cross-page support (top arc only on first page, bottom arc only on last page)
+  - `background.js`: rounded clip mask applied before solid color and gradient fills; image backgrounds also respect `border-radius`
+  - `image.js`: cross-page image cropping now clips to rounded corners on the first and last spill pages
+
+#### Render Paint Order (CSS §17.5.4 Table Painting Order)
+
+- **Implemented correct CSS table painting order** - Matches the browser's `TABLE → TBODY → TR → TD → text` paint order, ensuring backgrounds and borders layer correctly
+  - `stream-pagination.js`: `placementOrder()` assigns render weights — container spills (TABLE/TBODY/TR) paint first, then repeat-headers, then normal nodes, and rowspan TD/TH spills paint last (on top of same-column sibling cells)
+  - This fixes cases where rowspan cell backgrounds were incorrectly covered by adjacent non-rowspan cell backgrounds
+
+### 🐛 Bug Fixes
+
+#### Repeat-Header Edge Cases
+
+- **Fixed repeat-header rendering when the first data TR triggers a page break** - When the first data row itself needed a new page, the header could be skipped or rendered at the wrong position
+  - `repeat-header-manager.js` and `stream-pagination.js`: added a linked check so that when the THEAD itself detects it cannot share a page with the first data TR, a page break is triggered at the THEAD level, guaranteeing the header and its first data row always start together on a fresh page
+  - Prevents the orphaned-header scenario where a repeat-header appeared alone at the bottom of a page with no following rows
+
+#### Pseudo-element Style Inheritance
+
+- **Fixed pseudo-element computed styles not reflecting inherited CSS properties** - Some CSS properties (e.g. `color`, `fontSize`) were not propagated to `::before` / `::after` spans materialized in the clone document
+  - `src/utils/index.js`: extended `copyPseudoStyles()` to copy the full set of text and layout properties from the parent element's computed style into the injected span
+
+### ♻️ Refactoring
+
+#### `node-parser.js` — Border Collapse De-duplication & Helper Extraction
+
+- **`border-collapse` border de-duplication** - `getComputedStyle` in a `border-collapse` table returns each td/th's own declared border values regardless of merging. Without correction, adjacent cells produce overlapping double lines
+  - `resolveCellBorderOverrides()`: for td/th in a `border-collapse` table, suppresses `borderTop` on non-first-row cells and `borderLeft` on non-first-column cells, leaving a single shared edge per pair of adjacent cells
+  - `TABLE_TAGS` exported constant: unified set of all table structure tag names (`TABLE`, `THEAD`, `TBODY`, `TFOOT`, `TR`, `TD`, `TH`) for use across render modules
+
+- **Extracted inline logic from `parseElement` into named helper functions** to reduce cyclomatic complexity and improve readability:
+  - `calcRowSpanChildMaxHeight(tag, isPseudo, measEl)` — computes max height of rowspan>1 children inside a TR
+  - `getCellRowSpan(tag, isPseudo, origEl)` — reads and caches the `rowSpan` attribute
+  - `getMediaEl(origEl, measEl)` — resolves `_el` reference (IMG → clone, CANVAS → original, other → null)
+
+#### `src/utils/index.js` — Shared Utilities
+
+- **Added `isCanvasBlank(canvas)`** utility to detect empty canvas elements, extracted from `image-loader.js` and `image.js` to reduce duplication
+
+### 📦 Migration Guide
+
+No breaking changes — this release is fully backward compatible with v1.0.4.
+
+---
+
 ## [1.0.4] - 2026-07-19
 
 ### 🐛 Bug Fixes
@@ -279,6 +333,7 @@ Built with:
 
 ---
 
+[1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
 [1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
 [1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
 [1.0.2]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.2

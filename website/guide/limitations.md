@@ -18,7 +18,6 @@ CSS `transform` (rotate, scale, skew, matrix, translate) is **not rendered**. El
 
 - Box shadows, text shadows, `filter`, `backdrop-filter`
 - CSS animations and transitions (only the static initial state is captured)
-- `border-radius` (parsed but not drawn — corners are square in the PDF)
 - Radial gradients, conic gradients, repeating gradients
 - `clip-path`, `mask`, `overflow: hidden` on non-rectangular areas
 

@@ -17,6 +17,7 @@
 - 🖼️ **跨页裁切** - 跨多页的图片和画布会自动裁切并在各页渲染
 - 🎭 **伪元素** - 支持 `::before` 和 `::after` 伪元素的字符串内容
 - 🌈 **线性渐变** - 渲染 CSS `linear-gradient()` 背景（支持上下左右方向、角度、多色停点）
+- 🔲 **圆角边框** - 完整渲染 `border-radius`（圆角背景、边框和图片均支持）
 - 🗜️ **压缩** - 内置 PDF 压缩支持
 - 🎯 **基于内容的渲染** - 使用浏览器的计算布局（`getBoundingClientRect()`）捕获元素位置，支持 Flexbox、Grid 和大多数 CSS 布局
 
@@ -387,7 +388,7 @@ fonts: [
 
 - **文本**：`color`、`fontSize`、`fontFamily`、`fontWeight`、`fontStyle`、`textAlign`、`lineHeight`、`textDecoration`
 - **背景**：纯色（`background-color`）、线性渐变（`linear-gradient()`）、背景图片（`background-image: url(...)`），支持 `background-size` 和 `background-position`
-- **边框**：所有边框样式（`border-width`、`border-color`、`border-style`）。注意：`border-radius` 会被读取但**不会渲染**（不支持圆角绘制）
+- **边框**：所有边框样式（`border-width`、`border-color`、`border-style`、`border-radius`），完整支持圆角绘制
 - **图片**：`<img>` 标签，支持跨页裁切
 - **画布**：`<canvas>` 元素，支持跨页裁切
 - **伪元素**：`::before` 和 `::after`，支持字符串内容
@@ -504,7 +505,6 @@ CSS `transform`（rotate、scale、skew、matrix、translate）**不会被渲染
 
 - 盒阴影、文字阴影、`filter`、`backdrop-filter`
 - CSS 动画和过渡（只捕获静态初始状态）
-- `border-radius`（会被解析但不会绘制，PDF 中圆角仍为直角）
 - 径向渐变、锥形渐变、重复渐变
 - `clip-path`、`mask`、非矩形区域的 `overflow: hidden`
 

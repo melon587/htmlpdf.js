@@ -1,6 +1,6 @@
 {
   "name": "htmlpdfx.js",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A lightweight HTML to PDF converter library based on jsPDF, supporting custom fonts, page breaks, repeat headers, and multi-page rendering",
   "main": "dist/htmlpdf.js",
   "module": "dist/htmlpdf.esm.js",
