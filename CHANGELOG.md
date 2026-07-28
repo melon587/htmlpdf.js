@@ -35,12 +35,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Fixed pseudo-element computed styles not reflecting inherited CSS properties** - Some CSS properties (e.g. `color`, `fontSize`) were not propagated to `::before` / `::after` spans materialized in the clone document
   - `src/utils/index.js`: extended `copyPseudoStyles()` to copy the full set of text and layout properties from the parent element's computed style into the injected span
 
+#### `border-collapse` Table — Intelligent Border De-duplication
+
+- **Rewrote the `border-collapse` de-duplication strategy** - The previous approach always suppressed `borderBottom` and `borderRight`, which caused internal borders to disappear when cells only declared `bottom`/`right` borders (no `top`/`left`)
+  - Root cause: business-side cells had `top: none`, `right: 1px solid`, `bottom: 1px solid`, `left: 1px solid`. The old strategy suppressed both `bottom` and `right`, leaving only `left`, so all internal borders vanished
+  - New strategy in `resolveCellBorderOverrides()`: detects which side the cell actually declares, then suppresses the opposite side only when the declared side is present
+    - Horizontal: has `borderTop` → suppress `borderBottom` on non-last rows; no `borderTop` → keep `borderBottom` (it is the sole source)
+    - Vertical: has `borderLeft` → suppress `borderRight` on non-last columns; no `borderLeft` → keep `borderRight` (it is the sole source)
+  - Cross-page safety guaranteed: exactly one side is kept per adjacent pair, so dividing lines are never lost
+- **Fixed `isNonLastRow` scope** - Previously scoped to the current `thead`/`tbody`/`tfoot` section; now queries all `<tr>` in the entire `<table>`, correctly de-duplicating borders at the `thead`/`tbody` boundary
+
+#### Rowspan Cell Entry Border on Page Break
+
+- **Fixed missing top border for rowspan cells at the top of continuation pages** - When a `TD`/`TH` with `rowspan > 1` spans a page break, the cell's top edge was invisible on the continuation page
+  - Root cause: `drawBorder` only draws the `top` side when `isFirstPage === true`. For a spill placement the node's natural top is on a previous page, so `isFirstPage` is always `false` and the entry line is skipped
+  - Fix: `expandSpillPlacements` (`stream-pagination.js`) now marks the first spill page with `isFirstSpill: true`. `drawBorder` (`border.js`) draws the `top` side when `isFirstPage || isFirstSpill`, placing the entry line at `clipTop` (below any repeat-header)
+  - Changes: `src/core/stream-pagination.js`, `src/render/node.js`, `src/render/border.js`
+
 ### ♻️ Refactoring
 
 #### `node-parser.js` — Border Collapse De-duplication & Helper Extraction
 
 - **`border-collapse` border de-duplication** - `getComputedStyle` in a `border-collapse` table returns each td/th's own declared border values regardless of merging. Without correction, adjacent cells produce overlapping double lines
-  - `resolveCellBorderOverrides()`: for td/th in a `border-collapse` table, suppresses `borderTop` on non-first-row cells and `borderLeft` on non-first-column cells, leaving a single shared edge per pair of adjacent cells
+  - `resolveCellBorderOverrides()`: smart detection — suppresses only the opposite side when the primary side is present (see Bug Fixes for full algorithm). Replaced the old strategy that always suppressed `borderBottom`/`borderRight` regardless of which sides were actually declared
   - `TABLE_TAGS` exported constant: unified set of all table structure tag names (`TABLE`, `THEAD`, `TBODY`, `TFOOT`, `TR`, `TD`, `TH`) for use across render modules
 
 - **Extracted inline logic from `parseElement` into named helper functions** to reduce cyclomatic complexity and improve readability:

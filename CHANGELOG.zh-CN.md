@@ -35,12 +35,29 @@
 - **修复伪元素计算样式未正确继承父元素 CSS 属性的问题** - 部分属性（如 `color`、`fontSize`）未传播到克隆文档中物化的 `::before` / `::after` span
   - `src/utils/index.js`：扩展 `copyPseudoStyles()`，将父元素完整的文字和布局计算样式复制到注入的 span 元素中
 
+#### `border-collapse` 表格 — 智能边框去重
+
+- **重写 `border-collapse` 去重策略** - 旧策略始终抑制 `borderBottom` 和 `borderRight`，导致业务侧仅声明了 `bottom`/`right` 而没有 `top`/`left` 的格子内边框全部消失
+  - 根本原因：业务侧 td 样式为 `top: none`、`right: 1px solid`、`bottom: 1px solid`、`left: 1px solid`，旧策略同时抑制 `bottom` 和 `right`，只剩 `left`，内边框全消失
+  - `resolveCellBorderOverrides()` 新策略：检测 td 实际有值的边，只在有主边时才抑制对边
+    - 横向：有 `borderTop` → 非末行时抑制 `borderBottom`；无 `borderTop` → 保留 `borderBottom`（唯一来源）
+    - 纵向：有 `borderLeft` → 非末列时抑制 `borderRight`；无 `borderLeft` → 保留 `borderRight`（唯一来源）
+  - 跨页安全：每对相邻格子始终只保留一侧，分割线不丢失
+- **修复 `isNonLastRow` 范围** - 原来只看 section（thead/tbody/tfoot）范围，导致 thead 末行被错误认为是表格末行；现在查询整张 `<table>` 的所有 `<tr>`，thead/tbody 交界处边框去重正确
+
+#### rowspan 合并单元格跨页入口线
+
+- **修复 rowspan 单元格在跨页续页顶部缺少上边框的问题** - `rowspan > 1` 的 TD/TH 跨页后，新页顶部该格子的上边框线消失
+  - 根本原因：`drawBorder` 只在 `isFirstPage === true` 时画 top 边。spill placement 的节点自然顶部在上一页，`isFirstPage` 始终为 `false`，入口线被跳过
+  - 修复：`expandSpillPlacements`（`stream-pagination.js`）为每个节点的第一个 spill 页标记 `isFirstSpill: true`；`drawBorder`（`border.js`）在 `isFirstPage || isFirstSpill` 时画 top 线，位置为 `clipTop`（repeat-header 底部以下）
+  - 涉及文件：`src/core/stream-pagination.js`、`src/render/node.js`、`src/render/border.js`
+
 ### ♻️ 重构
 
 #### `node-parser.js` — Border Collapse 去重与辅助函数提取
 
 - **`border-collapse` 边框去重** - `getComputedStyle` 在 `border-collapse` 表格中返回每个 td/th 各自声明的边框值，不经过合并处理。若不修正，相邻格子会产生重叠双线
-  - `resolveCellBorderOverrides()`：对 `border-collapse` 表格中的 td/th，抑制非首行格子的 `borderTop` 和非首列格子的 `borderLeft`，每对相邻格子之间只保留一条共享边
+  - `resolveCellBorderOverrides()`：智能检测策略——仅在有主边时才抑制对边，取代原来无条件抑制 `borderBottom`/`borderRight` 的旧策略。详见 Bug 修复小节
   - 导出 `TABLE_TAGS` 常量：包含所有表格结构标签名（TABLE、THEAD、TBODY、TFOOT、TR、TD、TH），供渲染层统一使用
 
 - **将 `parseElement` 内的内联逻辑提取为独立辅助函数**，降低圈复杂度，提升可读性：
