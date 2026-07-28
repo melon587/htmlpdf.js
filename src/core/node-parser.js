@@ -64,34 +64,67 @@ export const TABLE_TAGS = new Set([
 ]);
 
 /**
- * 检测 td/th 是否处于 border-collapse 表格中。
- * 是则返回 true，否则返回 false。
+ * 预构建表格结构缓存，供 resolveCellBorderOverrides 使用。
+ *
+ * 为 cloneRoot 内所有 table 元素各做一次 querySelectorAll('tr')，
+ * 结果存入两个 WeakMap：
+ *   - tableCollapseMap: table → isCollapse（boolean）
+ *   - trIndexMap: tr → { index, total }（该 tr 在 table 全局的行号 + 总行数）
+ *
+ * 调用一次 O(总 TR 数)，之后每次 TD/TH 查询均为 O(1)，
+ * 将原来对 1000 行表格 O(N²) 的重复查询降至 O(N)。
+ *
+ * @param {Element} cloneRoot - iframe 内的克隆根元素
+ * @param {Window}  win       - 测量窗口
+ * @returns {{ tableCollapseMap: WeakMap, trIndexMap: WeakMap }}
  */
-function isCollapseTable(cellEl, win) {
-  const tableEl = cellEl.closest('table');
-  if (!tableEl) return false;
+function buildTableCache(cloneRoot, win) {
+  const tableCollapseMap = new WeakMap();
+  const trIndexMap = new WeakMap();
 
-  return win.getComputedStyle(tableEl).borderCollapse === 'collapse';
+  const tables = cloneRoot.querySelectorAll('table');
+  for (const table of tables) {
+    const isCollapse =
+      win.getComputedStyle(table).borderCollapse === 'collapse';
+    tableCollapseMap.set(table, isCollapse);
+
+    const allTrs = [...table.querySelectorAll('tr')];
+    const total = allTrs.length;
+    allTrs.forEach((tr, index) => {
+      trIndexMap.set(tr, { index, total });
+    });
+  }
+
+  return { tableCollapseMap, trIndexMap };
 }
 
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非末行。
+ * 检测 td/th 是否处于 border-collapse 表格中（O(1) 缓存查询）。
+ */
+function isCollapseTable(cellEl, tableCollapseMap) {
+  const tableEl = cellEl.closest('table');
+  if (!tableEl) return false;
+
+  return tableCollapseMap.get(tableEl) === true;
+}
+
+/**
+ * 在 border-collapse 表格中，判断 td/th 是否非末行（O(1) 缓存查询）。
  * 对于 rowspan>1 的单元格，视觉末行 = DOM 行索引 + rowSpan - 1。
  *
  * 注意：以整张 table 的所有 tr 为范围（跨越 thead/tbody/tfoot），
  * 确保 thead 末行与 tbody 首行之间的边框也能正确去重。
  */
-function isNonLastRow(cellEl) {
+function isNonLastRow(cellEl, trIndexMap) {
   const tr = cellEl.closest('tr');
   if (!tr) return false;
 
-  const table = tr.closest('table');
-  if (!table) return false;
+  const info = trIndexMap.get(tr);
+  if (!info) return false;
 
-  const allTrs = [...table.querySelectorAll('tr')];
-  const visualLastIndex = allTrs.indexOf(tr) + (cellEl.rowSpan || 1) - 1;
+  const visualLastIndex = info.index + (cellEl.rowSpan || 1) - 1;
 
-  return visualLastIndex < allTrs.length - 1;
+  return visualLastIndex < info.total - 1;
 }
 
 /**
@@ -125,12 +158,19 @@ function isNonLastCol(cellEl) {
  * @returns {{ bottom, right } | null}
  *   各方向为 { width, color, style } 覆盖对象，或 null（不抑制该方向）
  */
-function resolveCellBorderOverrides({ tag, isPseudo, measEl, win, style }) {
+function resolveCellBorderOverrides({
+  tag,
+  isPseudo,
+  measEl,
+  tableCollapseMap,
+  trIndexMap,
+  style,
+}) {
   if (!CELL_TAGS.has(tag) || isPseudo) return null;
 
-  if (!isCollapseTable(measEl, win)) return null;
+  if (!isCollapseTable(measEl, tableCollapseMap)) return null;
 
-  const nonLastRow = isNonLastRow(measEl);
+  const nonLastRow = isNonLastRow(measEl, trIndexMap);
   const nonLastCol = isNonLastCol(measEl);
 
   if (!nonLastRow && !nonLastCol) return null;
@@ -191,14 +231,15 @@ function getMediaEl(origEl, measEl) {
 
 /**
  * 解析元素节点，提取坐标、尺寸和样式
- * @param {Element|null} origEl - 原始 DOM 元素；伪元素传 null（原始 DOM 中不存在）
- * @param {Element} measEl   - iframe 内的克隆元素（用于测量）
- * @param {DOMRect} rootRect - 根元素边界（坐标原点）
- * @param {Window}  win      - 测量窗口
+ * @param {Element|null} origEl     - 原始 DOM 元素；伪元素传 null
+ * @param {Element}      measEl     - iframe 内的克隆元素（用于测量）
+ * @param {DOMRect}      rootRect   - 根元素边界（坐标原点）
+ * @param {Window}       win        - 测量窗口
+ * @param {Object}       tableCache - buildTableCache() 返回的缓存对象
  * @returns {Object} 元素节点 {type, x, y, width, height, style, ...}
  */
 
-function parseElement(origEl, measEl, rootRect, win) {
+function parseElement({ origEl, measEl, rootRect, win, tableCache }) {
   const style = win.getComputedStyle(measEl);
 
   // 检测是否是物化的伪元素
@@ -220,7 +261,8 @@ function parseElement(origEl, measEl, rootRect, win) {
     tag,
     isPseudo,
     measEl,
-    win,
+    tableCollapseMap: tableCache.tableCollapseMap,
+    trIndexMap: tableCache.trIndexMap,
     style,
   });
   const bBottom = borderOverrides?.bottom;
@@ -457,6 +499,9 @@ export function collectNodes(element, cloneRoot) {
   const measWin = cloneRoot.ownerDocument.defaultView;
   const rootRect = measRoot.getBoundingClientRect();
 
+  // 预构建表格缓存：一次 O(总 TR 数) 遍历，之后每个 TD/TH 查询均为 O(1)
+  const tableCache = buildTableCache(measRoot, measWin);
+
   const nodes = [];
 
   function walk(origEl, measEl) {
@@ -467,7 +512,15 @@ export function collectNodes(element, cloneRoot) {
     if (!isVisible(style)) return;
 
     // 元素本身（包括物化的伪元素）
-    nodes.push(parseElement(origEl, measEl, rootRect, measWin));
+    nodes.push(
+      parseElement({
+        origEl,
+        measEl,
+        rootRect,
+        win: measWin,
+        tableCache,
+      }),
+    );
 
     const measChildren = measEl.childNodes;
     // 伪元素没有原始子节点，origChildren 为空 NodeList
