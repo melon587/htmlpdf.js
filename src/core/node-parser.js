@@ -77,10 +77,14 @@ function getCollapseTable(cellEl, win) {
 }
 
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非首行
- * （非首行则 borderTop 与上一行 borderBottom 重叠，应抑制）。
+ * 在 border-collapse 表格中，判断 td/th 是否非末行
+ * （非末行则 borderBottom 与下一行 borderTop 重叠，应抑制 bottom，
+ *  保留 top，使每行用自己的 borderTop 画分割线，跨页后不丢线）。
+ *
+ * 对于 rowspan>1 的单元格，其视觉底边所在行号 = DOM 行索引 + rowSpan - 1。
+ * 若该视觉末行 >= section 末行，则不抑制（单元格底边就是 section 的外框线）。
  */
-function shouldSuppressCellBorderTop(cellEl, win) {
+function shouldSuppressCellBorderBottom(cellEl, win) {
   if (!getCollapseTable(cellEl, win)) return false;
 
   const tr = cellEl.closest('tr');
@@ -90,46 +94,71 @@ function shouldSuppressCellBorderTop(cellEl, win) {
   const trParent = tr.parentElement;
   if (!trParent) return false;
 
-  const firstTr = [...trParent.children].find((c) => c.tagName === 'TR');
+  const trs = [...trParent.children].filter((c) => c.tagName === 'TR');
+  const trIndex = trs.indexOf(tr);
 
-  return tr !== firstTr;
+  // rowspan 跨越的行数（DOM 属性，1 表示普通单元格）
+  const rowSpan = cellEl.rowSpan || 1;
+
+  // 视觉末行索引（0-based）
+  const visualLastIndex = trIndex + rowSpan - 1;
+
+  // 若视觉末行覆盖到 section 末行，保留 borderBottom（外框线）
+  return visualLastIndex < trs.length - 1;
 }
 
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非首列
- * （非首列则 borderLeft 与左侧格子 borderRight 重叠，应抑制）。
+ * 在 border-collapse 表格中，判断 td/th 是否非末列
+ * （非末列则 borderRight 与右侧格子 borderLeft 重叠，应抑制 right，
+ *  保留 left，使每列用自己的 borderLeft 画分割线）。
+ *
+ * 对于 colspan>1 的单元格，其视觉右边所在列索引 = DOM 列索引 + colSpan - 1。
+ * 若该视觉末列 >= 行末列，则不抑制（单元格右边就是行的外框线）。
  */
-function shouldSuppressCellBorderLeft(cellEl, win) {
+function shouldSuppressCellBorderRight(cellEl, win) {
   if (!getCollapseTable(cellEl, win)) return false;
 
   const tr = cellEl.closest('tr');
   if (!tr) return false;
 
-  const firstCell = [...tr.children].find((c) => CELL_TAGS.has(c.tagName));
+  const cells = [...tr.children].filter((c) => CELL_TAGS.has(c.tagName));
+  const cellIndex = cells.indexOf(cellEl);
 
-  return cellEl !== firstCell;
+  // colspan 跨越的列数（DOM 属性，1 表示普通单元格）
+  const colSpan = cellEl.colSpan || 1;
+
+  // 视觉末列索引（0-based）
+  const visualLastIndex = cellIndex + colSpan - 1;
+
+  // 若视觉末列覆盖到行末列，保留 borderRight（外框线）
+  return visualLastIndex < cells.length - 1;
 }
 
 /**
  * 针对 border-collapse 表格中的 td/th，计算需要覆盖的 border 值。
  * 非 td/th、伪元素、或非 collapse 表格时返回 null（不覆盖）。
  *
- * @returns {{ top, left } | null}
- *   top / left 各为 { width, color, style } 覆盖对象，或 null（不抑制）
+ * 策略：抑制 borderBottom（非末行）和 borderRight（非末列），
+ * 保留 borderTop 和 borderLeft。
+ * 每个格子用自身的 borderTop/borderLeft 画分割线，
+ * 跨页后第一行仍有 borderTop，不会丢失内边框。
+ *
+ * @returns {{ bottom, right } | null}
+ *   bottom / right 各为 { width, color, style } 覆盖对象，或 null（不抑制）
  */
 function resolveCellBorderOverrides(tag, isPseudo, measEl, win) {
   if (!CELL_TAGS.has(tag) || isPseudo) return null;
 
-  const suppressTop = shouldSuppressCellBorderTop(measEl, win);
-  const suppressLeft = shouldSuppressCellBorderLeft(measEl, win);
+  const suppressBottom = shouldSuppressCellBorderBottom(measEl, win);
+  const suppressRight = shouldSuppressCellBorderRight(measEl, win);
 
-  if (!suppressTop && !suppressLeft) return null;
+  if (!suppressBottom && !suppressRight) return null;
 
   const zero = { width: '0px', color: 'transparent', style: 'none' };
 
   return {
-    top: suppressTop ? zero : null,
-    left: suppressLeft ? zero : null,
+    bottom: suppressBottom ? zero : null,
+    right: suppressRight ? zero : null,
   };
 }
 
@@ -193,24 +222,34 @@ function parseElement(origEl, measEl, rootRect, win) {
   // origEl 对伪元素为 null（原始 DOM 中不存在对应节点），回退到 measEl.tagName
   const tag = origEl ? origEl.tagName : measEl.tagName;
 
-  // border-collapse 去重：非首行的 td/th 抑制 borderTop，
-  // 非首列的 td/th 抑制 borderLeft，避免相邻格子重叠画线。
+  // border-collapse 去重：非末行的 td/th 抑制 borderBottom，
+  // 非末列的 td/th 抑制 borderRight，保留 borderTop/borderLeft。
+  // 每个格子用自身的 borderTop/borderLeft 画分割线，
+  // 跨页后第一行仍有 borderTop，不会丢失内边框。
   const borderOverrides = resolveCellBorderOverrides(
     tag,
     isPseudo,
     measEl,
     win,
   );
-  const bTop = borderOverrides?.top;
-  const bLeft = borderOverrides?.left;
+  const bBottom = borderOverrides?.bottom;
+  const bRight = borderOverrides?.right;
 
-  const borderTopWidth = bTop ? bTop.width : style.borderTopWidth;
-  const borderTopColor = bTop ? bTop.color : style.borderTopColor;
-  const borderTopStyle = bTop ? bTop.style : style.borderTopStyle;
+  const borderTopWidth = style.borderTopWidth;
+  const borderTopColor = style.borderTopColor;
+  const borderTopStyle = style.borderTopStyle;
 
-  const borderLeftWidth = bLeft ? bLeft.width : style.borderLeftWidth;
-  const borderLeftColor = bLeft ? bLeft.color : style.borderLeftColor;
-  const borderLeftStyle = bLeft ? bLeft.style : style.borderLeftStyle;
+  const borderRightWidth = bRight ? bRight.width : style.borderRightWidth;
+  const borderRightColor = bRight ? bRight.color : style.borderRightColor;
+  const borderRightStyle = bRight ? bRight.style : style.borderRightStyle;
+
+  const borderBottomWidth = bBottom ? bBottom.width : style.borderBottomWidth;
+  const borderBottomColor = bBottom ? bBottom.color : style.borderBottomColor;
+  const borderBottomStyle = bBottom ? bBottom.style : style.borderBottomStyle;
+
+  const borderLeftWidth = style.borderLeftWidth;
+  const borderLeftColor = style.borderLeftColor;
+  const borderLeftStyle = style.borderLeftStyle;
 
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
@@ -240,16 +279,16 @@ function parseElement(origEl, measEl, rootRect, win) {
       lineHeight: style.lineHeight,
       textDecoration: style.textDecoration,
       borderTopWidth: borderTopWidth,
-      borderRightWidth: style.borderRightWidth,
-      borderBottomWidth: style.borderBottomWidth,
+      borderRightWidth: borderRightWidth,
+      borderBottomWidth: borderBottomWidth,
       borderLeftWidth: borderLeftWidth,
       borderTopColor: borderTopColor,
-      borderRightColor: style.borderRightColor,
-      borderBottomColor: style.borderBottomColor,
+      borderRightColor: borderRightColor,
+      borderBottomColor: borderBottomColor,
       borderLeftColor: borderLeftColor,
       borderTopStyle: borderTopStyle,
-      borderRightStyle: style.borderRightStyle,
-      borderBottomStyle: style.borderBottomStyle,
+      borderRightStyle: borderRightStyle,
+      borderBottomStyle: borderBottomStyle,
       borderLeftStyle: borderLeftStyle,
       borderTopLeftRadius: style.borderTopLeftRadius,
       borderTopRightRadius: style.borderTopRightRadius,
