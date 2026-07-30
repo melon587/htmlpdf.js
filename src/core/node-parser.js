@@ -66,21 +66,22 @@ export const TABLE_TAGS = new Set([
 /**
  * 预构建表格结构缓存，供 resolveCellBorderOverrides 使用。
  *
- * 为 cloneRoot 内所有 table 元素各做一次 querySelectorAll('tr')，
- * 结果存入两个 WeakMap：
- *   - tableCollapseMap: table → isCollapse（boolean）
- *   - trIndexMap: tr → { index, total }（该 tr 在 table 全局的行号 + 总行数）
+ * 一次遍历完成三件事：
+ *   1. tableCollapseMap: table → isCollapse（boolean）
+ *   2. tableAllCells:    table → { el, rect }[]  （按文档序）
+ *   3. cellRectMap:      cell  → DOMRect          （O(1) 坐标查询）
  *
- * 调用一次 O(总 TR 数)，之后每次 TD/TH 查询均为 O(1)，
- * 将原来对 1000 行表格 O(N²) 的重复查询降至 O(N)。
+ * 所有 getBoundingClientRect 调用集中在此，之后查找函数
+ * 全部走缓存，无额外 layout 触发。
  *
  * @param {Element} cloneRoot - iframe 内的克隆根元素
  * @param {Window}  win       - 测量窗口
- * @returns {{ tableCollapseMap: WeakMap, trIndexMap: WeakMap }}
+ * @returns {{ tableCollapseMap, tableAllCells, cellRectMap }}
  */
 function buildTableCache(cloneRoot, win) {
   const tableCollapseMap = new WeakMap();
-  const trIndexMap = new WeakMap();
+  const tableAllCells = new WeakMap();
+  const cellRectMap = new WeakMap();
 
   const tables = cloneRoot.querySelectorAll('table');
   for (const table of tables) {
@@ -88,14 +89,16 @@ function buildTableCache(cloneRoot, win) {
       win.getComputedStyle(table).borderCollapse === 'collapse';
     tableCollapseMap.set(table, isCollapse);
 
-    const allTrs = [...table.querySelectorAll('tr')];
-    const total = allTrs.length;
-    allTrs.forEach((tr, index) => {
-      trIndexMap.set(tr, { index, total });
+    const cells = [...table.querySelectorAll('td,th')].map((el) => {
+      const rect = el.getBoundingClientRect();
+      cellRectMap.set(el, rect);
+
+      return { el, rect };
     });
+    tableAllCells.set(table, cells);
   }
 
-  return { tableCollapseMap, trIndexMap };
+  return { tableCollapseMap, tableAllCells, cellRectMap };
 }
 
 /**
@@ -108,87 +111,148 @@ function isCollapseTable(cellEl, tableCollapseMap) {
   return tableCollapseMap.get(tableEl) === true;
 }
 
+/** 坐标容差（px）：处理亚像素对齐误差 */
+const COORD_EPS = 1;
+
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非末行（O(1) 缓存查询）。
- * 对于 rowspan>1 的单元格，视觉末行 = DOM 行索引 + rowSpan - 1。
+ * 返回"左边紧贴当前格子"的单元格的 borderRightWidth。
  *
- * 注意：以整张 table 的所有 tr 为范围（跨越 thead/tbody/tfoot），
- * 确保 thead 末行与 tbody 首行之间的边框也能正确去重。
+ * 先在同一 TR 的兄弟中查找（普通情况，O(cols)）；
+ * 找不到时在整张 table 的缓存格子列表中查找 rowspan 跨行格子：
+ *   - rect.right ≈ cellRect.left（横向紧贴）
+ *   - 该格子纵向覆盖 cellEl（rowspan 跨越当前行）
+ *
+ * 所有坐标来自 cellRectMap 缓存，无额外 layout 触发。
  */
-function isNonLastRow(cellEl, trIndexMap) {
+function getPrevCellBorderRight({
+  cellEl,
+  cellRect,
+  tableAllCells,
+  cellRectMap,
+  win,
+}) {
+  // 1. 先查同 TR 兄弟（最常见路径）
   const tr = cellEl.closest('tr');
-  if (!tr) return false;
+  if (tr) {
+    for (const sib of tr.children) {
+      if (!CELL_TAGS.has(sib.tagName) || sib === cellEl) continue;
 
-  const info = trIndexMap.get(tr);
-  if (!info) return false;
+      const sibRect = cellRectMap.get(sib);
+      if (!sibRect) continue;
 
-  const visualLastIndex = info.index + (cellEl.rowSpan || 1) - 1;
+      if (Math.abs(sibRect.right - cellRect.left) <= COORD_EPS) {
+        return win.getComputedStyle(sib).borderRightWidth;
+      }
+    }
+  }
 
-  return visualLastIndex < info.total - 1;
+  // 2. 同 TR 未找到时，在整张 table 查 rowspan 跨行格子
+  const table = cellEl.closest('table');
+  if (!table) return '0px';
+
+  for (const { el, rect } of tableAllCells.get(table) ?? []) {
+    if (el === cellEl) continue;
+
+    const hMatch = Math.abs(rect.right - cellRect.left) <= COORD_EPS;
+    const vCovers =
+      rect.top <= cellRect.top + COORD_EPS &&
+      rect.bottom >= cellRect.bottom - COORD_EPS;
+    if (hMatch && vCovers) {
+      const bw = win.getComputedStyle(el).borderRightWidth;
+      if (bw !== '0px') return bw;
+    }
+  }
+
+  return '0px';
 }
 
 /**
- * 在 border-collapse 表格中，判断 td/th 是否非末列。
- * 对于 colspan>1 的单元格，视觉末列 = DOM 列索引 + colSpan - 1。
+ * 返回"上边紧贴当前格子"的单元格的 borderBottomWidth。
+ *
+ * 在整张 table 的缓存格子列表中，找满足以下条件的格子：
+ *   - rect.bottom ≈ cellRect.top（纵向紧贴）
+ *   - 与 cellEl 横向有重叠
+ *
+ * colspan 场景：上方可能有多个窄格子，取第一个 borderBottom ≠ 0px 的值。
+ * 所有坐标来自 tableAllCells 缓存，无额外 layout 触发。
  */
-function isNonLastCol(cellEl) {
-  const tr = cellEl.closest('tr');
-  if (!tr) return false;
+function getPrevRowCellBorderBottom({ cellEl, cellRect, tableAllCells, win }) {
+  const table = cellEl.closest('table');
+  if (!table) return '0px';
 
-  const cells = [...tr.children].filter((c) => CELL_TAGS.has(c.tagName));
-  const visualLastIndex = cells.indexOf(cellEl) + (cellEl.colSpan || 1) - 1;
+  for (const { el, rect } of tableAllCells.get(table) ?? []) {
+    if (el === cellEl) continue;
 
-  return visualLastIndex < cells.length - 1;
+    const vMatch = Math.abs(rect.bottom - cellRect.top) <= COORD_EPS;
+    const hOverlap =
+      rect.left < cellRect.right - COORD_EPS &&
+      rect.right > cellRect.left + COORD_EPS;
+
+    if (vMatch && hOverlap) {
+      const bw = win.getComputedStyle(el).borderBottomWidth;
+      if (bw !== '0px') return bw;
+    }
+  }
+
+  return '0px';
 }
 
 /**
  * 针对 border-collapse 表格中的 td/th，计算需要覆盖的 border 值。
  * 非 td/th、伪元素、或非 collapse 表格时返回 null（不覆盖）。
  *
- * 智能检测策略：
- *   横向（上下）：
- *     - td 有 borderTop → 非末行时抑制 bottom，保留 top
- *     - td 无 borderTop → 非末行时抑制 top（即不抑制 bottom），保留 bottom
- *   纵向（左右）：
- *     - td 有 borderLeft → 非末列时抑制 right，保留 left
- *     - td 无 borderLeft → 非末列时抑制 left（即不抑制 right），保留 right
+ * 去重策略（避免相邻单元格把共享边画两次导致线变粗）：
  *
- * 跨页安全：无论保留哪侧，每行/每列都只保留一侧，分割线不丢失。
+ *   横向（上下共享边）：
+ *     - 上邻单元格有 borderBottom → 抑制自身 top（上邻已画）
+ *     - 上邻单元格无 borderBottom → 不抑制 top（自身 top 是唯一来源）
  *
- * @returns {{ bottom, right } | null}
+ *   纵向（左右共享边）：
+ *     - 左邻单元格有 borderRight → 抑制自身 left（左邻已画）
+ *     - 左邻单元格无 borderRight → 不抑制 left（自身 left 是唯一来源）
+ *
+ * 两个方向均用坐标匹配，正确处理 colspan/rowspan。
+ * 跨页安全：每行/每列保留一侧，分割线不丢失。
+ *
+ * @returns {{ top, left } | null}
  *   各方向为 { width, color, style } 覆盖对象，或 null（不抑制该方向）
  */
 function resolveCellBorderOverrides({
   tag,
   isPseudo,
   measEl,
-  tableCollapseMap,
-  trIndexMap,
-  style,
+  cellRect,
+  tableCache,
+  win,
 }) {
   if (!CELL_TAGS.has(tag) || isPseudo) return null;
 
+  const { tableCollapseMap, tableAllCells, cellRectMap } = tableCache;
   if (!isCollapseTable(measEl, tableCollapseMap)) return null;
 
-  const nonLastRow = isNonLastRow(measEl, trIndexMap);
-  const nonLastCol = isNonLastCol(measEl);
-
-  if (!nonLastRow && !nonLastCol) return null;
-
   const zero = { width: '0px', color: 'transparent', style: 'none' };
-  const hasTop = style.borderTopWidth !== '0px';
-  const hasLeft = style.borderLeftWidth !== '0px';
+  const shared = { cellRect, tableAllCells, win };
 
-  // 横向：有 top 则抑制 bottom；无 top 则 bottom 是唯一来源，不抑制
-  const suppressBottom = nonLastRow && hasTop;
-  // 纵向：有 left 则抑制 right；无 left 则 right 是唯一来源，不抑制
-  const suppressRight = nonLastCol && hasLeft;
+  // 横向：上邻有 bottom → 抑制自身 top
+  const prevBottom = getPrevRowCellBorderBottom({
+    cellEl: measEl,
+    ...shared,
+  });
+  const suppressTop = prevBottom !== '0px';
 
-  if (!suppressBottom && !suppressRight) return null;
+  // 纵向：左邻有 right → 抑制自身 left
+  const prevRight = getPrevCellBorderRight({
+    cellEl: measEl,
+    cellRectMap,
+    ...shared,
+  });
+  const suppressLeft = prevRight !== '0px';
+
+  if (!suppressTop && !suppressLeft) return null;
 
   return {
-    bottom: suppressBottom ? zero : null,
-    right: suppressRight ? zero : null,
+    top: suppressTop ? zero : null,
+    left: suppressLeft ? zero : null,
   };
 }
 
@@ -253,36 +317,35 @@ function parseElement({ origEl, measEl, rootRect, win, tableCache }) {
   // origEl 对伪元素为 null（原始 DOM 中不存在对应节点），回退到 measEl.tagName
   const tag = origEl ? origEl.tagName : measEl.tagName;
 
-  // border-collapse 智能去重：按 td 实际有值的边决定保留方向。
-  // 有 top → 非末行抑制 bottom（保留 top）；无 top → 不抑制 bottom（bottom 是唯一来源）。
-  // 有 left → 非末列抑制 right（保留 left）；无 left → 不抑制 right（right 是唯一来源）。
-  // 跨页安全：每行/每列保留一侧，分割线不丢失。
+  // border-collapse 去重：上邻有 bottom 则抑制自身 top；左邻有 right 则抑制自身 left。
+  // 两个方向均用坐标匹配，正确处理 colspan/rowspan。跨页安全。
+  // cellRect 直接复用上方已测量的 rect，避免重复触发 layout。
   const borderOverrides = resolveCellBorderOverrides({
     tag,
     isPseudo,
     measEl,
-    tableCollapseMap: tableCache.tableCollapseMap,
-    trIndexMap: tableCache.trIndexMap,
-    style,
+    cellRect: rect,
+    tableCache,
+    win,
   });
-  const bBottom = borderOverrides?.bottom;
-  const bRight = borderOverrides?.right;
+  const bTop = borderOverrides?.top;
+  const bLeft = borderOverrides?.left;
 
-  const borderTopWidth = style.borderTopWidth;
-  const borderTopColor = style.borderTopColor;
-  const borderTopStyle = style.borderTopStyle;
+  const borderTopWidth = bTop ? bTop.width : style.borderTopWidth;
+  const borderTopColor = bTop ? bTop.color : style.borderTopColor;
+  const borderTopStyle = bTop ? bTop.style : style.borderTopStyle;
 
-  const borderRightWidth = bRight ? bRight.width : style.borderRightWidth;
-  const borderRightColor = bRight ? bRight.color : style.borderRightColor;
-  const borderRightStyle = bRight ? bRight.style : style.borderRightStyle;
+  const borderRightWidth = style.borderRightWidth;
+  const borderRightColor = style.borderRightColor;
+  const borderRightStyle = style.borderRightStyle;
 
-  const borderBottomWidth = bBottom ? bBottom.width : style.borderBottomWidth;
-  const borderBottomColor = bBottom ? bBottom.color : style.borderBottomColor;
-  const borderBottomStyle = bBottom ? bBottom.style : style.borderBottomStyle;
+  const borderBottomWidth = style.borderBottomWidth;
+  const borderBottomColor = style.borderBottomColor;
+  const borderBottomStyle = style.borderBottomStyle;
 
-  const borderLeftWidth = style.borderLeftWidth;
-  const borderLeftColor = style.borderLeftColor;
-  const borderLeftStyle = style.borderLeftStyle;
+  const borderLeftWidth = bLeft ? bLeft.width : style.borderLeftWidth;
+  const borderLeftColor = bLeft ? bLeft.color : style.borderLeftColor;
+  const borderLeftStyle = bLeft ? bLeft.style : style.borderLeftStyle;
 
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
