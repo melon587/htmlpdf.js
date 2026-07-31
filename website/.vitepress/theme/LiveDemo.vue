@@ -2031,9 +2031,7 @@
           ></div>
         </div>
 
-        <p style="margin-top: 12px; font-weight: bold">
-          （圆角矩形）
-        </p>
+        <p style="margin-top: 12px; font-weight: bold">（圆角矩形）</p>
         <div style="display: flex; gap: 8px">
           <div
             style="
@@ -2064,9 +2062,7 @@
           ></div>
         </div>
 
-        <p style="margin-top: 12px; font-weight: bold">
-          （直角矩形）
-        </p>
+        <p style="margin-top: 12px; font-weight: bold">（直角矩形）</p>
         <div style="display: flex; gap: 8px">
           <div
             style="
@@ -2092,6 +2088,262 @@
               border: 6px dashed #52c41a;
             "
           ></div>
+        </div>
+
+        <!-- ===== radial-gradient tests ===== -->
+        <div style="margin-top: 40px">
+          <h3 style="font-size: 16px; margin-bottom: 12px">radial-gradient</h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: radial-gradient(#1677ff, #f0f5ff);
+              "
+            ></div>
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: radial-gradient(circle, #ff4d4f 0%, #fff7e6 100%);
+              "
+            ></div>
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: radial-gradient(
+                  at 20% 30%,
+                  #52c41a 0%,
+                  #f6ffed 70%
+                );
+              "
+            ></div>
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: radial-gradient(
+                  ellipse at 80% 20%,
+                  #722ed1 0%,
+                  rgba(114, 46, 209, 0) 70%
+                );
+                background-color: #f9f0ff;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <!-- ===== Opacity / RGBA transparency tests ===== -->
+        <div style="margin-top: 40px">
+          <h3 style="font-size: 16px; margin-bottom: 12px">
+            Opacity &amp; RGBA transparency
+          </h3>
+
+          <!-- CSS opacity -->
+          <p style="font-size: 13px; margin-bottom: 8px">CSS opacity</p>
+          <div style="display: flex; gap: 8px; margin-bottom: 16px">
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: #1677ff;
+                color: #fff;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0.3;
+              "
+            >
+              opacity 0.3
+            </div>
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: #1677ff;
+                color: #fff;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0.5;
+              "
+            >
+              opacity 0.5
+            </div>
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: #1677ff;
+                color: #fff;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0.8;
+              "
+            >
+              opacity 0.8
+            </div>
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: #1677ff;
+                color: #fff;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 1;
+              "
+            >
+              opacity 1.0
+            </div>
+          </div>
+
+          <!-- RGBA background-color -->
+          <p style="font-size: 13px; margin-bottom: 8px">
+            RGBA background-color
+          </p>
+          <div
+            style="
+              display: flex;
+              gap: 8px;
+              margin-bottom: 16px;
+              background: #e8e8e8;
+              padding: 8px;
+            "
+          >
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: rgba(22, 119, 255, 0.2);
+                color: #003;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              rgba alpha 0.2
+            </div>
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: rgba(22, 119, 255, 0.5);
+                color: #003;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              rgba alpha 0.5
+            </div>
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: rgba(255, 77, 79, 0.6);
+                color: #fff;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              rgba alpha 0.6
+            </div>
+            <div
+              style="
+                width: 140px;
+                height: 60px;
+                background: rgba(82, 196, 26, 0.7);
+                color: #fff;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              rgba alpha 0.7
+            </div>
+          </div>
+
+          <!-- Nested opacity -->
+          <p style="font-size: 13px; margin-bottom: 8px">
+            Nested opacity (parent 0.5 × child 0.5 = effective 0.25)
+          </p>
+          <div style="display: flex; gap: 8px; margin-bottom: 16px">
+            <div
+              style="
+                width: 300px;
+                height: 80px;
+                background: #ff7a45;
+                opacity: 0.5;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              "
+            >
+              <div
+                style="
+                  background: #1677ff;
+                  color: #fff;
+                  font-size: 13px;
+                  padding: 8px 16px;
+                  opacity: 0.5;
+                "
+              >
+                child opacity 0.5
+              </div>
+            </div>
+          </div>
+
+          <!-- opacity on bordered element -->
+          <p style="font-size: 13px; margin-bottom: 8px">
+            Opacity on bordered element
+          </p>
+          <div style="display: flex; gap: 8px">
+            <div
+              style="
+                width: 160px;
+                height: 60px;
+                background: #fff7e6;
+                border: 4px solid #fa8c16;
+                color: #873800;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0.4;
+              "
+            >
+              border + opacity 0.4
+            </div>
+            <div
+              style="
+                width: 160px;
+                height: 60px;
+                background: #f9f0ff;
+                border: 4px solid #722ed1;
+                color: #391085;
+                font-size: 13px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                opacity: 0.75;
+              "
+            >
+              border + opacity 0.75
+            </div>
+          </div>
         </div>
       </div>
     </div>
