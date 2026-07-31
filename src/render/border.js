@@ -190,6 +190,14 @@ function strokeRoundedSides({
     if (uniform) {
       const lw = toMM(uniform.bw);
       const o = lw / 2;
+      // 内缩后的圆角半径：每角减去 o（border 中线到外边缘距离），
+      // 与背景 clip 圆角路径（基于 border-box）对齐，消除白缝
+      const ri = {
+        tl: Math.max(r.tl - o, 0),
+        tr: Math.max(r.tr - o, 0),
+        br: Math.max(r.br - o, 0),
+        bl: Math.max(r.bl - o, 0),
+      };
 
       doc.setDrawColor(uniform.color[0], uniform.color[1], uniform.color[2]);
       doc.setLineWidth(lw);
@@ -200,7 +208,7 @@ function strokeRoundedSides({
         y: y + o,
         w: w - lw,
         h: h - lw,
-        r,
+        r: ri,
       });
       doc.stroke();
       doc.setLineDashPattern([], 0);
