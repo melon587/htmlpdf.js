@@ -8,7 +8,11 @@
  * └─ text          → drawText
  */
 
-import { drawBackground } from './background';
+import {
+  drawBackground,
+  pushAncestorClips,
+  popAncestorClips,
+} from './background';
 import { drawBorder } from './border';
 import { drawImage } from './image';
 import { drawText } from './text';
@@ -67,7 +71,7 @@ export function renderNode({
   clipTopPx = 0,
 }) {
   // 1. 坐标转换：全局 → 页内
-  const { toMM, contentHeight } = ctx;
+  const { toMM, contentHeight, toPdfX, toPdfYmm, contentHeightPx } = ctx;
   const relativeYpx = node.y - offsetYpx;
   const relativeYmm = toMM(relativeYpx);
 
@@ -85,6 +89,21 @@ export function renderNode({
     ? toMM(pageActualBottomPx - offsetYpx)
     : contentHeight;
 
+  // 5. 应用祖先 overflow clip（圆角裁剪）
+  const pageHeightPx = pageActualBottomPx
+    ? pageActualBottomPx - offsetYpx
+    : contentHeightPx;
+  const { doc } = ctx;
+  const clipCount = pushAncestorClips({
+    doc,
+    ancestors: node.overflowClipAncestors,
+    toMM,
+    toPdfX,
+    toPdfYmm,
+    offsetYpx,
+    pageHeightPx,
+  });
+
   // 公共渲染参数
   const commonParams = {
     node: adjustedNode,
@@ -94,7 +113,7 @@ export function renderNode({
     clipBottom,
   };
 
-  // 5. 根据节点类型调度渲染
+  // 6. 根据节点类型调度渲染
   if (adjustedNode.type === 'element') {
     renderBackgroundAndBorder(commonParams);
 
@@ -120,4 +139,7 @@ export function renderNode({
       sortedFontConfig: fonts,
     });
   }
+
+  // 7. 释放祖先 clip 上下文
+  popAncestorClips(doc, clipCount);
 }

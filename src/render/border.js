@@ -130,7 +130,7 @@ function strokeRightSide({
 }
 
 /**
- * 当四边 border 完全一致时返回 { bw, color }，否则返回 null。
+ * 当四边 border 完全一致时返回 { bw, color, borderStyle }，否则返回 null。
  * 用于单页快速路径。
  */
 function getUniformBorder(sides) {
@@ -145,11 +145,12 @@ function getUniformBorder(sides) {
 
   const first = valid[0];
   const firstC = parseColor(first.color);
-  const allSame = valid.every(({ bw, color }) => {
+  const allSame = valid.every(({ bw, color, borderStyle }) => {
     const c = parseColor(color);
 
     return (
       bw === first.bw &&
+      borderStyle === first.borderStyle &&
       c &&
       c[0] === firstC[0] &&
       c[1] === firstC[1] &&
@@ -157,7 +158,9 @@ function getUniformBorder(sides) {
     );
   });
 
-  return allSame ? { bw: first.bw, color: firstC } : null;
+  return allSame
+    ? { bw: first.bw, color: firstC, borderStyle: first.borderStyle }
+    : null;
 }
 
 /**
@@ -190,6 +193,7 @@ function strokeRoundedSides({
 
       doc.setDrawColor(uniform.color[0], uniform.color[1], uniform.color[2]);
       doc.setLineWidth(lw);
+      applyLineDash(doc, uniform.borderStyle, lw);
       addRoundedRectPath({
         doc,
         x: x + o,
@@ -199,6 +203,7 @@ function strokeRoundedSides({
         r,
       });
       doc.stroke();
+      doc.setLineDashPattern([], 0);
 
       return;
     }
@@ -209,6 +214,23 @@ function strokeRoundedSides({
 
   for (const { bw, color, borderStyle, side } of sides) {
     strokeOneSide({ geom, bw, color, borderStyle, side, toMM });
+  }
+}
+
+/**
+ * 根据 borderStyle 和 lineWidth（mm）设置 jsPDF 虚线模式。
+ * solid / 其他 → 实线（清除 dash）
+ * dashed → 长虚线
+ * dotted → 点线
+ * double → 实线（调用方需自行画两条线）
+ */
+function applyLineDash(doc, borderStyle, lw) {
+  if (borderStyle === 'dashed') {
+    doc.setLineDashPattern([lw * 3, lw * 3], 0);
+  } else if (borderStyle === 'dotted') {
+    doc.setLineDashPattern([lw, lw * 2], 0);
+  } else {
+    doc.setLineDashPattern([], 0);
   }
 }
 
@@ -228,6 +250,33 @@ function strokeOneSide({ geom, bw, color, borderStyle, side, toMM }) {
 
   doc.setDrawColor(c[0], c[1], c[2]);
   doc.setLineWidth(lw);
+  applyLineDash(doc, borderStyle, lw);
+
+  if (borderStyle === 'double') {
+    // double：画两条平行线，间距约等于 lw
+    const gap = lw;
+    const lw2 = lw / 3;
+    doc.setLineWidth(lw2);
+    strokeDoubleOneSide({
+      doc,
+      x,
+      y,
+      w,
+      h,
+      tl,
+      tr,
+      br,
+      bl,
+      isFirstPage,
+      isLastPage,
+      o,
+      gap,
+      side,
+    });
+    doc.setLineDashPattern([], 0);
+
+    return;
+  }
 
   if (side === 'top' && isFirstPage) {
     strokeTopSide({ doc, x, y, w, tl, tr, o });
@@ -237,6 +286,42 @@ function strokeOneSide({ geom, bw, color, borderStyle, side, toMM }) {
     strokeLeftSide({ doc, x, y, h, tl, bl, isFirstPage, isLastPage, o });
   } else if (side === 'right') {
     strokeRightSide({ doc, x, y, w, h, tr, br, isFirstPage, isLastPage, o });
+  }
+
+  doc.setLineDashPattern([], 0);
+}
+
+/**
+ * double border：在同一边画两条细线（内线 + 外线），
+ * 每条宽 lw/3，间距 lw/3。
+ * 简化实现：只支持直线段（圆角 double 极少见，不支持）
+ */
+function strokeDoubleOneSide({
+  doc,
+  x,
+  y,
+  w,
+  h,
+  isFirstPage,
+  isLastPage,
+  o,
+  gap,
+  side,
+}) {
+  const o2 = o + gap;
+
+  if (side === 'top' && isFirstPage) {
+    doc.line(x, y + o, x + w, y + o);
+    doc.line(x, y + o2, x + w, y + o2);
+  } else if (side === 'bottom' && isLastPage) {
+    doc.line(x, y + h - o, x + w, y + h - o);
+    doc.line(x, y + h - o2, x + w, y + h - o2);
+  } else if (side === 'left') {
+    doc.line(x + o, y, x + o, y + h);
+    doc.line(x + o2, y, x + o2, y + h);
+  } else if (side === 'right') {
+    doc.line(x + w - o, y, x + w - o, y + h);
+    doc.line(x + w - o2, y, x + w - o2, y + h);
   }
 }
 
@@ -324,6 +409,35 @@ function drawBorder({
   // 直角 fallback：逐边画线
   const lrBottom = isLastSpill ? yBottom : toPdfYmm(clipBottom);
 
+  strokeStraightSides({
+    doc,
+    toMM,
+    x,
+    yTop,
+    yBottom,
+    w,
+    lrBottom,
+    sides,
+    isFirstPage,
+    isLastPage,
+  });
+}
+
+/**
+ * 直角（无 border-radius）逐边描边，支持 solid/dashed/dotted/double。
+ */
+function strokeStraightSides({
+  doc,
+  toMM,
+  x,
+  yTop,
+  yBottom,
+  w,
+  lrBottom,
+  sides,
+  isFirstPage,
+  isLastPage,
+}) {
   for (const { bw, color, borderStyle, side } of sides) {
     if (!borderStyle || borderStyle === 'none' || borderStyle === 'hidden')
       continue;
@@ -338,6 +452,24 @@ function drawBorder({
 
     doc.setDrawColor(c[0], c[1], c[2]);
     doc.setLineWidth(lw);
+    applyLineDash(doc, borderStyle, lw);
+
+    if (borderStyle === 'double') {
+      strokeDoubleStraight({
+        doc,
+        lw,
+        x,
+        yTop,
+        yBottom,
+        w,
+        lrBottom,
+        side,
+        isFirstPage,
+        isLastPage,
+      });
+      doc.setLineDashPattern([], 0);
+      continue;
+    }
 
     if (side === 'top') {
       if (isFirstPage) doc.line(x, yTop + o, x + w, yTop + o);
@@ -348,6 +480,40 @@ function drawBorder({
     } else {
       doc.line(x + w - o, yTop, x + w - o, lrBottom);
     }
+
+    doc.setLineDashPattern([], 0);
+  }
+}
+
+/** double border 直线段：画两条平行细线 */
+function strokeDoubleStraight({
+  doc,
+  lw,
+  x,
+  yTop,
+  yBottom,
+  w,
+  lrBottom,
+  side,
+  isFirstPage,
+  isLastPage,
+}) {
+  const gap = lw;
+  const o = lw / 2;
+  doc.setLineWidth(lw / 3);
+
+  if (side === 'top' && isFirstPage) {
+    doc.line(x, yTop + o, x + w, yTop + o);
+    doc.line(x, yTop + o + gap, x + w, yTop + o + gap);
+  } else if (side === 'bottom' && isLastPage) {
+    doc.line(x, yBottom - o, x + w, yBottom - o);
+    doc.line(x, yBottom - o - gap, x + w, yBottom - o - gap);
+  } else if (side === 'left') {
+    doc.line(x + o, yTop, x + o, lrBottom);
+    doc.line(x + o + gap, yTop, x + o + gap, lrBottom);
+  } else if (side === 'right') {
+    doc.line(x + w - o, yTop, x + w - o, lrBottom);
+    doc.line(x + w - o - gap, yTop, x + w - o - gap, lrBottom);
   }
 }
 

@@ -241,7 +241,7 @@ export function applyTextStyle(doc, style, fontSize, toPt) {
  * @returns {{ fontStyle: string, textAlign: string, isRTL: boolean, x: number, y: number, rtlOptions: Object|undefined }}
  */
 export function resolveTextLayout(node, style, fontSize, ctx) {
-  const { toPdfX, toPdfY, toMM } = ctx;
+  const { toPdfX, toPdfY } = ctx;
   const { textAlign, direction, fontStyle: fs, fontWeight: fw } = style;
   const fontStyle = getCombinedFontStyle(fs, fw);
   const isRTL = direction === 'rtl';
@@ -251,7 +251,7 @@ export function resolveTextLayout(node, style, fontSize, ctx) {
   else if (textAlign === 'center') x = toPdfX(node.x + node.width / 2);
   else x = toPdfX(node.x);
 
-  const y = toPdfY(node.y) + toMM(fontSize);
+  const y = toPdfY(node.y);
 
   const rtlOptions = isRTL
     ? {
@@ -348,7 +348,7 @@ export function drawMultiSegmentAligned({
       const seg = segments[i];
       applySegmentFont(ctx, seg, fontStyle);
       ctx.doc.text(seg.text, curX, y, {
-        baseline: 'alphabetic',
+        baseline: 'top',
         ...rtlOptions,
       });
     }
@@ -362,7 +362,7 @@ export function drawMultiSegmentAligned({
     for (let i = 0; i < segments.length; i += 1) {
       const seg = segments[i];
       applySegmentFont(ctx, seg, fontStyle);
-      ctx.doc.text(seg.text, curX, y, { baseline: 'alphabetic' });
+      ctx.doc.text(seg.text, curX, y, { baseline: 'top' });
       curX += widths[i];
     }
   }
@@ -390,7 +390,7 @@ export function drawSegmentAligned({
   );
 
   ctx.doc.text(text, x, y, {
-    baseline: 'alphabetic',
+    baseline: 'top',
     ...(textAlign !== 'left' && { align: textAlign }),
     ...rtlOptions,
   });

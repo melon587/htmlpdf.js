@@ -66,22 +66,26 @@ export const TABLE_TAGS = new Set([
 /**
  * 预构建表格结构缓存，供 resolveCellBorderOverrides 使用。
  *
- * 一次遍历完成三件事：
+ * 一次遍历完成四件事：
  *   1. tableCollapseMap: table → isCollapse（boolean）
- *   2. tableAllCells:    table → { el, rect }[]  （按文档序）
- *   3. cellRectMap:      cell  → DOMRect          （O(1) 坐标查询）
+ *   2. tableAllCells:    table → { el, rect, brw, bbw }[]（按文档序）
+ *      brw = borderRightWidth，bbw = borderBottomWidth（字符串，如 "1px"）
+ *   3. cellRectMap:      cell  → DOMRect（O(1) 坐标查询）
+ *   4. cellStyleMap:     cell  → { brw, bbw }（O(1) border 查询，无需再调
+ *                                 getComputedStyle）
  *
- * 所有 getBoundingClientRect 调用集中在此，之后查找函数
+ * 所有 getBoundingClientRect / getComputedStyle 调用集中在此，之后查找函数
  * 全部走缓存，无额外 layout 触发。
  *
  * @param {Element} cloneRoot - iframe 内的克隆根元素
  * @param {Window}  win       - 测量窗口
- * @returns {{ tableCollapseMap, tableAllCells, cellRectMap }}
+ * @returns {{ tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap }}
  */
 function buildTableCache(cloneRoot, win) {
   const tableCollapseMap = new WeakMap();
   const tableAllCells = new WeakMap();
   const cellRectMap = new WeakMap();
+  const cellStyleMap = new WeakMap();
 
   const tables = cloneRoot.querySelectorAll('table');
   for (const table of tables) {
@@ -91,14 +95,18 @@ function buildTableCache(cloneRoot, win) {
 
     const cells = [...table.querySelectorAll('td,th')].map((el) => {
       const rect = el.getBoundingClientRect();
+      const cs = win.getComputedStyle(el);
+      const brw = cs.borderRightWidth;
+      const bbw = cs.borderBottomWidth;
       cellRectMap.set(el, rect);
+      cellStyleMap.set(el, { brw, bbw });
 
-      return { el, rect };
+      return { el, rect, brw, bbw };
     });
     tableAllCells.set(table, cells);
   }
 
-  return { tableCollapseMap, tableAllCells, cellRectMap };
+  return { tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap };
 }
 
 /**
@@ -122,14 +130,14 @@ const COORD_EPS = 1;
  *   - rect.right ≈ cellRect.left（横向紧贴）
  *   - 该格子纵向覆盖 cellEl（rowspan 跨越当前行）
  *
- * 所有坐标来自 cellRectMap 缓存，无额外 layout 触发。
+ * 所有坐标与 border 均来自缓存，无额外 layout / getComputedStyle 触发。
  */
 function getPrevCellBorderRight({
   cellEl,
   cellRect,
   tableAllCells,
   cellRectMap,
-  win,
+  cellStyleMap,
 }) {
   // 1. 先查同 TR 兄弟（最常见路径）
   const tr = cellEl.closest('tr');
@@ -141,7 +149,7 @@ function getPrevCellBorderRight({
       if (!sibRect) continue;
 
       if (Math.abs(sibRect.right - cellRect.left) <= COORD_EPS) {
-        return win.getComputedStyle(sib).borderRightWidth;
+        return cellStyleMap.get(sib)?.brw ?? '0px';
       }
     }
   }
@@ -150,17 +158,14 @@ function getPrevCellBorderRight({
   const table = cellEl.closest('table');
   if (!table) return '0px';
 
-  for (const { el, rect } of tableAllCells.get(table) ?? []) {
+  for (const { el, rect, brw } of tableAllCells.get(table) ?? []) {
     if (el === cellEl) continue;
 
     const hMatch = Math.abs(rect.right - cellRect.left) <= COORD_EPS;
     const vCovers =
       rect.top <= cellRect.top + COORD_EPS &&
       rect.bottom >= cellRect.bottom - COORD_EPS;
-    if (hMatch && vCovers) {
-      const bw = win.getComputedStyle(el).borderRightWidth;
-      if (bw !== '0px') return bw;
-    }
+    if (hMatch && vCovers && brw !== '0px') return brw;
   }
 
   return '0px';
@@ -174,13 +179,13 @@ function getPrevCellBorderRight({
  *   - 与 cellEl 横向有重叠
  *
  * colspan 场景：上方可能有多个窄格子，取第一个 borderBottom ≠ 0px 的值。
- * 所有坐标来自 tableAllCells 缓存，无额外 layout 触发。
+ * 所有坐标与 border 均来自缓存，无额外 layout / getComputedStyle 触发。
  */
-function getPrevRowCellBorderBottom({ cellEl, cellRect, tableAllCells, win }) {
+function getPrevRowCellBorderBottom({ cellEl, cellRect, tableAllCells }) {
   const table = cellEl.closest('table');
   if (!table) return '0px';
 
-  for (const { el, rect } of tableAllCells.get(table) ?? []) {
+  for (const { el, rect, bbw } of tableAllCells.get(table) ?? []) {
     if (el === cellEl) continue;
 
     const vMatch = Math.abs(rect.bottom - cellRect.top) <= COORD_EPS;
@@ -188,10 +193,7 @@ function getPrevRowCellBorderBottom({ cellEl, cellRect, tableAllCells, win }) {
       rect.left < cellRect.right - COORD_EPS &&
       rect.right > cellRect.left + COORD_EPS;
 
-    if (vMatch && hOverlap) {
-      const bw = win.getComputedStyle(el).borderBottomWidth;
-      if (bw !== '0px') return bw;
-    }
+    if (vMatch && hOverlap && bbw !== '0px') return bbw;
   }
 
   return '0px';
@@ -223,15 +225,15 @@ function resolveCellBorderOverrides({
   measEl,
   cellRect,
   tableCache,
-  win,
 }) {
   if (!CELL_TAGS.has(tag) || isPseudo) return null;
 
-  const { tableCollapseMap, tableAllCells, cellRectMap } = tableCache;
+  const { tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap } =
+    tableCache;
   if (!isCollapseTable(measEl, tableCollapseMap)) return null;
 
   const zero = { width: '0px', color: 'transparent', style: 'none' };
-  const shared = { cellRect, tableAllCells, win };
+  const shared = { cellRect, tableAllCells };
 
   // 横向：上邻有 bottom → 抑制自身 top
   const prevBottom = getPrevRowCellBorderBottom({
@@ -244,6 +246,7 @@ function resolveCellBorderOverrides({
   const prevRight = getPrevCellBorderRight({
     cellEl: measEl,
     cellRectMap,
+    cellStyleMap,
     ...shared,
   });
   const suppressLeft = prevRight !== '0px';
@@ -260,15 +263,20 @@ function resolveCellBorderOverrides({
  * 计算 TR 节点的 rowSpanChildMaxHeight：
  * TR 内含 rowspan>1 的 TD/TH 时，取这些格子高度的最大值；
  * 非 TR 或伪元素时返回 0。
+ * 高度来自 cellRectMap 缓存，无额外 layout 触发。
  */
-function calcRowSpanChildMaxHeight(tag, isPseudo, measEl) {
+function calcRowSpanChildMaxHeight(tag, isPseudo, measEl, cellRectMap) {
   if (tag !== 'TR' || isPseudo) return 0;
 
-  const heights = [...measEl.children]
-    .filter((c) => CELL_TAGS.has(c.tagName) && (c.rowSpan || 1) > 1)
-    .map((c) => c.getBoundingClientRect().height);
+  let max = 0;
+  for (const c of measEl.children) {
+    if (!CELL_TAGS.has(c.tagName) || (c.rowSpan || 1) <= 1) continue;
 
-  return heights.length > 0 ? Math.max(0, ...heights) : 0;
+    const r = cellRectMap.get(c);
+    if (r && r.height > max) max = r.height;
+  }
+
+  return max;
 }
 
 /**
@@ -277,6 +285,52 @@ function calcRowSpanChildMaxHeight(tag, isPseudo, measEl) {
  */
 function getCellRowSpan(tag, isPseudo, origEl) {
   return CELL_TAGS.has(tag) && !isPseudo ? origEl?.rowSpan || 1 : 1;
+}
+
+/**
+ * 判断元素是否应作为 overflow clip 祖先被收集。
+ *
+ * 普通元素：computed overflow 为 hidden/scroll/auto 时收集。
+ * TABLE 特殊情况：border-collapse:collapse 使 Chrome 强制把
+ * computed overflow 重置为 visible，但用户若通过 inline style
+ * 声明了 overflow:hidden（el.style.overflow），仍应视为 clip 祖先。
+ * inline style 不受 Chrome 该行为影响，可正确读取。
+ */
+function shouldCollectAsClipAncestor(el, computedStyle) {
+  const ov = computedStyle.overflow;
+  if (ov === 'hidden' || ov === 'scroll' || ov === 'auto') return true;
+
+  if (el.tagName === 'TABLE' && el.style?.overflow === 'hidden') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * 从当前节点的 style 和坐标构造 clip 祖先 entry。
+ * 供 walk() 在遍历时增量维护 clipAncestorCache 使用。
+ *
+ * @param {Element}            el       - 目标元素（已知是 clip 祖先）
+ * @param {CSSStyleDeclaration} s       - 该元素的 getComputedStyle 结果
+ * @param {DOMRect}            r        - 该元素的 getBoundingClientRect 结果
+ * @param {DOMRect}            rootRect - 根元素 bounding rect（坐标原点）
+ */
+function makeClipEntry(el, s, r, rootRect) {
+  return {
+    x: r.left - rootRect.left,
+    y: r.top - rootRect.top,
+    width: r.width,
+    height: r.height,
+    borderTopWidth: s.borderTopWidth,
+    borderRightWidth: s.borderRightWidth,
+    borderBottomWidth: s.borderBottomWidth,
+    borderLeftWidth: s.borderLeftWidth,
+    borderTopLeftRadius: s.borderTopLeftRadius,
+    borderTopRightRadius: s.borderTopRightRadius,
+    borderBottomRightRadius: s.borderBottomRightRadius,
+    borderBottomLeftRadius: s.borderBottomLeftRadius,
+  };
 }
 
 /**
@@ -294,16 +348,27 @@ function getMediaEl(origEl, measEl) {
 }
 
 /**
- * 解析元素节点，提取坐标、尺寸和样式
- * @param {Element|null} origEl     - 原始 DOM 元素；伪元素传 null
- * @param {Element}      measEl     - iframe 内的克隆元素（用于测量）
- * @param {DOMRect}      rootRect   - 根元素边界（坐标原点）
- * @param {Window}       win        - 测量窗口
- * @param {Object}       tableCache - buildTableCache() 返回的缓存对象
+ * 解析元素节点，提取坐标、尺寸和样式。
+ *
+ * overflowClipAncestors 由调用方（walk）传入——walk 遍历时通过
+ * clipAncestorCache 增量推导，避免每个节点向上重复遍历祖先链。
+ *
+ * @param {Element|null} origEl              - 原始 DOM 元素；伪元素传 null
+ * @param {Element}      measEl              - iframe 内的克隆元素（用于测量）
+ * @param {DOMRect}      rootRect            - 根元素边界（坐标原点）
+ * @param {Window}       win                 - 测量窗口
+ * @param {Object}       tableCache          - buildTableCache() 返回的缓存
+ * @param {Array}        overflowClipAncestors - 已推导好的 clip 祖先数组
  * @returns {Object} 元素节点 {type, x, y, width, height, style, ...}
  */
-
-function parseElement({ origEl, measEl, rootRect, win, tableCache }) {
+function parseElement({
+  origEl,
+  measEl,
+  rootRect,
+  win,
+  tableCache,
+  overflowClipAncestors,
+}) {
   const style = win.getComputedStyle(measEl);
 
   // 检测是否是物化的伪元素
@@ -326,7 +391,6 @@ function parseElement({ origEl, measEl, rootRect, win, tableCache }) {
     measEl,
     cellRect: rect,
     tableCache,
-    win,
   });
   const bTop = borderOverrides?.top;
   const bLeft = borderOverrides?.left;
@@ -347,6 +411,8 @@ function parseElement({ origEl, measEl, rootRect, win, tableCache }) {
   const borderLeftColor = bLeft ? bLeft.color : style.borderLeftColor;
   const borderLeftStyle = bLeft ? bLeft.style : style.borderLeftStyle;
 
+  const { cellRectMap } = tableCache;
+
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
     pseudoType: isPseudo ? measEl.getAttribute('data-pseudo') : undefined,
@@ -355,11 +421,17 @@ function parseElement({ origEl, measEl, rootRect, win, tableCache }) {
     y,
     width: rect.width,
     height: rect.height,
-    rowSpanChildMaxHeight: calcRowSpanChildMaxHeight(tag, isPseudo, measEl),
+    rowSpanChildMaxHeight: calcRowSpanChildMaxHeight(
+      tag,
+      isPseudo,
+      measEl,
+      cellRectMap,
+    ),
     rowSpan: getCellRowSpan(tag, isPseudo, origEl),
     pageBreak: origEl ? getPageBreak(origEl) : null,
     _el: getMediaEl(origEl, measEl),
     _origEl: origEl,
+    overflowClipAncestors,
     style: {
       backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,
@@ -413,6 +485,7 @@ function processMultilineText({
   nodeStyle,
   pdfFont,
   origParent,
+  overflowClipAncestors,
 }) {
   const nodes = [];
   const lineGroups = []; // [{top, left, right, bottom, height, chars: [char1, char2, ...]}]
@@ -470,6 +543,7 @@ function processMultilineText({
       style: nodeStyle,
       pdfFont: pdfFont,
       _origEl: origParent,
+      overflowClipAncestors,
     });
   }
 
@@ -480,7 +554,14 @@ function processMultilineText({
  * 解析文本节点，规范化空白字符，测量坐标
  * 关键修复：`raw.replace(/\s+/g, ' ').trim()` 移除 HTML 源码中的换行和多余空格
  */
-function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
+function parseTextNode({
+  textNode,
+  measParent,
+  rootRect,
+  win,
+  origParent,
+  overflowClipAncestors,
+}) {
   const raw = textNode.textContent;
   if (!raw || !raw.trim()) return [];
 
@@ -528,6 +609,7 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
       nodeStyle,
       pdfFont,
       origParent,
+      overflowClipAncestors,
     });
   }
 
@@ -547,12 +629,27 @@ function parseTextNode({ textNode, measParent, rootRect, win, origParent }) {
       style: nodeStyle,
       pdfFont,
       _origEl: origParent,
+      overflowClipAncestors,
     },
   ];
 }
 
 /**
  * 递归遍历 DOM 树，返回扁平化节点列表
+ *
+ * ## overflow clip 祖先缓存（clipAncestorCache）
+ *
+ * walk 是深度优先，父节点先于子节点处理。每个节点 walk 时：
+ *   1. 从父节点的 clipAncestorCache 取已有祖先数组（O(1)）
+ *   2. 判断当前节点自身是否是 clip 祖先：
+ *      - 是 → 把自身 entry prepend 到父节点数组，得到子节点应看到的祖先链
+ *      - 否 → 直接复用父节点数组（共享引用，零分配）
+ *   3. 将结果存入 clipAncestorCache 供子节点使用
+ *
+ * 这样每个节点只需一次 shouldCollectAsClipAncestor 判断（O(1)），
+ * 彻底替代原来对每个节点向上完整遍历祖先链的 O(depth) 做法。
+ * getBoundingClientRect / getComputedStyle 只在实际是 clip 祖先时才调用。
+ *
  * @param {Element} element   - 原始根元素
  * @param {Element} cloneRoot - iframe 内的克隆根元素（用于测量）
  * @returns {Array} 扁平化节点列表
@@ -562,8 +659,14 @@ export function collectNodes(element, cloneRoot) {
   const measWin = cloneRoot.ownerDocument.defaultView;
   const rootRect = measRoot.getBoundingClientRect();
 
-  // 预构建表格缓存：一次 O(总 TR 数) 遍历，之后每个 TD/TH 查询均为 O(1)
+  // 预构建表格缓存：一次遍历，之后每个 TD/TH 查询均为 O(1)
   const tableCache = buildTableCache(measRoot, measWin);
+
+  // clipAncestorCache: measEl → 该节点的子节点所应看到的 clip 祖先数组
+  // （即：当前节点若是 clip 祖先则 prepend 自身，否则复用父节点数组）
+  const clipAncestorCache = new WeakMap();
+  // 根节点不是 clip 上下文，初始化为空数组
+  clipAncestorCache.set(measRoot, []);
 
   const nodes = [];
 
@@ -574,7 +677,24 @@ export function collectNodes(element, cloneRoot) {
     const style = measWin.getComputedStyle(measEl);
     if (!isVisible(style)) return;
 
-    // 元素本身（包括物化的伪元素）
+    // 从父节点缓存取祖先数组（父节点保证先于当前节点 walk）
+    const parentAncestors = clipAncestorCache.get(measEl.parentElement) ?? [];
+
+    // 当前节点是否是 clip 祖先？是则 prepend 自身 entry（子节点需要看到它）
+    let childAncestors;
+    if (shouldCollectAsClipAncestor(measEl, style)) {
+      const r = measEl.getBoundingClientRect();
+      childAncestors = [
+        makeClipEntry(measEl, style, r, rootRect),
+        ...parentAncestors,
+      ];
+    } else {
+      childAncestors = parentAncestors;
+    }
+
+    clipAncestorCache.set(measEl, childAncestors);
+
+    // 当前节点的 overflowClipAncestors = 父节点视角的祖先数组
     nodes.push(
       parseElement({
         origEl,
@@ -582,6 +702,7 @@ export function collectNodes(element, cloneRoot) {
         rootRect,
         win: measWin,
         tableCache,
+        overflowClipAncestors: parentAncestors,
       }),
     );
 
@@ -610,6 +731,7 @@ export function collectNodes(element, cloneRoot) {
         rootRect,
         win: measWin,
         origParent,
+        overflowClipAncestors: childAncestors,
       });
       for (const n of textNodes) nodes.push(n);
     }

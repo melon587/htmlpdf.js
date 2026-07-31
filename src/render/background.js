@@ -1,4 +1,4 @@
-import { parseColor, parseBgSizeVal, parseBgPosVal } from '../utils';
+import { parseColor, parseBgSizeVal, parseBgPosVal, parsePx } from '../utils';
 import { parseLinearGradient, renderGradientSlice } from './gradient';
 import {
   parseRadius,
@@ -214,3 +214,121 @@ function drawBackground({
 }
 
 export { drawBackground };
+
+/**
+ * 为单个 overflow clip 祖先建立 clip 路径并调用 doc.clip()。
+ * 调用方已 saveGraphicsState；此函数内置 discardPath。
+ * clip 区域是祖先的 padding-box，支持圆角，与当前页取交集。
+ *
+ * @returns {boolean} false 表示祖先在本页不可见，调用方应还原状态
+ */
+function applyOneAncestorClip({
+  doc,
+  ancestor,
+  toMM,
+  toPdfX,
+  toPdfYmm,
+  offsetYpx,
+  pageHeightPx,
+}) {
+  const bTop = parsePx(ancestor.borderTopWidth);
+  const bRight = parsePx(ancestor.borderRightWidth);
+  const bBottom = parsePx(ancestor.borderBottomWidth);
+  const bLeft = parsePx(ancestor.borderLeftWidth);
+
+  // padding-box（px，全局坐标）
+  const pbX = ancestor.x + bLeft;
+  const pbY = ancestor.y + bTop;
+  const pbW = ancestor.width - bLeft - bRight;
+  const pbH = ancestor.height - bTop - bBottom;
+
+  // 转为页内坐标（px）
+  const relTop = pbY - offsetYpx;
+  const relBottom = relTop + pbH;
+
+  // 与本页取交集
+  const visTop = Math.max(relTop, 0);
+  const visBottom = Math.min(relBottom, pageHeightPx);
+  if (visBottom <= visTop) return false;
+
+  // 转 mm
+  const ax = toPdfX(pbX);
+  const ay = toPdfYmm(toMM(visTop));
+  const aw = toMM(pbW);
+  const ah = toMM(visBottom - visTop);
+
+  // 圆角
+  const fakeStyle = {
+    borderTopLeftRadius: ancestor.borderTopLeftRadius,
+    borderTopRightRadius: ancestor.borderTopRightRadius,
+    borderBottomRightRadius: ancestor.borderBottomRightRadius,
+    borderBottomLeftRadius: ancestor.borderBottomLeftRadius,
+  };
+  const fullH = toMM(pbH);
+  const radius = parseRadius({ style: fakeStyle, toMM, w: aw, h: fullH });
+  const useRadius = hasRadius(radius);
+  const isFirstPage = relTop >= 0;
+  const isLastPage = relBottom <= pageHeightPx;
+
+  if (useRadius && isFirstPage && isLastPage) {
+    addRoundedRectPath({ doc, x: ax, y: ay, w: aw, h: ah, r: radius });
+  } else if (useRadius && isFirstPage) {
+    addFirstPagePath({ doc, x: ax, y: ay, w: aw, segH: ah, r: radius });
+  } else if (useRadius && isLastPage) {
+    addLastPagePath({ doc, x: ax, y: ay, w: aw, segH: ah, r: radius });
+  } else {
+    doc.rect(ax, ay, aw, ah, null);
+  }
+
+  doc.clip();
+  doc.discardPath();
+
+  return true;
+}
+
+/**
+ * 为节点的所有 overflow clip 祖先依次建立 clip 上下文。
+ * 返回实际 push 的 saveGraphicsState 层数，渲染完后用
+ * popAncestorClips(doc, count) 释放。
+ */
+export function pushAncestorClips({
+  doc,
+  ancestors,
+  toMM,
+  toPdfX,
+  toPdfYmm,
+  offsetYpx,
+  pageHeightPx,
+}) {
+  if (!ancestors || ancestors.length === 0) return 0;
+
+  let count = 0;
+  for (const ancestor of ancestors) {
+    doc.saveGraphicsState();
+    const visible = applyOneAncestorClip({
+      doc,
+      ancestor,
+      toMM,
+      toPdfX,
+      toPdfYmm,
+      offsetYpx,
+      pageHeightPx,
+    });
+    if (!visible) {
+      doc.restoreGraphicsState();
+    } else {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+/**
+ * 释放由 pushAncestorClips 建立的 clip 上下文。
+ */
+export function popAncestorClips(doc, count) {
+  for (let i = 0; i < count; i += 1) {
+    doc.restoreGraphicsState();
+  }
+}
