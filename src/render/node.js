@@ -8,6 +8,7 @@
  * └─ text          → drawText
  */
 
+import { GState } from 'jspdf';
 import {
   drawBackground,
   pushAncestorClips,
@@ -113,6 +114,14 @@ export function renderNode({
     clipBottom,
   };
 
+  // CSS opacity：< 1 时用 GState 包裹整个节点渲染
+  const opacity = parseFloat(adjustedNode.style?.opacity ?? 1);
+  const hasOpacity = opacity < 1 && opacity >= 0;
+  if (hasOpacity) {
+    doc.saveGraphicsState();
+    doc.setGState(new GState({ opacity, 'stroke-opacity': opacity }));
+  }
+
   // 6. 根据节点类型调度渲染
   if (adjustedNode.type === 'element') {
     renderBackgroundAndBorder(commonParams);
@@ -138,6 +147,10 @@ export function renderNode({
       clipTop: 0,
       sortedFontConfig: fonts,
     });
+  }
+
+  if (hasOpacity) {
+    doc.restoreGraphicsState();
   }
 
   // 7. 释放祖先 clip 上下文

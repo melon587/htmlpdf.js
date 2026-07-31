@@ -43,7 +43,8 @@ export function parsePx(val) {
 }
 
 /**
- * 解析 CSS 颜色字符串 → [r, g, b]
+ * 解析 CSS 颜色字符串 → [r, g, b, a]
+ * a 为 0~1 的透明度值，默认为 1（不透明）
  * 支持：rgb(...) / rgba(...) / #RGB / #RRGGBB / #RRGGBBAA
  */
 export function parseColor(colorStr) {
@@ -55,12 +56,15 @@ export function parseColor(colorStr) {
     return null;
 
   // rgb / rgba
-  const rgbMatch = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  const rgbMatch = colorStr.match(
+    /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/,
+  );
   if (rgbMatch)
     return [
       parseInt(rgbMatch[1]),
       parseInt(rgbMatch[2]),
       parseInt(rgbMatch[3]),
+      rgbMatch[4] !== undefined ? parseFloat(rgbMatch[4]) : 1,
     ];
 
   // #hex (#RGB 或 #RRGGBB 或 #RRGGBBAA)
@@ -72,14 +76,17 @@ export function parseColor(colorStr) {
         parseInt(hex[0] + hex[0], 16),
         parseInt(hex[1] + hex[1], 16),
         parseInt(hex[2] + hex[2], 16),
+        1,
       ];
     }
 
-    // 6 or 8 digits — ignore alpha channel
+    const a = hex.length === 8 ? parseInt(hex.slice(6, 8), 16) / 255 : 1;
+
     return [
       parseInt(hex.slice(0, 2), 16),
       parseInt(hex.slice(2, 4), 16),
       parseInt(hex.slice(4, 6), 16),
+      a,
     ];
   }
 
@@ -390,8 +397,8 @@ export function copyPseudoStyles(span, pseudoStyle) {
         ? pseudoStyle.right
         : null,
 
-    // 注意：opacity 暂不支持（jsPDF 需要 GState，渲染层未实现）
-    // TODO: 未来可通过 doc.setGState(new doc.GState({ opacity: ... })) 实现
+    // opacity（渲染层通过 GState 实现）
+    opacity: pseudoStyle.opacity !== '1' ? pseudoStyle.opacity : null,
 
     // Flexbox 属性
     alignItems:

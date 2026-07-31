@@ -466,6 +466,7 @@ function parseElement({
       overflow: style.overflow,
       paddingTop: style.paddingTop,
       paddingLeft: style.paddingLeft,
+      opacity: style.opacity,
     },
   };
 }
@@ -587,6 +588,7 @@ function parseTextNode({
     lineHeight: style.lineHeight,
     textDecoration: style.textDecoration,
     direction: style.direction,
+    opacity: style.opacity,
   };
 
   const docRange = win.document.createRange();

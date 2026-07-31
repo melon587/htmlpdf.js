@@ -1,3 +1,4 @@
+import { GState } from 'jspdf';
 import { parseColor, parseBgSizeVal, parseBgPosVal, parsePx } from '../utils';
 import { parseLinearGradient, renderGradientSlice } from './gradient';
 import {
@@ -131,6 +132,10 @@ function drawBackground({
   if (color) {
     doc.setFillColor(color[0], color[1], color[2]);
     doc.saveGraphicsState();
+    if (color[3] < 1) {
+      doc.setGState(new GState({ opacity: color[3] }));
+    }
+
     applyClip();
     doc.rect(x, y, w, h, 'F');
     doc.restoreGraphicsState();
