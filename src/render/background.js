@@ -1,6 +1,11 @@
 import { GState } from 'jspdf';
 import { parseColor, parseBgSizeVal, parseBgPosVal, parsePx } from '../utils';
-import { parseLinearGradient, renderGradientSlice } from './gradient';
+import {
+  parseLinearGradient,
+  renderGradientSlice,
+  parseRadialGradient,
+  renderRadialGradientSlice,
+} from './gradient';
 import {
   parseRadius,
   hasRadius,
@@ -141,8 +146,16 @@ function drawBackground({
     doc.restoreGraphicsState();
   }
 
-  // 2. 渐变背景（linear-gradient）：解析 → 直接绘制当前页片段 canvas → addImage
-  const gradient = parseLinearGradient(style?.backgroundImage);
+  // 2. 渐变背景（linear-gradient / radial-gradient）
+  const bgImage = style?.backgroundImage;
+  const isRadial = bgImage?.includes('radial-gradient');
+  const gradient = isRadial
+    ? parseRadialGradient(bgImage)
+    : parseLinearGradient(bgImage);
+  const renderSlice = isRadial
+    ? renderRadialGradientSlice
+    : renderGradientSlice;
+
   if (gradient) {
     // canvas 尺寸使用节点 CSS 像素尺寸
     const natW = Math.round(node.width);
@@ -154,7 +167,7 @@ function drawBackground({
     const srcH = Math.round((ratioBottom - ratioTop) * natH);
 
     if (natW > 0 && natH > 0 && nodeHeightMM > 0 && srcH > 0) {
-      const { dataUrl, format } = renderGradientSlice({
+      const { dataUrl, format } = renderSlice({
         gradient,
         natW,
         natH,

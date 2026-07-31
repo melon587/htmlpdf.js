@@ -231,4 +231,152 @@ function renderGradientSlice({ gradient, natW, natH, srcY, srcH }) {
   return { dataUrl, format };
 }
 
-export { parseLinearGradient, renderGradientSlice };
+// ─── radial-gradient 解析 ────────────────────────────────────────────────────
+
+/**
+ * 解析 CSS radial-gradient() 字符串
+ *
+ * 支持子集：
+ *   - 可选 shape / size 关键字（忽略，按 ellipse 处理）
+ *   - "at <x> <y>"（百分比或关键字）指定圆心，默认 50% 50%
+ *   - 色标（颜色 + 可选百分比位置）
+ *
+ * @param {string} str
+ * @returns {{ cx: number, cy: number, stops: Array } | null}
+ *   cx/cy 为 0~1 的比例值，stops 同 linear-gradient
+ */
+function parseRadialGradient(str) {
+  if (!str || !str.includes('radial-gradient')) return null;
+
+  const fnMatch = str.trim().match(/radial-gradient\s*\((.+)\)$/s);
+  if (!fnMatch) return null;
+
+  const inner = fnMatch[1];
+  const parts = splitTopLevelCommas(inner);
+  if (parts.length < 2) return null;
+
+  let cx = 0.5;
+  let cy = 0.5;
+  let stopStart = 0;
+
+  // 第一个 token 可能是 shape/size/position 描述，或直接是色标颜色
+  const first = parts[0].trim().toLowerCase();
+  const hasDescriptor =
+    /^(circle|ellipse|closest|farthest|contain|cover|at\s)/i.test(first) ||
+    /\bat\b/.test(first);
+
+  if (hasDescriptor) {
+    stopStart = 1;
+    // 提取 "at <x> <y>"
+    const atMatch = first.match(/at\s+([\w.%]+)(?:\s+([\w.%]+))?/);
+
+    if (atMatch) {
+      cx = parsePosToken(atMatch[1]);
+      cy = parsePosToken(atMatch[2] ?? atMatch[1]);
+    }
+  }
+
+  const rawStops = parts.slice(stopStart).map(parseColorStop).filter(Boolean);
+  if (rawStops.length < 2) return null;
+
+  return { cx, cy, stops: fillStopPositions(rawStops) };
+}
+
+/**
+ * 将位置关键字 / 百分比 / px 转换为 0~1 比例
+ */
+function parsePosToken(tok) {
+  if (!tok) return 0.5;
+
+  const t = tok.trim().toLowerCase();
+
+  if (t === 'left' || t === 'top') return 0;
+
+  if (t === 'right' || t === 'bottom') return 1;
+
+  if (t === 'center') return 0.5;
+
+  if (t.endsWith('%')) return parseFloat(t) / 100;
+
+  // px：先按 50% 兜底（运行时无宽高信息）
+  return 0.5;
+}
+
+/**
+ * 将 radial-gradient 绘制到 canvas 并返回 { dataUrl, format }
+ *
+ * 模拟浏览器默认的 ellipse 行为：
+ *   将坐标系缩放到正方形（scale(1, natW/natH)），在正方形里画
+ *   "farthest-corner 圆形"渐变，再通过逆 scale 还原为椭圆。
+ *   这样 X/Y 半径之比 = natW/natH，与 CSS ellipse 默认行为一致。
+ *
+ * @param {object} params
+ * @param {object} params.gradient  parseRadialGradient 返回结果
+ * @param {number} params.natW      节点完整宽度（px）
+ * @param {number} params.natH      节点完整高度（px）
+ * @param {number} params.srcY      当前页片段起始 y（px）
+ * @param {number} params.srcH      当前页片段高度（px）
+ * @returns {{ dataUrl: string, format: 'PNG' | 'JPEG' }}
+ */
+function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
+  const { cx, cy, stops } = gradient;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = natW;
+  canvas.height = srcH;
+  const ctx2d = canvas.getContext('2d');
+
+  // 跨页偏移：让渐变坐标系原点对齐完整节点顶部
+  ctx2d.translate(0, -srcY);
+
+  // 椭圆渐变：在 Y 轴归一化坐标系里画圆，自然呈现 ellipse
+  // scaleY = natW / natH 使 Y 方向拉伸，圆变为 X:Y = natW:natH 的椭圆
+  const scaleY = natH > 0 ? natW / natH : 1;
+  ctx2d.scale(1, 1 / scaleY);
+
+  // 归一化坐标（Y 轴已缩放）
+  const centerX = cx * natW;
+  const centerY = cy * natH * scaleY;
+
+  // farthest-corner 半径（在归一化空间里取四角距离最大值）
+  const corners = [
+    [0, 0],
+    [natW, 0],
+    [0, natH * scaleY],
+    [natW, natH * scaleY],
+  ];
+  const radius = Math.max(
+    ...corners.map(([px, py]) =>
+      Math.sqrt((px - centerX) ** 2 + (py - centerY) ** 2),
+    ),
+  );
+
+  const grad = ctx2d.createRadialGradient(
+    centerX,
+    centerY,
+    0,
+    centerX,
+    centerY,
+    radius,
+  );
+
+  for (const stop of stops) {
+    grad.addColorStop(Math.max(0, Math.min(1, stop.pos)), stop.color);
+  }
+
+  ctx2d.fillStyle = grad;
+  ctx2d.fillRect(0, srcY * scaleY, natW, srcH * scaleY);
+
+  const hasAlpha = canvasHasAlpha(canvas);
+  const format = hasAlpha ? 'PNG' : 'JPEG';
+  const dataUrl = canvasToDataUrl(canvas, hasAlpha);
+
+  return { dataUrl, format };
+}
+
+export {
+  parseLinearGradient,
+  renderGradientSlice,
+  parseRadialGradient,
+  renderRadialGradientSlice,
+};
