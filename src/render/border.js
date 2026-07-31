@@ -1,5 +1,12 @@
 import { parsePx, parseColor } from '../utils';
-import { parseRadius, hasRadius, addRoundedRectPath, ARC_K } from './radius';
+import {
+  ARC_K,
+  parseRadius,
+  hasRadius,
+  addRoundedRectPath,
+  addBorderFirstPagePath,
+  addBorderLastPagePath,
+} from './radius';
 
 /**
  * 解析 CSS border 简写字符串，例如 '1px solid #d9d9d9' 或 '1px solid rgb(200,200,200)'
@@ -189,6 +196,24 @@ function strokeRoundedSides({
 
     if (uniform) {
       const lw = toMM(uniform.bw);
+      doc.setDrawColor(uniform.color[0], uniform.color[1], uniform.color[2]);
+
+      if (uniform.borderStyle === 'double') {
+        strokeDouble({
+          doc,
+          x,
+          y,
+          w,
+          h,
+          r,
+          lw,
+          isFirstPage,
+          isLastPage,
+        });
+
+        return;
+      }
+
       const o = lw / 2;
       // 内缩后的圆角半径：每角减去 o（border 中线到外边缘距离），
       // 与背景 clip 圆角路径（基于 border-box）对齐，消除白缝
@@ -199,7 +224,6 @@ function strokeRoundedSides({
         bl: Math.max(r.bl - o, 0),
       };
 
-      doc.setDrawColor(uniform.color[0], uniform.color[1], uniform.color[2]);
       doc.setLineWidth(lw);
       applyLineDash(doc, uniform.borderStyle, lw);
       addRoundedRectPath({
@@ -220,7 +244,28 @@ function strokeRoundedSides({
   // 逐边独立描边
   const geom = { doc, x, y, w, h, tl, tr, br, bl, isFirstPage, isLastPage };
 
+  // double 边需要整体路径，按 bw+color 分组，每组只调用一次
+  const doubleGroups = new Map();
+
+  for (const s of sides) {
+    if (s.borderStyle !== 'double' || s.bw <= 0) continue;
+
+    const c = parseColor(s.color);
+    if (!c) continue;
+
+    const key = `${s.bw}|${c[0]},${c[1]},${c[2]}`;
+    if (!doubleGroups.has(key)) doubleGroups.set(key, { bw: s.bw, c });
+  }
+
+  for (const { bw, c } of doubleGroups.values()) {
+    const lw = toMM(bw);
+    doc.setDrawColor(c[0], c[1], c[2]);
+    strokeDouble({ doc, x, y, w, h, r, lw, isFirstPage, isLastPage });
+  }
+
   for (const { bw, color, borderStyle, side } of sides) {
+    if (borderStyle === 'double') continue;
+
     strokeOneSide({ geom, bw, color, borderStyle, side, toMM });
   }
 }
@@ -260,32 +305,6 @@ function strokeOneSide({ geom, bw, color, borderStyle, side, toMM }) {
   doc.setLineWidth(lw);
   applyLineDash(doc, borderStyle, lw);
 
-  if (borderStyle === 'double') {
-    // double：画两条平行线，间距约等于 lw
-    const gap = lw;
-    const lw2 = lw / 3;
-    doc.setLineWidth(lw2);
-    strokeDoubleOneSide({
-      doc,
-      x,
-      y,
-      w,
-      h,
-      tl,
-      tr,
-      br,
-      bl,
-      isFirstPage,
-      isLastPage,
-      o,
-      gap,
-      side,
-    });
-    doc.setLineDashPattern([], 0);
-
-    return;
-  }
-
   if (side === 'top' && isFirstPage) {
     strokeTopSide({ doc, x, y, w, tl, tr, o });
   } else if (side === 'bottom' && isLastPage) {
@@ -300,36 +319,63 @@ function strokeOneSide({ geom, bw, color, borderStyle, side, toMM }) {
 }
 
 /**
- * double border：在同一边画两条细线（内线 + 外线），
- * 每条宽 lw/3，间距 lw/3。
- * 简化实现：只支持直线段（圆角 double 极少见，不支持）
+ * double border 统一实现（圆角/直角，单页/跨页）：
+ * 画外线路径 + 内线路径，每条线宽 lw/3。
+ * 直角传 r={tl:0,tr:0,br:0,bl:0} 自然退化为矩形路径。
+ *
+ * CSS double 结构（总宽 lw）：外线中线=lw/6，内线中线=5lw/6
  */
-function strokeDoubleOneSide({
-  doc,
-  x,
-  y,
-  w,
-  h,
-  isFirstPage,
-  isLastPage,
-  o,
-  gap,
-  side,
-}) {
-  const o2 = o + gap;
+function strokeDouble({ doc, x, y, w, h, r, lw, isFirstPage, isLastPage }) {
+  const lw3 = lw / 3;
+  const offsets = [lw / 6, (5 * lw) / 6];
+  doc.setLineWidth(lw3);
 
-  if (side === 'top' && isFirstPage) {
-    doc.line(x, y + o, x + w, y + o);
-    doc.line(x, y + o2, x + w, y + o2);
-  } else if (side === 'bottom' && isLastPage) {
-    doc.line(x, y + h - o, x + w, y + h - o);
-    doc.line(x, y + h - o2, x + w, y + h - o2);
-  } else if (side === 'left') {
-    doc.line(x + o, y, x + o, y + h);
-    doc.line(x + o2, y, x + o2, y + h);
-  } else if (side === 'right') {
-    doc.line(x + w - o, y, x + w - o, y + h);
-    doc.line(x + w - o2, y, x + w - o2, y + h);
+  // 截断线坐标（不随 off 偏移，保证竖线延伸到页面边缘）
+  const cutBottom = y + h;
+  const cutTop = y;
+
+  for (const off of offsets) {
+    const px = x + off;
+    const py = y + off;
+    const pw = w - 2 * off;
+    const ph = h - 2 * off;
+    const rr = {
+      tl: Math.max(r.tl - off, 0),
+      tr: Math.max(r.tr - off, 0),
+      br: Math.max(r.br - off, 0),
+      bl: Math.max(r.bl - off, 0),
+    };
+
+    if (isFirstPage && isLastPage) {
+      addRoundedRectPath({ doc, x: px, y: py, w: pw, h: ph, r: rr });
+    } else if (isFirstPage) {
+      addBorderFirstPagePath({
+        doc,
+        x: px,
+        y: py,
+        w: pw,
+        cutY: cutBottom,
+        r: rr,
+      });
+    } else if (isLastPage) {
+      addBorderLastPagePath({
+        doc,
+        x: px,
+        y: py,
+        w: pw,
+        segH: ph,
+        cutY: cutTop,
+        r: rr,
+      });
+    } else {
+      // 中间页：只画左右竖线，顶底均截断不画横线
+      doc.moveTo(px + pw, cutTop);
+      doc.lineTo(px + pw, cutBottom);
+      doc.moveTo(px, cutTop);
+      doc.lineTo(px, cutBottom);
+    }
+
+    doc.stroke();
   }
 }
 
@@ -463,15 +509,14 @@ function strokeStraightSides({
     applyLineDash(doc, borderStyle, lw);
 
     if (borderStyle === 'double') {
-      strokeDoubleStraight({
+      strokeDouble({
         doc,
-        lw,
         x,
-        yTop,
-        yBottom,
+        y: yTop,
         w,
-        lrBottom,
-        side,
+        h: yBottom - yTop,
+        r: { tl: 0, tr: 0, br: 0, bl: 0 },
+        lw,
         isFirstPage,
         isLastPage,
       });
@@ -490,38 +535,6 @@ function strokeStraightSides({
     }
 
     doc.setLineDashPattern([], 0);
-  }
-}
-
-/** double border 直线段：画两条平行细线 */
-function strokeDoubleStraight({
-  doc,
-  lw,
-  x,
-  yTop,
-  yBottom,
-  w,
-  lrBottom,
-  side,
-  isFirstPage,
-  isLastPage,
-}) {
-  const gap = lw;
-  const o = lw / 2;
-  doc.setLineWidth(lw / 3);
-
-  if (side === 'top' && isFirstPage) {
-    doc.line(x, yTop + o, x + w, yTop + o);
-    doc.line(x, yTop + o + gap, x + w, yTop + o + gap);
-  } else if (side === 'bottom' && isLastPage) {
-    doc.line(x, yBottom - o, x + w, yBottom - o);
-    doc.line(x, yBottom - o - gap, x + w, yBottom - o - gap);
-  } else if (side === 'left') {
-    doc.line(x + o, yTop, x + o, lrBottom);
-    doc.line(x + o + gap, yTop, x + o + gap, lrBottom);
-  } else if (side === 'right') {
-    doc.line(x + w - o, yTop, x + w - o, lrBottom);
-    doc.line(x + w - o - gap, yTop, x + w - o - gap, lrBottom);
   }
 }
 

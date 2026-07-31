@@ -169,3 +169,40 @@ export function addLastPagePath({ doc, x, y, w, segH, r }) {
   arcBottomLeft({ doc, x, y, h: segH, bl });
   doc.close();
 }
+
+// ─── border 描边专用分段路径（不含顶/底横线） ──────────────────────────────
+
+/**
+ * border 首页分段路径：tl/tr 圆角 + 左右竖线，底部截断（不画横线）。
+ * cutY 是截断线的 Y 坐标（不加 off 偏移，保证竖线延伸到页面边缘）。
+ */
+export function addBorderFirstPagePath({ doc, x, y, w, cutY, r }) {
+  const { tl, tr } = r;
+
+  // 右侧：顶边 → tr 弧 → 右竖线到截断线
+  doc.moveTo(x + tl, y);
+  doc.lineTo(x + w - tr, y);
+  arcTopRight({ doc, x, y, w, tr });
+  doc.lineTo(x + w, cutY);
+
+  // 左侧：左竖线从截断线 → tl 弧
+  doc.moveTo(x, cutY);
+  doc.lineTo(x, y + tl);
+  arcTopLeft({ doc, x, y, tl });
+}
+
+/**
+ * border 末页分段路径：bl/br 圆角 + 左右竖线，顶部截断（不画横线）。
+ * cutY 是截断线的 Y 坐标（不加 off 偏移，保证竖线延伸到页面边缘）。
+ */
+export function addBorderLastPagePath({ doc, x, y, w, segH, cutY, r }) {
+  const { br, bl } = r;
+
+  // 右竖线从截断线 → br 弧 → 底边 → bl 弧 → 左竖线到截断线
+  doc.moveTo(x + w, cutY);
+  doc.lineTo(x + w, y + segH - br);
+  arcBottomRight({ doc, x, y, w, h: segH, br });
+  doc.lineTo(x + bl, y + segH);
+  arcBottomLeft({ doc, x, y, h: segH, bl });
+  doc.lineTo(x, cutY);
+}
