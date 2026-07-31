@@ -1,11 +1,17 @@
 <template>
   <div class="live-demo">
     <!-- Controls -->
-    <button id="export-btn"  @click="onClick">
+    <button
+      id="export-btn"
+      @click="onClick"
+    >
       {{ 'Download PDF' }}
     </button>
 
-    <div id="content" pdf-font="roboto">
+    <div
+      id="content"
+      pdf-font="roboto"
+    >
       <h1>htmlpdf Export Test</h1>
       <p>
         This is a plain text paragraph for testing text rendering. It includes
@@ -13,7 +19,10 @@
       </p>
 
       <!-- 连字符分隔单词测试（类似 CSRNIY28.2, SWSUPPORT-Programing） -->
-      <div class="card" style="margin-top: 16px">
+      <div
+        class="card"
+        style="margin-top: 16px"
+      >
         <strong>Hyphenated Words Test:</strong>
         <ul style="margin-top: 8px; line-height: 1.8">
           <li>Model: CSRNIY28.2 (dot separated)</li>
@@ -26,7 +35,10 @@
       </div>
 
       <!-- 括号和特殊符号分隔测试 -->
-      <div class="card" style="margin-top: 16px">
+      <div
+        class="card"
+        style="margin-top: 16px"
+      >
         <strong>Brackets & Special Characters Test:</strong>
         <ul style="margin-top: 8px; line-height: 1.8">
           <li>Reference: [SKU123]-(2024) Standard Edition</li>
@@ -56,7 +68,11 @@
       <p style="font-weight: bold; margin-top: 24px; color: #d46b08">
         rowspan=40 测试表格（第2列跨40行）
       </p>
-      <table id="rowspan40-table" page-break pdf-font="noto-sans-sc">
+      <table
+        id="rowspan40-table"
+        page-break
+        pdf-font="noto-sans-sc"
+      >
         <thead>
           <tr>
             <th>序号</th>
@@ -68,11 +84,14 @@
         <tbody>
           <tr>
             <td>1</td>
-            <td rowspan="40" style="
+            <td
+              rowspan="40"
+              style="
                 background: #fff7e6;
                 font-weight: bold;
                 vertical-align: top;
-              ">
+              "
+            >
               大类A
             </td>
             <td>内容行 1</td>
@@ -282,30 +301,46 @@
         模拟 info-table rowspan
         场景（多系列，共95行，EZ系列rowspan=50超整页豁免测试）
       </p>
-      <table id="info-table" style="
+      <table
+        id="info-table"
+        style="
           table-layout: auto;
           border-collapse: collapse;
           width: 100%;
           font-size: 9px;
-        " pdf-font="noto-sans-sc">
+        "
+        pdf-font="noto-sans-sc"
+      >
         <thead>
           <tr>
-            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+            <th
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
+            >
               #
             </th>
-            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+            <th
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
+            >
               系列
             </th>
-            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+            <th
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
+            >
               规格
             </th>
-            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+            <th
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
+            >
               型号
             </th>
-            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+            <th
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
+            >
               数量
             </th>
-            <th style="background: #58bc58; border: 1px solid #ccc; padding: 8px">
+            <th
+              style="background: #58bc58; border: 1px solid #ccc; padding: 8px"
+            >
               单价
             </th>
           </tr>
@@ -314,16 +349,22 @@
           <!-- 系列1: 15行 rowspan=15 -->
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">1</td>
-            <td rowspan="15" style="
+            <td
+              rowspan="15"
+              style="
                 border: 1px solid #ccc;
                 padding: 4px;
                 background: #fff7e6;
                 font-weight: bold;
                 vertical-align: top;
-              ">
+              "
+            >
               CB1 系列
             </td>
-            <td rowspan="4" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="4"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-A<br />EU-KFR20G/BP3N8Y<br />Split wall mounted
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">CB1-07HRFN8-I</td>
@@ -350,7 +391,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">5</td>
-            <td rowspan="4" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="4"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-B<br />EU-KFR35G/BP3N8Y
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">CB1-18HRFN8-I</td>
@@ -377,7 +421,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">9</td>
-            <td rowspan="4" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="4"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-C
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">CB1-EZ09RD6-I</td>
@@ -404,7 +451,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">13</td>
-            <td rowspan="3" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="3"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-D
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">CB1-MTJ12-I</td>
@@ -426,16 +476,22 @@
           <!-- 系列2: 15行 rowspan=15 -->
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">16</td>
-            <td rowspan="15" style="
+            <td
+              rowspan="15"
+              style="
                 border: 1px solid #ccc;
                 padding: 4px;
                 background: #f0f5ff;
                 font-weight: bold;
                 vertical-align: top;
-              ">
+              "
+            >
               MCA4U 系列
             </td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-E<br />Cassette type<br />air conditioner indoor unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">
@@ -478,7 +534,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">21</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-F<br />T-MBQ Front panel<br />cassette Arctic White
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">T-MBQ4-03AWD</td>
@@ -511,7 +570,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">26</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-G
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">MCUTBU-24</td>
@@ -545,16 +607,22 @@
           <!-- 系列3: 50行 rowspan=50（超过整页，测试豁免） -->
           <tr page-break>
             <td style="border: 1px solid #ccc; padding: 4px">31</td>
-            <td rowspan="50" style="
+            <td
+              rowspan="50"
+              style="
                 border: 1px solid #ccc;
                 padding: 4px;
                 background: #f6ffed;
                 font-weight: bold;
                 vertical-align: top;
-              ">
+              "
+            >
               EZ 系列
             </td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-H<br />EU-KFR26G/BP3N8Y<br />GP11AU(RD6)-GW
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-09RD6-I</td>
@@ -587,7 +655,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">36</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-I
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">
@@ -630,7 +701,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">41</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-J<br />RSJ Heat Pump<br />Water Heater
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">
@@ -674,7 +748,10 @@
           <!-- EZ 系列追加行：46~80，共35行，分7个spec，每组5行 -->
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">46</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-K<br />EZ Cassette<br />Ceiling Type
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-CAS-07HRF</td>
@@ -707,7 +784,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">51</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-L<br />EZ Ducted<br />Indoor Unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-DU-09HRF</td>
@@ -740,7 +820,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">56</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-M<br />EZ Floor Standing
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-FS-09HRF</td>
@@ -773,7 +856,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">61</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-N<br />EZ Multi-Split<br />Outdoor Unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-MOU-18HRF</td>
@@ -806,7 +892,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">66</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-O<br />EZ Commercial<br />Rooftop Unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-RTU-36HRF</td>
@@ -839,7 +928,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">71</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-P<br />EZ VRF<br />Outdoor Unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-VRF-60HRF</td>
@@ -872,7 +964,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">76</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-Q<br />EZ Heat Pump<br />Hydronic Unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">EZ-HP-08HRF</td>
@@ -906,16 +1001,22 @@
           <!-- 系列4: MFFN 系列，序号从81开始 -->
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">81</td>
-            <td rowspan="15" style="
+            <td
+              rowspan="15"
+              style="
                 border: 1px solid #ccc;
                 padding: 4px;
                 background: #fff2e8;
                 font-weight: bold;
                 vertical-align: top;
-              ">
+              "
+            >
               MFFN 系列
             </td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-R<br />Split floor standing<br />air conditioner indoor unit
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">
@@ -958,7 +1059,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">86</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-S
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">
@@ -1001,7 +1105,10 @@
           </tr>
           <tr>
             <td style="border: 1px solid #ccc; padding: 4px">91</td>
-            <td rowspan="5" style="border: 1px solid #ccc; padding: 4px">
+            <td
+              rowspan="5"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
               spec-T<br />MSGPAU/MSGPBU<br />GP11AU RD6
             </td>
             <td style="border: 1px solid #ccc; padding: 4px">
@@ -1306,17 +1413,24 @@
       </table>
 
       <!-- 图片跨页裁切测试：图片足够高，预期在第一页显示上半部分，第二页显示下半部分 -->
-      <div style="margin-top: 16px" page-break>
+      <div
+        style="margin-top: 16px"
+        page-break
+      >
         <p style="font-size: 13px; color: #444; margin-bottom: 8px">
           Image cross-page cropping test (tall image):
         </p>
-        <img src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
-          crossorigin="anonymous" style="
+        <img
+          src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
+          crossorigin="anonymous"
+          style="
             width: 800px;
             height: 1200px;
             display: block;
             border: 2px solid red;
-          " alt="cross-page test" />
+          "
+          alt="cross-page test"
+        />
       </div>
 
       <!-- linear-gradient 渐变背景测试 -->
@@ -1325,7 +1439,8 @@
           Gradient background tests:
         </p>
         <!-- to right -->
-        <div style="
+        <div
+          style="
             height: 60px;
             margin-bottom: 8px;
             border-radius: 4px;
@@ -1335,11 +1450,13 @@
             padding: 0 16px;
             color: #fff;
             font-size: 13px;
-          ">
+          "
+        >
           linear-gradient(to right, #1677ff, #69b1ff)
         </div>
         <!-- 135deg + 3 stops -->
-        <div style="
+        <div
+          style="
             height: 60px;
             margin-bottom: 8px;
             border-radius: 4px;
@@ -1354,11 +1471,13 @@
             padding: 0 16px;
             color: #fff;
             font-size: 13px;
-          ">
+          "
+        >
           linear-gradient(135deg, #ff4d4f 0%, #ffc53d 50%, #73d13d 100%)
         </div>
         <!-- rgba transparent -->
-        <div style="
+        <div
+          style="
             height: 60px;
             margin-bottom: 8px;
             border-radius: 4px;
@@ -1372,11 +1491,13 @@
             padding: 0 16px;
             color: #1677ff;
             font-size: 13px;
-          ">
+          "
+        >
           linear-gradient(to bottom, rgba(22,119,255,0.9), rgba(22,119,255,0.1))
         </div>
         <!-- default direction (to bottom) -->
-        <div style="
+        <div
+          style="
             height: 60px;
             margin-bottom: 8px;
             border-radius: 4px;
@@ -1386,7 +1507,8 @@
             padding: 0 16px;
             color: #fff;
             font-size: 13px;
-          ">
+          "
+        >
           linear-gradient(#9254de, #f759ab) — default to bottom
         </div>
       </div>
@@ -1396,7 +1518,12 @@
         <p style="font-size: 13px; color: #444; margin-bottom: 8px">
           Canvas rendering test (normal):
         </p>
-        <canvas id="canvas-normal" width="760" height="200" style="display: block; border: 2px solid #1677ff"></canvas>
+        <canvas
+          id="canvas-normal"
+          width="760"
+          height="200"
+          style="display: block; border: 2px solid #1677ff"
+        ></canvas>
       </div>
 
       <!-- Canvas 跨页裁切测试：canvas 足够高，预期跨页裁切显示 -->
@@ -1404,16 +1531,23 @@
         <p style="font-size: 13px; color: #444; margin-bottom: 8px">
           Canvas cross-page cropping test (tall canvas):
         </p>
-        <canvas id="canvas-tall" width="760" height="900" style="display: block; border: 2px solid green"></canvas>
+        <canvas
+          id="canvas-tall"
+          width="760"
+          height="900"
+          style="display: block; border: 2px solid green"
+        ></canvas>
       </div>
 
       <!-- align:right mixed-font test -->
-      <div style="
+      <div
+        style="
           margin-top: 24px;
           padding: 16px;
           border: 1px solid #d9d9d9;
           border-radius: 4px;
-        ">
+        "
+      >
         <p style="font-weight: bold; margin-bottom: 12px; color: #333">
           align:right mixed-font test
         </p>
@@ -1438,63 +1572,89 @@
             <!-- multi-segment: Latin + Arabic digits via charRanges -->
             <tr>
               <td>Latin + Arabic-Indic digits (segmented)</td>
-              <td style="text-align: right" pdf-font="noto-sans-arabic">
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-arabic"
+              >
                 Total: ١٢٣٤٥٦
               </td>
             </tr>
             <!-- RTL + right-align -->
             <tr>
               <td>Arabic RTL + right-align</td>
-              <td style="text-align: right; direction: rtl" pdf-font="noto-sans-arabic">
+              <td
+                style="text-align: right; direction: rtl"
+                pdf-font="noto-sans-arabic"
+              >
                 المجموع: ١٢٣٤٥
               </td>
             </tr>
             <!-- long text, natural wrap, each line right-aligned -->
             <tr>
               <td>Long text right-align (multi-line)</td>
-              <td style="text-align: right; max-width: 200px; white-space: normal">
+              <td
+                style="text-align: right; max-width: 200px; white-space: normal"
+              >
                 CPAN-XHE3 Size 2 Unita di rinnovo aria con recupero di energia
               </td>
             </tr>
             <!-- Chinese + Latin right-align (multi-segment via charRanges) -->
             <tr>
               <td>Chinese + Latin right-align</td>
-              <td style="text-align: right" pdf-font="noto-sans-sc">
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-sc"
+              >
                 合计 Total: 1,234.56
               </td>
             </tr>
             <!-- Chinese only right-align -->
             <tr>
               <td>Chinese only right-align</td>
-              <td style="text-align: right" pdf-font="noto-sans-sc">
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-sc"
+              >
                 产品总价
               </td>
             </tr>
             <!-- Chinese + Latin center-align -->
             <tr>
               <td>Chinese + Latin center-align</td>
-              <td style="text-align: center" pdf-font="noto-sans-sc">
+              <td
+                style="text-align: center"
+                pdf-font="noto-sans-sc"
+              >
                 合计 Total
               </td>
             </tr>
             <!-- Chinese + Arabic + Latin right-align (3 fonts, multi-segment) -->
             <tr>
               <td>CJK + Arabic + Latin right-align</td>
-              <td style="text-align: right" pdf-font="noto-sans-sc,noto-sans-arabic">
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-sc,noto-sans-arabic"
+              >
                 合计 Total: ١٢٣٤
               </td>
             </tr>
             <!-- Chinese + Arabic + Latin center-align -->
             <tr>
               <td>CJK + Arabic + Latin center-align</td>
-              <td style="text-align: center" pdf-font="noto-sans-sc,noto-sans-arabic">
+              <td
+                style="text-align: center"
+                pdf-font="noto-sans-sc,noto-sans-arabic"
+              >
                 合计 ١٢٣٤ Total
               </td>
             </tr>
             <!-- Arabic + Chinese right-align (2 non-Latin fonts) -->
             <tr>
               <td>Arabic + Chinese right-align</td>
-              <td style="text-align: right" pdf-font="noto-sans-arabic,noto-sans-sc">
+              <td
+                style="text-align: right"
+                pdf-font="noto-sans-arabic,noto-sans-sc"
+              >
                 الإجمالي 合计
               </td>
             </tr>
@@ -1502,19 +1662,28 @@
         </table>
       </div>
 
-      <div class="card" page-break="before">
+      <div
+        class="card"
+        page-break="before"
+      >
         <strong>Page 2 Content:</strong> This card has page-break="true" (same
         as "before"), so it always starts on a new page.
       </div>
 
       <!-- page-break="avoid": keep this element whole on one page -->
-      <div class="card" page-break="avoid">
+      <div
+        class="card"
+        page-break="avoid"
+      >
         <strong>No Break:</strong> This card has page-break="avoid", so it will
         move to the next page if it does not fit.
       </div>
 
       <!-- Arabic / RTL text test -->
-      <div class="rtl-container" pdf-font="noto-sans-arabic">
+      <div
+        class="rtl-container"
+        pdf-font="noto-sans-arabic"
+      >
         <h3>اختبار النص العربي (Arabic Text Test)</h3>
         <p>
           مرحبا بكم في اختبار htmlpdf! هذا النص مكتوب باللغة العربية لاختبار عرض
@@ -1527,12 +1696,16 @@
         </p>
 
         <!-- Mixed Arabic + parentheses numbers test -->
-        <p style="
+        <p
+          style="
             margin-top: 12px;
             border-top: 1px dashed #ffd591;
             padding-top: 12px;
-          ">
-          <strong style="color: #fa8c16">اختبار الأرقام بين قوسين (Mixed with parentheses):</strong>
+          "
+        >
+          <strong style="color: #fa8c16"
+            >اختبار الأرقام بين قوسين (Mixed with parentheses):</strong
+          >
         </p>
         <p>
           (1)7 الخطوة الأولى: تثبيت المكتبة باستخدام npm install htmlpdfx.js
@@ -1549,7 +1722,8 @@
           شروط الدفع: دفع مقدم بنسبة 100% مع أمر الشراء المؤكد ما لم يتم الاتفاق
           على خلاف ذلك.
         </p>
-        <p style="
+        <p
+          style="
             direction: ltr;
             text-align: left;
             color: #888;
@@ -1557,7 +1731,9 @@
             margin-top: 12px;
             border-top: 1px dashed #ffd591;
             padding-top: 12px;
-          " pdf-font="roboto">
+          "
+          pdf-font="roboto"
+        >
           Note: This paragraph demonstrates mixed directionality - English text
           in an RTL container with LTR direction override.
         </p>
@@ -1579,14 +1755,22 @@
 
         <!-- Badge with ::after -->
         <div style="margin-bottom: 12px">
-          <span class="badge" style="font-size: 14px; color: #333">Latest Feature</span>
+          <span
+            class="badge"
+            style="font-size: 14px; color: #333"
+            >Latest Feature</span
+          >
           <br />
-          <span class="badge" style="
+          <span
+            class="badge"
+            style="
               font-size: 14px;
               color: #333;
               margin-top: 8px;
               display: inline-block;
-            ">Special Offer</span>
+            "
+            >Special Offer</span
+          >
         </div>
 
         <!-- Positioned pseudo-element (absolute) -->
@@ -1604,12 +1788,14 @@
         </div>
 
         <!-- Counter list with ::before -->
-        <p style="
+        <p
+          style="
             margin-top: 16px;
             margin-bottom: 4px;
             font-weight: bold;
             color: #333;
-          ">
+          "
+        >
           Step-by-step guide (numbered with ::before):
         </p>
         <ul class="step-list">
@@ -1627,6 +1813,287 @@
           the PDF output.
         </p>
       </div>
+
+      <!-- ==========================================
+           overflow:hidden clip 测试场景
+           覆盖：
+             1. 普通 div 圆角裁剪（无 table）
+             2. 多层嵌套 clip（外层 + 内层各自裁剪）
+             3. 绝对定位子元素被父级裁剪
+             4. 文字超出 clip 容器
+             5. 图片被圆角容器裁剪
+      =========================================== -->
+      <div
+        style="
+          margin-top: 24px;
+          padding: 16px;
+          background: #f9f0ff;
+          border: 1px solid #d3adf7;
+          border-radius: 4px;
+        "
+        pdf-font="noto-sans-sc"
+      >
+        <h3 style="color: #722ed1; font-size: 16px; margin-bottom: 16px">
+          overflow:hidden Clip Tests
+        </h3>
+
+        <!-- 场景 1：普通 div 圆角裁剪 -->
+        <p style="font-size: 12px; color: #666; margin-bottom: 6px">
+          1. 圆角 div 裁剪（子元素背景超出容器应被剪掉）
+        </p>
+        <div
+          style="
+            width: 240px;
+            height: 60px;
+            border-radius: 30px;
+            overflow: hidden;
+            background: #e6f7ff;
+            border: 2px solid #1677ff;
+            position: relative;
+          "
+        >
+          <div
+            style="
+              position: absolute;
+              top: -10px;
+              left: -10px;
+              width: 280px;
+              height: 80px;
+              background: linear-gradient(135deg, #1677ff 0%, #69b1ff 100%);
+            "
+          ></div>
+          <span
+            style="
+              position: relative;
+              z-index: 1;
+              line-height: 60px;
+              padding-left: 24px;
+              font-size: 13px;
+              color: #003a8c;
+              font-weight: bold;
+            "
+            >圆角裁剪容器</span
+          >
+        </div>
+
+        <!-- 场景 2：多层嵌套 clip -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          2. 多层嵌套 overflow:hidden
+        </p>
+        <div
+          style="
+            width: 260px;
+            height: 80px;
+            overflow: hidden;
+            border-radius: 12px;
+            background: #fff7e6;
+            border: 1px solid #ffd591;
+          "
+        >
+          <div
+            style="
+              margin: 8px;
+              overflow: hidden;
+              border-radius: 8px;
+              background: #fffbe6;
+              border: 1px dashed #ffa940;
+              height: 64px;
+            "
+          >
+            <div
+              style="
+                margin: 6px;
+                overflow: hidden;
+                border-radius: 6px;
+                background: #fff1b8;
+                padding: 6px 10px;
+              "
+            >
+              <span style="font-size: 12px; color: #874d00"
+                >内层文字（三层 clip）</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- 场景 3：绝对定位子元素被父级裁剪 -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          3. 绝对定位子元素被 overflow:hidden 父级裁剪
+        </p>
+        <div
+          style="
+            position: relative;
+            width: 200px;
+            height: 50px;
+            overflow: hidden;
+            background: #f6ffed;
+            border: 1px solid #95de64;
+            border-radius: 6px;
+          "
+        >
+          <div
+            style="
+              position: absolute;
+              top: 5px;
+              left: 160px;
+              width: 100px;
+              height: 40px;
+              background: #52c41a;
+              border-radius: 4px;
+            "
+          ></div>
+          <span
+            style="
+              position: absolute;
+              top: 14px;
+              left: 10px;
+              font-size: 12px;
+              color: #135200;
+            "
+            >右侧绿块应被截断</span
+          >
+        </div>
+
+        <!-- 场景 4：文字超出 clip 容器 -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          4. 文字超出容器被裁剪（fixed height + overflow:hidden）
+        </p>
+        <div
+          style="
+            width: 220px;
+            height: 36px;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            padding: 4px 8px;
+          "
+        >
+          <span style="font-size: 14px; color: #333"
+            >这行文字很长超出容器高度应该被裁掉看不到下面的行。第二行不可见。第三行也不可见。</span
+          >
+        </div>
+
+        <!-- 场景 5：图片被圆角容器裁剪（用纯色 div 模拟"图片"） -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          5. 子元素（模拟图片）被圆角容器裁剪
+        </p>
+        <div
+          style="
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid #1677ff;
+          "
+        >
+          <div
+            style="
+              width: 120px;
+              height: 120px;
+              background: linear-gradient(
+                135deg,
+                #ff4d4f 0%,
+                #faad14 33%,
+                #52c41a 66%,
+                #1677ff 100%
+              );
+              margin: -20px;
+            "
+          ></div>
+        </div>
+
+        <p style="margin-top: 12px; font-weight: bold">
+          （圆角矩形）
+        </p>
+        <div style="display: flex; gap: 8px">
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              border-radius: 16px;
+              background: #fff7e6;
+              border: 6px solid #fa8c16;
+            "
+          ></div>
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              border-radius: 16px;
+              background: #fff7e6;
+              border: 6px double #fa8c16;
+            "
+          ></div>
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              border-radius: 16px;
+              background: #fff7e6;
+              border: 6px dashed #fa8c16;
+            "
+          ></div>
+        </div>
+
+        <p style="margin-top: 12px; font-weight: bold">
+          （直角矩形）
+        </p>
+        <div style="display: flex; gap: 8px">
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              background: #f6ffed;
+              border: 6px solid #52c41a;
+            "
+          ></div>
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              background: #f6ffed;
+              border: 6px double #52c41a;
+            "
+          ></div>
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              background: #f6ffed;
+              border: 6px dashed #52c41a;
+            "
+          ></div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -1636,9 +2103,7 @@ import { onMounted } from 'vue';
 import { htmlpdf } from '../../../dist/htmlpdf.esm';
 
 onMounted(() => {
-  const ctxNormal = document
-    .getElementById('canvas-normal')
-    .getContext('2d');
+  const ctxNormal = document.getElementById('canvas-normal').getContext('2d');
   const grad = ctxNormal.createLinearGradient(0, 0, 760, 0);
   grad.addColorStop(0, '#1677ff');
   grad.addColorStop(1, '#69b1ff');
@@ -1646,11 +2111,7 @@ onMounted(() => {
   ctxNormal.fillRect(0, 0, 760, 200);
   ctxNormal.fillStyle = '#fff';
   ctxNormal.font = 'bold 20px Arial';
-  ctxNormal.fillText(
-    'Canvas Normal Test — gradient + text + chart',
-    20,
-    40,
-  );
+  ctxNormal.fillText('Canvas Normal Test — gradient + text + chart', 20, 40);
   ctxNormal.strokeStyle = '#fff';
   ctxNormal.lineWidth = 2;
   ctxNormal.beginPath();
@@ -1696,141 +2157,134 @@ onMounted(() => {
     ctxTall.font = '12px Arial';
     ctxTall.fillText(`${y}px`, 705, y + 12);
   }
-})
-
+});
 
 async function onClick() {
-  const blob = await htmlpdf(
-    document.getElementById('content'),
-    {
-      margin: 5,
-      compress: false,
-      tables: [
-        {
-          selector: '#rowspan40-table',
-          repeatHeader: '#rowspan40-table thead',
-        },
-        {
-          selector: '#info-table',
-          repeatHeader: '#info-table thead',
-        },
-      ],
-      fonts: [
-        {
-          fontFamily: 'roboto',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf`,
-          fontWeight: 400,
-          fontStyle: 'normal',
-          isDefault: true,
-        },
-        {
-          fontFamily: 'roboto',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf`,
-          fontWeight: 700,
-          fontStyle: 'normal',
-          isDefault: true,
-        },
-        {
-          fontFamily: 'roboto',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf`,
-          fontWeight: 400,
-          fontStyle: 'italic',
-          isDefault: true,
-        },
-        {
-          fontFamily: 'roboto',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf`,
-          fontWeight: 700,
-          fontStyle: 'italic',
-          isDefault: true,
-        },
-        {
-          fontFamily: 'noto-sans-arabic',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
-          fontWeight: 400,
-          fontStyle: 'normal',
-          // charRanges: [
-          //   [0x0600, 0x06ff], // 阿拉伯语基本区
-          //   [0x0750, 0x077f], // 阿拉伯语补充区
-          //   [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
-          //   [0x0030, 0x0039], // ASCII 数字 0-9
-          //   [0x0025, 0x0025], // % 百分号
-          //   [0x003a, 0x003a], // : 冒号
-          //   [0x0020, 0x002f], // 空格及基本标点 !"#$%&'()*+,-./
-          // ],
-        },
-        {
-          fontFamily: 'noto-sans-arabic',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
-          fontWeight: 700,
-          fontStyle: 'normal',
-          // charRanges: [
-          //   [0x0600, 0x06ff],
-          //   [0x0750, 0x077f],
-          //   [0x0660, 0x0669],
-          //   [0x0030, 0x0039],
-          //   [0x0025, 0x0025],
-          //   [0x003a, 0x003a],
-          //   [0x0020, 0x002f],
-          // ],
-        },
-        {
-          fontFamily: 'noto-sans-sc',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-normal.ttf`,
-          fontWeight: 400,
-          fontStyle: 'normal',
-          charRanges: [
-            [0x4e00, 0x9fff], // CJK 统一表意文字
-            [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
-            [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
-            [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
-          ],
-        },
-        {
-          fontFamily: 'noto-sans-sc',
-          fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-bold.ttf`,
-          fontWeight: 700,
-          fontStyle: 'normal',
-          charRanges: [
-            [0x4e00, 0x9fff], // CJK 统一表意文字
-            [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
-            [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
-            [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
-          ],
-        },
-      ],
-      header: {
-        height: 10,
-        render(doc, { pageNumber, totalPages, pageWidth, margin }) {
-          doc.setFontSize(9);
-          doc.setTextColor(100);
-          doc.text('htmlpdf Export Test', margin, margin - 2);
-          doc.text(
-            `${pageNumber} / ${totalPages}`,
-            pageWidth - margin,
-            margin - 2,
-            { align: 'right' },
-          );
-        },
+  const blob = await htmlpdf(document.getElementById('content'), {
+    margin: 5,
+    compress: false,
+    tables: [
+      {
+        selector: '#rowspan40-table',
+        repeatHeader: '#rowspan40-table thead',
       },
-      footer: {
-        height: 8,
-        render(
-          doc,
-          { pageNumber, totalPages, pageWidth, pageHeight, margin },
-        ) {
-          doc.setFontSize(8);
-          doc.setTextColor(150);
-          doc.text(
-            `${pageNumber}  /  ${totalPages} `,
-            pageWidth / 2,
-            pageHeight - margin + 4,
-            { align: 'center' },
-          );
-        },
+      {
+        selector: '#info-table',
+        repeatHeader: '#info-table thead',
+      },
+    ],
+    fonts: [
+      {
+        fontFamily: 'roboto',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-normal.ttf`,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        isDefault: true,
+      },
+      {
+        fontFamily: 'roboto',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bold.ttf`,
+        fontWeight: 700,
+        fontStyle: 'normal',
+        isDefault: true,
+      },
+      {
+        fontFamily: 'roboto',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-italic.ttf`,
+        fontWeight: 400,
+        fontStyle: 'italic',
+        isDefault: true,
+      },
+      {
+        fontFamily: 'roboto',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/roboto/roboto-bolditalic.ttf`,
+        fontWeight: 700,
+        fontStyle: 'italic',
+        isDefault: true,
+      },
+      {
+        fontFamily: 'noto-sans-arabic',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-normal.ttf`,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        // charRanges: [
+        //   [0x0600, 0x06ff], // 阿拉伯语基本区
+        //   [0x0750, 0x077f], // 阿拉伯语补充区
+        //   [0x0660, 0x0669], // 阿拉伯-印度数字 ٠١٢٣٤٥٦٧٨٩
+        //   [0x0030, 0x0039], // ASCII 数字 0-9
+        //   [0x0025, 0x0025], // % 百分号
+        //   [0x003a, 0x003a], // : 冒号
+        //   [0x0020, 0x002f], // 空格及基本标点 !"#$%&'()*+,-./
+        // ],
+      },
+      {
+        fontFamily: 'noto-sans-arabic',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-arabic/noto-sans-arabic-bold.ttf`,
+        fontWeight: 700,
+        fontStyle: 'normal',
+        // charRanges: [
+        //   [0x0600, 0x06ff],
+        //   [0x0750, 0x077f],
+        //   [0x0660, 0x0669],
+        //   [0x0030, 0x0039],
+        //   [0x0025, 0x0025],
+        //   [0x003a, 0x003a],
+        //   [0x0020, 0x002f],
+        // ],
+      },
+      {
+        fontFamily: 'noto-sans-sc',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-normal.ttf`,
+        fontWeight: 400,
+        fontStyle: 'normal',
+        charRanges: [
+          [0x4e00, 0x9fff], // CJK 统一表意文字
+          [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
+          [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
+          [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
+        ],
+      },
+      {
+        fontFamily: 'noto-sans-sc',
+        fontUrl: `https://cdn.jsdelivr.net/gh/melon587/fonts@1.1.0/noto-sans-sc/noto-sans-sc-bold.ttf`,
+        fontWeight: 700,
+        fontStyle: 'normal',
+        charRanges: [
+          [0x4e00, 0x9fff], // CJK 统一表意文字
+          [0x3000, 0x303f], // CJK 符号和标点（、。「」等）
+          [0xff00, 0xffef], // 全角 ASCII、全角标点（，。！？等）
+          [0x2190, 0x21ff], // 箭头符号（← → ↑ ↓ 等）
+        ],
+      },
+    ],
+    header: {
+      height: 10,
+      render(doc, { pageNumber, totalPages, pageWidth, margin }) {
+        doc.setFontSize(9);
+        doc.setTextColor(100);
+        doc.text('htmlpdf Export Test', margin, margin - 2);
+        doc.text(
+          `${pageNumber} / ${totalPages}`,
+          pageWidth - margin,
+          margin - 2,
+          { align: 'right' },
+        );
       },
     },
-  );
+    footer: {
+      height: 8,
+      render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) {
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(
+          `${pageNumber}  /  ${totalPages} `,
+          pageWidth / 2,
+          pageHeight - margin + 4,
+          { align: 'center' },
+        );
+      },
+    },
+  });
 
   console.log(blob, 'blob');
   const a = Object.assign(document.createElement('a'), {

@@ -553,6 +553,9 @@
           border-collapse: collapse;
           width: 100%;
           font-size: 9px;
+          margin-top: 0;
+          border-radius: 8px;
+          overflow: hidden;
         "
         pdf-font="noto-sans-sc"
       >
@@ -1394,6 +1397,103 @@
             <td style="border: 1px solid #ccc; padding: 4px">200</td>
             <td style="border: 1px solid #ccc; padding: 4px">$150.00</td>
           </tr>
+          <!-- ===== COMBO 系列：同时测试 rowspan + colspan ===== -->
+          <!-- 系列列 rowspan=8；第2行和第5行有 colspan=2 合并"规格"+"型号"列 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">96</td>
+            <td
+              rowspan="8"
+              style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #e6f4ff;
+                font-weight: bold;
+                vertical-align: top;
+              "
+            >
+              COMBO 系列
+            </td>
+            <td
+              rowspan="3"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
+              spec-U<br />Multi-zone<br />Indoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-09HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$99.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">97</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-12HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">260</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$115.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">98</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">180</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$138.00</td>
+          </tr>
+          <!-- colspan=2 小计行：合并"规格"列和"型号"列 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+            <td
+              colspan="2"
+              style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #fffbe6;
+                color: #ad6800;
+              "
+            >
+              spec-U 小计（colspan=2 合并规格+型号列）
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">740</td>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">99</td>
+            <td
+              rowspan="3"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
+              spec-V<br />Outdoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-OU-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$195.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">100</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-OU-24HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">150</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$230.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">101</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-OU-36HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">100</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$275.00</td>
+          </tr>
+          <!-- colspan=2 小计行：合并"规格"列和"型号"列 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+            <td
+              colspan="2"
+              style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #fffbe6;
+                color: #ad6800;
+              "
+            >
+              spec-V 小计（colspan=2 合并规格+型号列）
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">450</td>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+          </tr>
+          <!-- ===== COMBO 系列结束 ===== -->
         </tbody>
       </table>
       <!-- ===== 模拟 info-table 场景结束 ===== -->
@@ -2056,6 +2156,286 @@
           the PDF output.
         </p>
       </div>
+
+      <!-- ==========================================
+           overflow:hidden clip 测试场景
+           覆盖：
+             1. 普通 div 圆角裁剪（无 table）
+             2. 多层嵌套 clip（外层 + 内层各自裁剪）
+             3. 绝对定位子元素被父级裁剪
+             4. 文字超出 clip 容器
+             5. 图片被圆角容器裁剪
+      =========================================== -->
+      <div
+        style="
+          margin-top: 24px;
+          padding: 16px;
+          background: #f9f0ff;
+          border: 1px solid #d3adf7;
+          border-radius: 4px;
+        "
+        pdf-font="noto-sans-sc"
+      >
+        <h3 style="color: #722ed1; font-size: 16px; margin-bottom: 16px">
+          overflow:hidden Clip Tests
+        </h3>
+
+        <!-- 场景 1：普通 div 圆角裁剪 -->
+        <p style="font-size: 12px; color: #666; margin-bottom: 6px">
+          1. 圆角 div 裁剪（子元素背景超出容器应被剪掉）
+        </p>
+        <div
+          style="
+            width: 240px;
+            height: 60px;
+            border-radius: 30px;
+            overflow: hidden;
+            background: #e6f7ff;
+            border: 2px solid #1677ff;
+            position: relative;
+          "
+        >
+          <div
+            style="
+              position: absolute;
+              top: -10px;
+              left: -10px;
+              width: 280px;
+              height: 80px;
+              background: linear-gradient(135deg, #1677ff 0%, #69b1ff 100%);
+            "
+          ></div>
+          <span
+            style="
+              position: relative;
+              z-index: 1;
+              line-height: 60px;
+              padding-left: 24px;
+              font-size: 13px;
+              color: #003a8c;
+              font-weight: bold;
+            "
+            >圆角裁剪容器</span
+          >
+        </div>
+
+        <!-- 场景 2：多层嵌套 clip -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          2. 多层嵌套 overflow:hidden
+        </p>
+        <div
+          style="
+            width: 260px;
+            height: 80px;
+            overflow: hidden;
+            border-radius: 12px;
+            background: #fff7e6;
+            border: 1px solid #ffd591;
+          "
+        >
+          <div
+            style="
+              margin: 8px;
+              overflow: hidden;
+              border-radius: 8px;
+              background: #fffbe6;
+              border: 1px dashed #ffa940;
+              height: 64px;
+            "
+          >
+            <div
+              style="
+                margin: 6px;
+                overflow: hidden;
+                border-radius: 6px;
+                background: #fff1b8;
+                padding: 6px 10px;
+              "
+            >
+              <span style="font-size: 12px; color: #874d00"
+                >内层文字（三层 clip）</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- 场景 3：绝对定位子元素被父级裁剪 -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          3. 绝对定位子元素被 overflow:hidden 父级裁剪
+        </p>
+        <div
+          style="
+            position: relative;
+            width: 200px;
+            height: 50px;
+            overflow: hidden;
+            background: #f6ffed;
+            border: 1px solid #95de64;
+            border-radius: 6px;
+          "
+        >
+          <!-- 这个绿色块故意超出右侧，应该被裁掉 -->
+          <div
+            style="
+              position: absolute;
+              top: 5px;
+              left: 160px;
+              width: 100px;
+              height: 40px;
+              background: #52c41a;
+              border-radius: 4px;
+            "
+          ></div>
+          <span
+            style="
+              position: absolute;
+              top: 14px;
+              left: 10px;
+              font-size: 12px;
+              color: #135200;
+            "
+            >右侧绿块应被截断</span
+          >
+        </div>
+
+        <!-- 场景 4：文字超出 clip 容器 -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          4. 文字超出容器被裁剪（fixed height + overflow:hidden）
+        </p>
+        <div
+          style="
+            width: 220px;
+            height: 36px;
+            overflow: hidden;
+            background: #fff;
+            border: 1px solid #d9d9d9;
+            border-radius: 4px;
+            padding: 4px 8px;
+          "
+        >
+          <span style="font-size: 14px; color: #333"
+            >这行文字很长超出容器高度应该被裁掉看不到下面的行。第二行不可见。第三行也不可见。</span
+          >
+        </div>
+
+        <!-- 场景 5：图片被圆角容器裁剪（用纯色 div 模拟"图片"） -->
+        <p
+          style="
+            font-size: 12px;
+            color: #666;
+            margin-top: 16px;
+            margin-bottom: 6px;
+          "
+        >
+          5. 子元素（模拟图片）被圆角容器裁剪
+        </p>
+        <div
+          style="
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 3px solid #1677ff;
+          "
+        >
+          <!-- 模拟一张宽于容器的"图片"（渐变色块） -->
+          <div
+            style="
+              width: 120px;
+              height: 120px;
+              background: linear-gradient(
+                135deg,
+                #ff4d4f 0%,
+                #faad14 33%,
+                #52c41a 66%,
+                #1677ff 100%
+              );
+              margin: -20px;
+            "
+          ></div>
+        </div>
+
+        <!-- 简单椭圆/圆角：纯背景色 + border，无子元素，用于隔离白缝 -->
+        <p style="margin-top: 24px; font-weight: bold">
+          简单圆角（纯背景+border，无子元素）
+        </p>
+        <div
+          style="
+            width: 200px;
+            height: 60px;
+            border-radius: 30px;
+            background: #e6f7ff;
+            border: 4px solid #1677ff;
+          "
+        ></div>
+
+        <p style="margin-top: 12px; font-weight: bold">
+          double border（圆角矩形）
+        </p>
+        <div style="display: flex; gap: 8px">
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              border-radius: 16px;
+              background: #fff7e6;
+              border: 6px double #fa8c16;
+            "
+          ></div>
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              border-radius: 16px;
+              background: #fff7e6;
+              border: 6px dashed #fa8c16;
+            "
+          ></div>
+        </div>
+
+        <p style="margin-top: 12px; font-weight: bold">
+          double border（直角矩形）
+        </p>
+        <div style="display: flex; gap: 8px">
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              background: #f6ffed;
+              border: 6px double #52c41a;
+            "
+          ></div>
+          <div
+            style="
+              width: 200px;
+              height: 60px;
+              background: #f6ffed;
+              border: 6px dashed #52c41a;
+            "
+          ></div>
+        </div>
+      </div>
     </div>
     <script src="../dist/htmlpdf.js"></script>
     <script>
@@ -2129,6 +2509,7 @@
             {
               margin: 5,
               compress: false,
+              debug: true,
               tables: [
                 {
                   selector: '#rowspan40-table',
