@@ -351,7 +351,7 @@ describe('resolveTextLayout', () => {
     expect(x).toBeCloseTo(20); // (100 + 100) * 0.1
   });
 
-  it('y = toPdfY(node.y) + toMM(fontSize)', () => {
+  it('y = toPdfY(node.y + node.height / 2)', () => {
     const ctx = makeCtx();
     const style = {
       textAlign: 'left',
@@ -360,7 +360,7 @@ describe('resolveTextLayout', () => {
       fontWeight: '400',
     };
     const { y } = resolveTextLayout(node, style, 12, ctx);
-    expect(y).toBeCloseTo(6.2); // 50*0.1 + 12*0.1 = 5 + 1.2
+    expect(y).toBeCloseTo(6.0); // (50 + 20/2) * 0.1 = 60 * 0.1
   });
 
   it('direction rtl → isRTL=true, rtlOptions 包含所有 BiDi 标志', () => {

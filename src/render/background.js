@@ -5,6 +5,8 @@ import {
   renderGradientSlice,
   parseRadialGradient,
   renderRadialGradientSlice,
+  parseRepeatingLinearGradient,
+  parseRepeatingRadialGradient,
 } from './gradient';
 import {
   parseRadius,
@@ -62,6 +64,65 @@ function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
   };
 }
 
+// ─── 圆角裁剪路径 ────────────────────────────────────────────────────────────
+
+/**
+ * 根据节点在本页的位置选择合适的圆角路径并建立裁剪区域。
+ * 调用方需自行 saveGraphicsState / restoreGraphicsState。
+ */
+function applyRadiusClip({
+  doc,
+  x,
+  y,
+  w,
+  h,
+  r,
+  useRadius,
+  isFirstPage,
+  isLastPage,
+}) {
+  if (useRadius && isFirstPage && isLastPage) {
+    addRoundedRectPath({ doc, x, y, w, h, r });
+  } else if (useRadius && isFirstPage) {
+    addFirstPagePath({ doc, x, y, w, segH: h, r });
+  } else if (useRadius && isLastPage) {
+    addLastPagePath({ doc, x, y, w, segH: h, r });
+  } else {
+    doc.rect(x, y, w, h, null);
+  }
+
+  doc.clip();
+  doc.discardPath();
+}
+
+// ─── 渐变类型解析 ─────────────────────────────────────────────────────────────
+
+/**
+ * 根据 backgroundImage 字符串解析渐变对象并选择对应的渲染函数。
+ * 优先判断 repeating 变体，避免 repeating-radial-gradient 被
+ * parseRadialGradient 误匹配（后者的 guard 用 includes('radial-gradient')）。
+ *
+ * @param {string} bgImage
+ * @returns {{ gradient: object|null, renderSlice: Function }}
+ */
+function resolveGradient(bgImage) {
+  const isRepLin = bgImage?.includes('repeating-linear-gradient');
+  const isRepRad = bgImage?.includes('repeating-radial-gradient');
+  const isRadial =
+    !isRepLin && (isRepRad || bgImage?.includes('radial-gradient'));
+
+  let gradient = null;
+  if (isRepLin) gradient = parseRepeatingLinearGradient(bgImage);
+  else if (isRepRad) gradient = parseRepeatingRadialGradient(bgImage);
+  else if (isRadial) gradient = parseRadialGradient(bgImage);
+  else gradient = parseLinearGradient(bgImage);
+
+  const renderSlice =
+    isRadial || isRepRad ? renderRadialGradientSlice : renderGradientSlice;
+
+  return { gradient, renderSlice };
+}
+
 // ─── 主函数 ───────────────────────────────────────────────────────────────────
 
 /**
@@ -112,25 +173,17 @@ function drawBackground({
   const fullH = toMM(node.height);
   const radius = parseRadius({ style, toMM, w, h: fullH });
   const useRadius = hasRadius(radius);
-
-  /**
-   * 建立当前片段的剪切路径（圆角或直角，三段式）
-   * 调用方需自行 saveGraphicsState / restoreGraphicsState
-   */
-  function applyClip() {
-    if (useRadius && isFirstPage && isLastPage) {
-      addRoundedRectPath({ doc, x, y, w, h, r: radius });
-    } else if (useRadius && isFirstPage) {
-      addFirstPagePath({ doc, x, y, w, segH: h, r: radius });
-    } else if (useRadius && isLastPage) {
-      addLastPagePath({ doc, x, y, w, segH: h, r: radius });
-    } else {
-      doc.rect(x, y, w, h, null);
-    }
-
-    doc.clip();
-    doc.discardPath();
-  }
+  const clipArgs = {
+    doc,
+    x,
+    y,
+    w,
+    h,
+    r: radius,
+    useRadius,
+    isFirstPage,
+    isLastPage,
+  };
 
   // 1. 先画背景色
   const color = parseColor(style.backgroundColor);
@@ -141,20 +194,13 @@ function drawBackground({
       doc.setGState(new GState({ opacity: color[3] }));
     }
 
-    applyClip();
+    applyRadiusClip(clipArgs);
     doc.rect(x, y, w, h, 'F');
     doc.restoreGraphicsState();
   }
 
-  // 2. 渐变背景（linear-gradient / radial-gradient）
-  const bgImage = style?.backgroundImage;
-  const isRadial = bgImage?.includes('radial-gradient');
-  const gradient = isRadial
-    ? parseRadialGradient(bgImage)
-    : parseLinearGradient(bgImage);
-  const renderSlice = isRadial
-    ? renderRadialGradientSlice
-    : renderGradientSlice;
+  // 2. 渐变背景（linear / radial / repeating 变体）
+  const { gradient, renderSlice } = resolveGradient(style?.backgroundImage);
 
   if (gradient) {
     // canvas 尺寸使用节点 CSS 像素尺寸
@@ -176,7 +222,7 @@ function drawBackground({
       });
       try {
         doc.saveGraphicsState();
-        applyClip();
+        applyRadiusClip(clipArgs);
         doc.addImage(dataUrl, format, x, y, w, h);
         doc.restoreGraphicsState();
       } catch (e) {
@@ -214,7 +260,7 @@ function drawBackground({
 
       try {
         doc.saveGraphicsState();
-        applyClip();
+        applyRadiusClip(clipArgs);
         doc.addImage(
           node.bgSrc,
           node.bgFormat || 'JPEG',
@@ -288,18 +334,17 @@ function applyOneAncestorClip({
   const isFirstPage = relTop >= 0;
   const isLastPage = relBottom <= pageHeightPx;
 
-  if (useRadius && isFirstPage && isLastPage) {
-    addRoundedRectPath({ doc, x: ax, y: ay, w: aw, h: ah, r: radius });
-  } else if (useRadius && isFirstPage) {
-    addFirstPagePath({ doc, x: ax, y: ay, w: aw, segH: ah, r: radius });
-  } else if (useRadius && isLastPage) {
-    addLastPagePath({ doc, x: ax, y: ay, w: aw, segH: ah, r: radius });
-  } else {
-    doc.rect(ax, ay, aw, ah, null);
-  }
-
-  doc.clip();
-  doc.discardPath();
+  applyRadiusClip({
+    doc,
+    x: ax,
+    y: ay,
+    w: aw,
+    h: ah,
+    r: radius,
+    useRadius,
+    isFirstPage,
+    isLastPage,
+  });
 
   return true;
 }

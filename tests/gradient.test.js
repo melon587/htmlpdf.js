@@ -9,8 +9,8 @@ describe('parseLinearGradient', () => {
     expect(result).toEqual({
       angle: 180,
       stops: [
-        { color: 'red', pos: 0 },
-        { color: 'blue', pos: 1 },
+        { color: 'red', pos: 0, posPx: null },
+        { color: 'blue', pos: 1, posPx: null },
       ],
     });
   });

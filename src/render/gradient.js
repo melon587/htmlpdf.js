@@ -32,22 +32,27 @@ const DIRECTION_TO_DEG = {
 function parseColorStop(token) {
   const s = token.trim();
 
-  // 尝试从末尾匹配 <percentage> 或 <length>
-  // 百分比：数字 + %；长度 px：先忽略（按 null 处理，均匀分布）
+  // 尝试从末尾匹配 <percentage> 或 <length px>
   const posMatch = s.match(/\s+([\d.]+)(%|px)$/);
   let pos = null;
+  let posPx = null;
   let colorStr = s;
 
   if (posMatch) {
     const val = parseFloat(posMatch[1]);
-    pos = posMatch[2] === '%' ? val / 100 : null;
+    if (posMatch[2] === '%') {
+      pos = val / 100;
+    } else {
+      posPx = val; // px 值保留，待渲染时归一化
+    }
+
     colorStr = s.slice(0, s.length - posMatch[0].length);
   }
 
   const color = colorStr.trim() || null;
   if (!color) return null;
 
-  return { color, pos };
+  return { color, pos, posPx };
 }
 
 /**
@@ -75,32 +80,57 @@ function splitTopLevelCommas(str) {
 
 /**
  * 补齐色标位置：
- * - 首个无 pos → 0
- * - 末个无 pos → 1
+ * - posPx 非 null 的色标直接透传（px 值待渲染时归一化）
+ * - 首个无 pos（且无 posPx）→ 0
+ * - 末个无 pos（且无 posPx）→ 1
  * - 中间无 pos → 在前后已知 pos 之间均匀插值
  */
 function fillStopPositions(stops) {
   const result = stops.map((s) => ({ ...s }));
   const n = result.length;
 
-  if (result[0].pos === null) result[0].pos = 0;
+  // 找到第一个和最后一个 pct 色标（posPx 为 null 的），从两端线性扫描
+  let firstPct = null;
+  for (let i = 0; i < n; i += 1) {
+    if (result[i].posPx === null) {
+      firstPct = result[i];
+      break;
+    }
+  }
+  let lastPct = null;
+  for (let i = n - 1; i >= 0; i -= 1) {
+    if (result[i].posPx === null) {
+      lastPct = result[i];
+      break;
+    }
+  }
 
-  if (result[n - 1].pos === null) result[n - 1].pos = 1;
+  if (firstPct && firstPct.pos === null) firstPct.pos = 0;
+
+  if (lastPct && lastPct.pos === null) lastPct.pos = 1;
 
   let i = 0;
   while (i < n) {
-    if (result[i].pos !== null) {
+    // posPx 色标或已有 pos 的色标：跳过
+    if (result[i].posPx !== null || result[i].pos !== null) {
       i += 1;
       continue;
     }
 
     const prev = i - 1;
     let next = i + 1;
-    while (next < n && result[next].pos === null) next += 1;
+    while (
+      next < n &&
+      result[next].pos === null &&
+      result[next].posPx === null
+    ) {
+      next += 1;
+    }
+    const prevPos = result[prev]?.pos ?? 0;
+    const nextPos = result[next]?.pos ?? 1;
     const count = next - prev;
     for (let k = 1; k < count; k += 1) {
-      result[prev + k].pos =
-        result[prev].pos + (result[next].pos - result[prev].pos) * (k / count);
+      result[prev + k].pos = prevPos + (nextPos - prevPos) * (k / count);
     }
     i = next;
   }
@@ -183,6 +213,7 @@ function gradientEndPoints(w, h, angleDeg) {
     y0: cy + Math.cos(a) * halfLen,
     x1: cx + Math.sin(a) * halfLen,
     y1: cy - Math.cos(a) * halfLen,
+    len,
   };
 }
 
@@ -206,8 +237,12 @@ function gradientEndPoints(w, h, angleDeg) {
  * @returns {{ dataUrl: string, format: 'PNG' | 'JPEG' }}
  */
 function renderGradientSlice({ gradient, natW, natH, srcY, srcH }) {
-  const { angle, stops } = gradient;
-  const { x0, y0, x1, y1 } = gradientEndPoints(natW, natH, angle);
+  const { angle, repeating } = gradient;
+  const { x0, y0, x1, y1, len: gradLen } = gradientEndPoints(natW, natH, angle);
+
+  const stops = repeating
+    ? expandRepeatingStops(gradient.stops, gradLen)
+    : gradient.stops;
 
   const canvas = document.createElement('canvas');
   canvas.width = natW;
@@ -257,6 +292,7 @@ function parseRadialGradient(str) {
 
   let cx = 0.5;
   let cy = 0.5;
+  let shape = 'ellipse'; // 默认 ellipse
   let stopStart = 0;
 
   // 第一个 token 可能是 shape/size/position 描述，或直接是色标颜色
@@ -267,6 +303,8 @@ function parseRadialGradient(str) {
 
   if (hasDescriptor) {
     stopStart = 1;
+    if (/\bcircle\b/.test(first)) shape = 'circle';
+
     // 提取 "at <x> <y>"
     const atMatch = first.match(/at\s+([\w.%]+)(?:\s+([\w.%]+))?/);
 
@@ -279,7 +317,7 @@ function parseRadialGradient(str) {
   const rawStops = parts.slice(stopStart).map(parseColorStop).filter(Boolean);
   if (rawStops.length < 2) return null;
 
-  return { cx, cy, stops: fillStopPositions(rawStops) };
+  return { cx, cy, shape, stops: fillStopPositions(rawStops) };
 }
 
 /**
@@ -319,7 +357,7 @@ function parsePosToken(tok) {
  * @returns {{ dataUrl: string, format: 'PNG' | 'JPEG' }}
  */
 function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
-  const { cx, cy, stops } = gradient;
+  const { cx, cy, shape, repeating } = gradient;
 
   const canvas = document.createElement('canvas');
   canvas.width = natW;
@@ -329,9 +367,9 @@ function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
   // 跨页偏移：让渐变坐标系原点对齐完整节点顶部
   ctx2d.translate(0, -srcY);
 
-  // 椭圆渐变：在 Y 轴归一化坐标系里画圆，自然呈现 ellipse
-  // scaleY = natW / natH 使 Y 方向拉伸，圆变为 X:Y = natW:natH 的椭圆
-  const scaleY = natH > 0 ? natW / natH : 1;
+  // circle: scaleY=1（正圆，无缩放）
+  // ellipse: scaleY = natW/natH（在 Y 轴归一化坐标系里画圆，还原为椭圆）
+  const scaleY = shape === 'circle' ? 1 : natH > 0 ? natW / natH : 1;
   ctx2d.scale(1, 1 / scaleY);
 
   // 归一化坐标（Y 轴已缩放）
@@ -350,6 +388,11 @@ function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
       Math.sqrt((px - centerX) ** 2 + (py - centerY) ** 2),
     ),
   );
+
+  // repeating 变体：在知道半径后展开色标
+  const stops = repeating
+    ? expandRepeatingStops(gradient.stops, radius)
+    : gradient.stops;
 
   const grad = ctx2d.createRadialGradient(
     centerX,
@@ -374,9 +417,83 @@ function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
   return { dataUrl, format };
 }
 
+// ─── repeating gradient 色标展开 ─────────────────────────────────────────────
+
+/**
+ * 将 repeating gradient 的色标沿 0~1 展开为完整色标序列
+ *
+ * @param {Array<{color,pos,posPx}>} stops
+ * @param {number} gradientLength - 渐变线长度（px），用于将 posPx 归一化
+ * @returns {Array<{color, pos}>} 展开后的色标（覆盖 0~1）
+ */
+function expandRepeatingStops(stops, gradientLength) {
+  // 将每个 stop 转为 0~1 位置（优先 pos，否则 posPx/gradientLength）
+  const normalized = stops.map((s) => ({
+    color: s.color,
+    pos:
+      s.pos !== null
+        ? s.pos
+        : gradientLength > 0
+          ? s.posPx / gradientLength
+          : 0,
+  }));
+
+  const tileSize = normalized[normalized.length - 1].pos;
+
+  // tileSize <= 0 或 >= 1 则无需重复
+  if (!tileSize || tileSize >= 1) return normalized;
+
+  const result = [];
+  let offset = 0;
+
+  while (offset <= 1) {
+    for (const s of normalized) {
+      const pos = s.pos + offset;
+      if (pos > 1 + 1e-6) break;
+
+      result.push({ color: s.color, pos: Math.min(pos, 1) });
+    }
+
+    offset += tileSize;
+  }
+
+  return result;
+}
+
+/**
+ * 解析 CSS repeating-linear-gradient() 字符串
+ * 返回带 repeating:true 标记的对象；色标展开推迟到渲染层（需要渐变线长度）
+ */
+function parseRepeatingLinearGradient(str) {
+  if (!str || !str.includes('repeating-linear-gradient')) return null;
+
+  const replaced = str.replace(/repeating-linear-gradient/g, 'linear-gradient');
+  const parsed = parseLinearGradient(replaced);
+  if (!parsed) return null;
+
+  return { ...parsed, repeating: true };
+}
+
+/**
+ * 解析 CSS repeating-radial-gradient() 字符串
+ * 返回带 repeating:true 标记的对象；色标展开推迟到渲染层（需要半径长度）
+ */
+function parseRepeatingRadialGradient(str) {
+  if (!str || !str.includes('repeating-radial-gradient')) return null;
+
+  const replaced = str.replace(/repeating-radial-gradient/g, 'radial-gradient');
+  const parsed = parseRadialGradient(replaced);
+  if (!parsed) return null;
+
+  return { ...parsed, repeating: true };
+}
+
 export {
   parseLinearGradient,
   renderGradientSlice,
   parseRadialGradient,
   renderRadialGradientSlice,
+  parseRepeatingLinearGradient,
+  parseRepeatingRadialGradient,
+  expandRepeatingStops,
 };

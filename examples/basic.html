@@ -2477,6 +2477,144 @@
         </div>
       </div>
 
+      <!-- ===== repeating-linear-gradient tests ===== -->
+      <div style="margin-top: 40px">
+        <h3 style="font-size: 16px; margin-bottom: 12px">
+          repeating-linear-gradient
+        </h3>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <!-- diagonal stripes -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-linear-gradient(
+                45deg,
+                #1677ff 0px,
+                #1677ff 10px,
+                #e6f4ff 10px,
+                #e6f4ff 20px
+              );
+            "
+          ></div>
+          <!-- vertical candy stripes -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-linear-gradient(
+                to right,
+                #ff4d4f 0px,
+                #ff4d4f 12px,
+                #fff1f0 12px,
+                #fff1f0 24px
+              );
+            "
+          ></div>
+          <!-- three-color diagonal -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-linear-gradient(
+                -45deg,
+                #52c41a 0px,
+                #52c41a 8px,
+                #f6ffed 8px,
+                #f6ffed 16px,
+                #ffc53d 16px,
+                #ffc53d 24px,
+                #fffbe6 24px,
+                #fffbe6 32px
+              );
+            "
+          ></div>
+          <!-- subtle diagonal with rgba -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background-color: #722ed1;
+              background: repeating-linear-gradient(
+                60deg,
+                rgba(255, 255, 255, 0.15) 0px,
+                rgba(255, 255, 255, 0.15) 6px,
+                rgba(0, 0, 0, 0) 6px,
+                rgba(0, 0, 0, 0) 14px
+              );
+              background-color: #722ed1;
+            "
+          ></div>
+        </div>
+      </div>
+
+      <!-- ===== repeating-radial-gradient tests ===== -->
+      <div style="margin-top: 40px">
+        <h3 style="font-size: 16px; margin-bottom: 12px">
+          repeating-radial-gradient
+        </h3>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <!-- concentric rings -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-radial-gradient(
+                circle,
+                #1677ff 0px,
+                #1677ff 8px,
+                #e6f4ff 8px,
+                #e6f4ff 16px
+              );
+            "
+          ></div>
+          <!-- ellipse rings -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-radial-gradient(
+                ellipse,
+                #ff4d4f 0px,
+                #ff4d4f 6px,
+                #fff1f0 6px,
+                #fff1f0 14px
+              );
+            "
+          ></div>
+          <!-- offset center rings -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-radial-gradient(
+                circle at 30% 40%,
+                #52c41a 0px,
+                #52c41a 10px,
+                #f6ffed 10px,
+                #f6ffed 20px
+              );
+            "
+          ></div>
+          <!-- three-color rings with rgba -->
+          <div
+            style="
+              width: 160px;
+              height: 100px;
+              background: repeating-radial-gradient(
+                circle at 70% 60%,
+                #722ed1 0px,
+                #722ed1 5px,
+                rgba(114, 46, 209, 0.3) 5px,
+                rgba(114, 46, 209, 0.3) 12px,
+                #f9f0ff 12px,
+                #f9f0ff 20px
+              );
+            "
+          ></div>
+        </div>
+      </div>
+
       <!-- ===== Opacity / RGBA transparency tests ===== -->
       <div style="margin-top: 40px">
         <h3 style="font-size: 16px; margin-bottom: 12px">

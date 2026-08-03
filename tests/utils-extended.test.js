@@ -16,38 +16,38 @@ import {
 
 describe('parseColor', () => {
   it('解析 rgb() 格式', () => {
-    expect(parseColor('rgb(255, 0, 0)')).toEqual([255, 0, 0]);
-    expect(parseColor('rgb(0, 255, 0)')).toEqual([0, 255, 0]);
-    expect(parseColor('rgb(0, 0, 255)')).toEqual([0, 0, 255]);
+    expect(parseColor('rgb(255, 0, 0)')).toEqual([255, 0, 0, 1]);
+    expect(parseColor('rgb(0, 255, 0)')).toEqual([0, 255, 0, 1]);
+    expect(parseColor('rgb(0, 0, 255)')).toEqual([0, 0, 255, 1]);
   });
 
-  it('解析 rgba() 格式（忽略 alpha）', () => {
-    expect(parseColor('rgba(255, 0, 0, 0.5)')).toEqual([255, 0, 0]);
-    expect(parseColor('rgba(0, 255, 0, 1)')).toEqual([0, 255, 0]);
+  it('解析 rgba() 格式（含 alpha）', () => {
+    expect(parseColor('rgba(255, 0, 0, 0.5)')).toEqual([255, 0, 0, 0.5]);
+    expect(parseColor('rgba(0, 255, 0, 1)')).toEqual([0, 255, 0, 1]);
   });
 
   it('解析 #RGB 短格式', () => {
-    expect(parseColor('#f00')).toEqual([255, 0, 0]);
-    expect(parseColor('#0f0')).toEqual([0, 255, 0]);
-    expect(parseColor('#00f')).toEqual([0, 0, 255]);
-    expect(parseColor('#abc')).toEqual([170, 187, 204]);
+    expect(parseColor('#f00')).toEqual([255, 0, 0, 1]);
+    expect(parseColor('#0f0')).toEqual([0, 255, 0, 1]);
+    expect(parseColor('#00f')).toEqual([0, 0, 255, 1]);
+    expect(parseColor('#abc')).toEqual([170, 187, 204, 1]);
   });
 
   it('解析 #RRGGBB 长格式', () => {
-    expect(parseColor('#ff0000')).toEqual([255, 0, 0]);
-    expect(parseColor('#00ff00')).toEqual([0, 255, 0]);
-    expect(parseColor('#0000ff')).toEqual([0, 0, 255]);
-    expect(parseColor('#aabbcc')).toEqual([170, 187, 204]);
+    expect(parseColor('#ff0000')).toEqual([255, 0, 0, 1]);
+    expect(parseColor('#00ff00')).toEqual([0, 255, 0, 1]);
+    expect(parseColor('#0000ff')).toEqual([0, 0, 255, 1]);
+    expect(parseColor('#aabbcc')).toEqual([170, 187, 204, 1]);
   });
 
-  it('解析 #RRGGBBAA 带透明度（忽略 alpha）', () => {
-    expect(parseColor('#ff000080')).toEqual([255, 0, 0]);
-    expect(parseColor('#00ff00ff')).toEqual([0, 255, 0]);
+  it('解析 #RRGGBBAA 带透明度', () => {
+    expect(parseColor('#ff000080')).toEqual([255, 0, 0, 128 / 255]);
+    expect(parseColor('#00ff00ff')).toEqual([0, 255, 0, 1]);
   });
 
   it('大小写不敏感', () => {
-    expect(parseColor('#FF0000')).toEqual([255, 0, 0]);
-    expect(parseColor('#AbCdEf')).toEqual([171, 205, 239]);
+    expect(parseColor('#FF0000')).toEqual([255, 0, 0, 1]);
+    expect(parseColor('#AbCdEf')).toEqual([171, 205, 239, 1]);
   });
 
   it('处理 transparent', () => {
