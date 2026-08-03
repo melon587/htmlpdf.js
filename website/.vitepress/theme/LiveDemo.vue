@@ -308,6 +308,9 @@
           border-collapse: collapse;
           width: 100%;
           font-size: 9px;
+          margin-top: 0;
+          border-radius: 8px;
+          overflow: hidden;
         "
         pdf-font="noto-sans-sc"
       >
@@ -1149,6 +1152,103 @@
             <td style="border: 1px solid #ccc; padding: 4px">200</td>
             <td style="border: 1px solid #ccc; padding: 4px">$150.00</td>
           </tr>
+          <!-- ===== COMBO 系列：同时测试 rowspan + colspan ===== -->
+          <!-- 系列列 rowspan=8；第2行和第5行有 colspan=2 合并"规格"+"型号"列 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">96</td>
+            <td
+              rowspan="8"
+              style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #e6f4ff;
+                font-weight: bold;
+                vertical-align: top;
+              "
+            >
+              COMBO 系列
+            </td>
+            <td
+              rowspan="3"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
+              spec-U<br />Multi-zone<br />Indoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-09HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">300</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$99.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">97</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-12HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">260</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$115.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">98</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">180</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$138.00</td>
+          </tr>
+          <!-- colspan=2 小计行：合并"规格"列和"型号"列 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+            <td
+              colspan="2"
+              style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #fffbe6;
+                color: #ad6800;
+              "
+            >
+              spec-U 小计（colspan=2 合并规格+型号列）
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">740</td>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">99</td>
+            <td
+              rowspan="3"
+              style="border: 1px solid #ccc; padding: 4px"
+            >
+              spec-V<br />Outdoor Unit
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-OU-18HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">200</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$195.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">100</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-OU-24HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">150</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$230.00</td>
+          </tr>
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">101</td>
+            <td style="border: 1px solid #ccc; padding: 4px">COMBO-OU-36HRF</td>
+            <td style="border: 1px solid #ccc; padding: 4px">100</td>
+            <td style="border: 1px solid #ccc; padding: 4px">$275.00</td>
+          </tr>
+          <!-- colspan=2 小计行：合并"规格"列和"型号"列 -->
+          <tr>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+            <td
+              colspan="2"
+              style="
+                border: 1px solid #ccc;
+                padding: 4px;
+                background: #fffbe6;
+                color: #ad6800;
+              "
+            >
+              spec-V 小计（colspan=2 合并规格+型号列）
+            </td>
+            <td style="border: 1px solid #ccc; padding: 4px">450</td>
+            <td style="border: 1px solid #ccc; padding: 4px">—</td>
+          </tr>
+          <!-- ===== COMBO 系列结束 ===== -->
         </tbody>
       </table>
       <!-- ===== 模拟 info-table 场景结束 ===== -->
@@ -1413,14 +1513,12 @@
       </table>
 
       <!-- 图片跨页裁切测试：图片足够高，预期在第一页显示上半部分，第二页显示下半部分 -->
-      <div
-        style="margin-top: 16px"
-        page-break
-      >
+      <div style="margin-top: 16px">
         <p style="font-size: 13px; color: #444; margin-bottom: 8px">
           Image cross-page cropping test (tall image):
         </p>
         <img
+          page-break
           src="https://p7.itc.cn/images01/20220226/e5c1fe5d2ec94f6f8b168b4198ba87cc.png"
           crossorigin="anonymous"
           style="
@@ -2129,6 +2227,144 @@
                   rgba(114, 46, 209, 0) 70%
                 );
                 background-color: #f9f0ff;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <!-- ===== repeating-linear-gradient tests ===== -->
+        <div style="margin-top: 40px">
+          <h3 style="font-size: 16px; margin-bottom: 12px">
+            repeating-linear-gradient
+          </h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <!-- diagonal stripes -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-linear-gradient(
+                  45deg,
+                  #1677ff 0px,
+                  #1677ff 10px,
+                  #e6f4ff 10px,
+                  #e6f4ff 20px
+                );
+              "
+            ></div>
+            <!-- vertical candy stripes -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-linear-gradient(
+                  to right,
+                  #ff4d4f 0px,
+                  #ff4d4f 12px,
+                  #fff1f0 12px,
+                  #fff1f0 24px
+                );
+              "
+            ></div>
+            <!-- three-color diagonal -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-linear-gradient(
+                  -45deg,
+                  #52c41a 0px,
+                  #52c41a 8px,
+                  #f6ffed 8px,
+                  #f6ffed 16px,
+                  #ffc53d 16px,
+                  #ffc53d 24px,
+                  #fffbe6 24px,
+                  #fffbe6 32px
+                );
+              "
+            ></div>
+            <!-- subtle diagonal with rgba over solid color -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background:
+                  repeating-linear-gradient(
+                    60deg,
+                    rgba(255, 255, 255, 0.15) 0px,
+                    rgba(255, 255, 255, 0.15) 6px,
+                    rgba(0, 0, 0, 0) 6px,
+                    rgba(0, 0, 0, 0) 14px
+                  ),
+                  #722ed1;
+              "
+            ></div>
+          </div>
+        </div>
+
+        <!-- ===== repeating-radial-gradient tests ===== -->
+        <div style="margin-top: 40px">
+          <h3 style="font-size: 16px; margin-bottom: 12px">
+            repeating-radial-gradient
+          </h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <!-- concentric rings -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-radial-gradient(
+                  circle,
+                  #1677ff 0px,
+                  #1677ff 8px,
+                  #e6f4ff 8px,
+                  #e6f4ff 16px
+                );
+              "
+            ></div>
+            <!-- ellipse rings -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-radial-gradient(
+                  ellipse,
+                  #ff4d4f 0px,
+                  #ff4d4f 6px,
+                  #fff1f0 6px,
+                  #fff1f0 14px
+                );
+              "
+            ></div>
+            <!-- offset center rings -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-radial-gradient(
+                  circle at 30% 40%,
+                  #52c41a 0px,
+                  #52c41a 10px,
+                  #f6ffed 10px,
+                  #f6ffed 20px
+                );
+              "
+            ></div>
+            <!-- three-color rings with rgba -->
+            <div
+              style="
+                width: 160px;
+                height: 100px;
+                background: repeating-radial-gradient(
+                  circle at 70% 60%,
+                  #722ed1 0px,
+                  #722ed1 5px,
+                  rgba(114, 46, 209, 0.3) 5px,
+                  rgba(114, 46, 209, 0.3) 12px,
+                  #f9f0ff 12px,
+                  #f9f0ff 20px
+                );
               "
             ></div>
           </div>

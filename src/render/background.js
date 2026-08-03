@@ -7,6 +7,7 @@ import {
   renderRadialGradientSlice,
   parseRepeatingLinearGradient,
   parseRepeatingRadialGradient,
+  splitTopLevelCommas,
 } from './gradient';
 import {
   parseRadius,
@@ -123,6 +124,26 @@ function resolveGradient(bgImage) {
   return { gradient, renderSlice };
 }
 
+// ─── 多层背景解析 ─────────────────────────────────────────────────────────────
+
+/**
+ * 将 backgroundImage 字符串拆分为多个渐变层（CSS 多层 background 语法）。
+ * 顺序与 CSS 声明一致（第一个在最上层）。
+ * 空值或 "none" 返回空数组。
+ *
+ * @param {string|null} bgImage
+ * @returns {Array<{gradient: object, renderSlice: Function}>}
+ */
+function resolveBgLayers(bgImage) {
+  if (!bgImage || bgImage === 'none') return [];
+
+  return splitTopLevelCommas(bgImage)
+    .map((part) => part.trim())
+    .filter((part) => part && part !== 'none')
+    .map((part) => resolveGradient(part))
+    .filter(({ gradient }) => gradient !== null);
+}
+
 // ─── 主函数 ───────────────────────────────────────────────────────────────────
 
 /**
@@ -140,7 +161,7 @@ function resolveGradient(bgImage) {
  *   - true（默认）：背景色只画到节点实际底部
  *   - false（中间 spill 页）：背景色延伸到整页高度（clipBottom），后续内容会覆盖在上面
  */
-function drawBackground({
+export function drawBackground({
   node,
   ctx,
   clipTop = 0,
@@ -199,11 +220,10 @@ function drawBackground({
     doc.restoreGraphicsState();
   }
 
-  // 2. 渐变背景（linear / radial / repeating 变体）
-  const { gradient, renderSlice } = resolveGradient(style?.backgroundImage);
+  // 2. 渐变背景层（支持多层，从底层到顶层渲染）
+  const bgLayers = resolveBgLayers(style?.backgroundImage);
 
-  if (gradient) {
-    // canvas 尺寸使用节点 CSS 像素尺寸
+  if (bgLayers.length > 0) {
     const natW = Math.round(node.width);
     const natH = Math.round(node.height);
     const nodeHeightMM = nodeBottom - nodeTop;
@@ -213,20 +233,24 @@ function drawBackground({
     const srcH = Math.round((ratioBottom - ratioTop) * natH);
 
     if (natW > 0 && natH > 0 && nodeHeightMM > 0 && srcH > 0) {
-      const { dataUrl, format } = renderSlice({
-        gradient,
-        natW,
-        natH,
-        srcY,
-        srcH,
-      });
-      try {
-        doc.saveGraphicsState();
-        applyRadiusClip(clipArgs);
-        doc.addImage(dataUrl, format, x, y, w, h);
-        doc.restoreGraphicsState();
-      } catch (e) {
-        console.warn('[htmlpdf] gradient addImage failed:', e);
+      // CSS 规范：先声明的层在最上面；从后往前渲染保证 z 顺序正确
+      for (let i = bgLayers.length - 1; i >= 0; i -= 1) {
+        const { gradient, renderSlice } = bgLayers[i];
+        const { dataUrl, format } = renderSlice({
+          gradient,
+          natW,
+          natH,
+          srcY,
+          srcH,
+        });
+        try {
+          doc.saveGraphicsState();
+          applyRadiusClip(clipArgs);
+          doc.addImage(dataUrl, format, x, y, w, h);
+          doc.restoreGraphicsState();
+        } catch (e) {
+          console.warn('[htmlpdf] gradient addImage failed:', e);
+        }
       }
     }
   }
@@ -276,8 +300,6 @@ function drawBackground({
     }
   }
 }
-
-export { drawBackground };
 
 /**
  * 为单个 overflow clip 祖先建立 clip 路径并调用 doc.clip()。

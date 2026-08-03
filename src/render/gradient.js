@@ -496,4 +496,5 @@ export {
   parseRepeatingLinearGradient,
   parseRepeatingRadialGradient,
   expandRepeatingStops,
+  splitTopLevelCommas,
 };

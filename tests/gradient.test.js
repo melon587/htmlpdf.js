@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseLinearGradient } from '../src/render/gradient.js';
+import {
+  parseLinearGradient,
+  splitTopLevelCommas,
+} from '../src/render/gradient.js';
 
 describe('parseLinearGradient', () => {
   // ── 基础语法 ──────────────────────────────────────────────────────────────
@@ -284,5 +287,45 @@ describe('parseLinearGradient', () => {
     );
     expect(result.angle).toBe(180);
     expect(result.stops[0].color).toContain('rgba(0,0,0,0)');
+  });
+});
+
+describe('splitTopLevelCommas', () => {
+  it('单个 token，无逗号', () => {
+    expect(splitTopLevelCommas('red')).toEqual(['red']);
+  });
+
+  it('两个顶层 token', () => {
+    expect(splitTopLevelCommas('red, blue')).toEqual(['red', ' blue']);
+  });
+
+  it('括号内逗号不拆分', () => {
+    const result = splitTopLevelCommas('rgba(0,0,0,0), red');
+    expect(result).toHaveLength(2);
+    expect(result[0]).toBe('rgba(0,0,0,0)');
+    expect(result[1]).toBe(' red');
+  });
+
+  it('两个 linear-gradient（多层 background）', () => {
+    const input = 'linear-gradient(red, blue), linear-gradient(green, yellow)';
+    const parts = splitTopLevelCommas(input);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toBe('linear-gradient(red, blue)');
+    expect(parts[1]).toBe(' linear-gradient(green, yellow)');
+  });
+
+  it('嵌套括号（渐变 + rgba 色标）', () => {
+    const input =
+      'linear-gradient(rgba(255,0,0,0) 0%, rgba(0,0,0,0) 100%),' + ' #722ed1';
+    const parts = splitTopLevelCommas(input);
+    expect(parts).toHaveLength(2);
+    expect(parts[0]).toBe(
+      'linear-gradient(rgba(255,0,0,0) 0%, rgba(0,0,0,0) 100%)',
+    );
+    expect(parts[1]).toBe(' #722ed1');
+  });
+
+  it('空字符串返回空数组', () => {
+    expect(splitTopLevelCommas('')).toEqual([]);
   });
 });
