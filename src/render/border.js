@@ -575,7 +575,9 @@ function drawBorder({
 
   const segH = yBottom - yTop;
   const fullH = toMM(node.height);
-  const radius = parseRadius({ style, toMM, w, h: fullH });
+  const radius = node.collapseCell
+    ? { tl: 0, tr: 0, br: 0, bl: 0 }
+    : parseRadius({ style, toMM, w, h: fullH });
 
   if (segH > 0 && hasRadius(radius)) {
     strokeRoundedSides({

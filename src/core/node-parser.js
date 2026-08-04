@@ -86,6 +86,7 @@ function buildTableCache(cloneRoot, win) {
   const tableAllCells = new WeakMap();
   const cellRectMap = new WeakMap();
   const cellStyleMap = new WeakMap();
+  const cellTableMap = new WeakMap();
 
   const tables = cloneRoot.querySelectorAll('table');
   for (const table of tables) {
@@ -100,23 +101,30 @@ function buildTableCache(cloneRoot, win) {
       const bbw = cs.borderBottomWidth;
       cellRectMap.set(el, rect);
       cellStyleMap.set(el, { brw, bbw });
+      cellTableMap.set(el, table);
 
       return { el, rect, brw, bbw };
     });
     tableAllCells.set(table, cells);
   }
 
-  return { tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap };
+  return {
+    tableCollapseMap,
+    tableAllCells,
+    cellRectMap,
+    cellStyleMap,
+    cellTableMap,
+  };
 }
 
 /**
- * 检测 td/th 是否处于 border-collapse 表格中（O(1) 缓存查询）。
+ * 检测 td/th 是否处于 border-collapse 表格中（O(1) WeakMap 查询）。
  */
-function isCollapseTable(cellEl, tableCollapseMap) {
-  const tableEl = cellEl.closest('table');
+function isCollapseTable(cellEl, tableCache) {
+  const tableEl = tableCache.cellTableMap.get(cellEl);
   if (!tableEl) return false;
 
-  return tableCollapseMap.get(tableEl) === true;
+  return tableCache.tableCollapseMap.get(tableEl) === true;
 }
 
 /** 坐标容差（px）：处理亚像素对齐误差 */
@@ -138,9 +146,11 @@ function getPrevCellBorderRight({
   tableAllCells,
   cellRectMap,
   cellStyleMap,
+  cellTableMap,
 }) {
   // 1. 先查同 TR 兄弟（最常见路径）
-  const tr = cellEl.closest('tr');
+  // TR 是 td/th 的直接父节点，parentElement 比 closest('tr') 快
+  const tr = cellEl.parentElement;
   if (tr) {
     for (const sib of tr.children) {
       if (!CELL_TAGS.has(sib.tagName) || sib === cellEl) continue;
@@ -155,7 +165,7 @@ function getPrevCellBorderRight({
   }
 
   // 2. 同 TR 未找到时，在整张 table 查 rowspan 跨行格子
-  const table = cellEl.closest('table');
+  const table = cellTableMap.get(cellEl);
   if (!table) return '0px';
 
   for (const { el, rect, brw } of tableAllCells.get(table) ?? []) {
@@ -181,8 +191,13 @@ function getPrevCellBorderRight({
  * colspan 场景：上方可能有多个窄格子，取第一个 borderBottom ≠ 0px 的值。
  * 所有坐标与 border 均来自缓存，无额外 layout / getComputedStyle 触发。
  */
-function getPrevRowCellBorderBottom({ cellEl, cellRect, tableAllCells }) {
-  const table = cellEl.closest('table');
+function getPrevRowCellBorderBottom({
+  cellEl,
+  cellRect,
+  tableAllCells,
+  cellTableMap,
+}) {
+  const table = cellTableMap.get(cellEl);
   if (!table) return '0px';
 
   for (const { el, rect, bbw } of tableAllCells.get(table) ?? []) {
@@ -222,18 +237,17 @@ function getPrevRowCellBorderBottom({ cellEl, cellRect, tableAllCells }) {
 function resolveCellBorderOverrides({
   tag,
   isPseudo,
+  isCollapse,
   measEl,
   cellRect,
   tableCache,
 }) {
-  if (!CELL_TAGS.has(tag) || isPseudo) return null;
+  if (!CELL_TAGS.has(tag) || isPseudo || !isCollapse) return null;
 
-  const { tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap } =
-    tableCache;
-  if (!isCollapseTable(measEl, tableCollapseMap)) return null;
+  const { tableAllCells, cellRectMap, cellStyleMap, cellTableMap } = tableCache;
 
   const zero = { width: '0px', color: 'transparent', style: 'none' };
-  const shared = { cellRect, tableAllCells };
+  const shared = { cellRect, tableAllCells, cellTableMap };
 
   // 横向：上邻有 bottom → 抑制自身 top
   const prevBottom = getPrevRowCellBorderBottom({
@@ -316,7 +330,7 @@ function shouldCollectAsClipAncestor(el, computedStyle) {
  * @param {DOMRect}            r        - 该元素的 getBoundingClientRect 结果
  * @param {DOMRect}            rootRect - 根元素 bounding rect（坐标原点）
  */
-function makeClipEntry(el, s, r, rootRect) {
+function makeClipEntry(s, r, rootRect) {
   return {
     x: r.left - rootRect.left,
     y: r.top - rootRect.top,
@@ -382,12 +396,17 @@ function parseElement({
   // origEl 对伪元素为 null（原始 DOM 中不存在对应节点），回退到 measEl.tagName
   const tag = origEl ? origEl.tagName : measEl.tagName;
 
+  // collapse 检测：只算一次，同时供 borderOverrides 和 collapseCell 使用
+  const collapseCell =
+    CELL_TAGS.has(tag) && !isPseudo && isCollapseTable(measEl, tableCache);
+
   // border-collapse 去重：上邻有 bottom 则抑制自身 top；左邻有 right 则抑制自身 left。
   // 两个方向均用坐标匹配，正确处理 colspan/rowspan。跨页安全。
   // cellRect 直接复用上方已测量的 rect，避免重复触发 layout。
   const borderOverrides = resolveCellBorderOverrides({
     tag,
     isPseudo,
+    isCollapse: collapseCell,
     measEl,
     cellRect: rect,
     tableCache,
@@ -413,6 +432,8 @@ function parseElement({
 
   const { cellRectMap } = tableCache;
 
+  const rs = getCellRowSpan(tag, isPseudo, origEl);
+
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
     pseudoType: isPseudo ? measEl.getAttribute('data-pseudo') : undefined,
@@ -427,10 +448,11 @@ function parseElement({
       measEl,
       cellRectMap,
     ),
-    rowSpan: getCellRowSpan(tag, isPseudo, origEl),
+    rowSpan: rs,
     pageBreak: origEl ? getPageBreak(origEl) : null,
     _el: getMediaEl(origEl, measEl),
     _origEl: origEl,
+    collapseCell,
     overflowClipAncestors,
     style: {
       backgroundColor: style.backgroundColor,
@@ -489,7 +511,9 @@ function processMultilineText({
   overflowClipAncestors,
 }) {
   const nodes = [];
-  const lineGroups = []; // [{top, left, right, bottom, height, chars: [char1, char2, ...]}]
+  // ponytail: O(chars×lines) 线性扫描行分组；段落通常 2-5 行，无感。
+  // 若遇到超长代码块需优化，改用 roundedTop Map（需处理 ±1px 容差边界）。
+  const lineGroups = [];
 
   // 逐字符分析并按行分组（用 raw 的下标对应 textNode offset）
   for (let charIdx = 0; charIdx < raw.length; charIdx += 1) {
@@ -657,18 +681,17 @@ function parseTextNode({
  * @returns {Array} 扁平化节点列表
  */
 export function collectNodes(element, cloneRoot) {
-  const measRoot = cloneRoot;
   const measWin = cloneRoot.ownerDocument.defaultView;
-  const rootRect = measRoot.getBoundingClientRect();
+  const rootRect = cloneRoot.getBoundingClientRect();
 
   // 预构建表格缓存：一次遍历，之后每个 TD/TH 查询均为 O(1)
-  const tableCache = buildTableCache(measRoot, measWin);
+  const tableCache = buildTableCache(cloneRoot, measWin);
 
   // clipAncestorCache: measEl → 该节点的子节点所应看到的 clip 祖先数组
   // （即：当前节点若是 clip 祖先则 prepend 自身，否则复用父节点数组）
   const clipAncestorCache = new WeakMap();
   // 根节点不是 clip 上下文，初始化为空数组
-  clipAncestorCache.set(measRoot, []);
+  clipAncestorCache.set(cloneRoot, []);
 
   const nodes = [];
 
@@ -686,10 +709,7 @@ export function collectNodes(element, cloneRoot) {
     let childAncestors;
     if (shouldCollectAsClipAncestor(measEl, style)) {
       const r = measEl.getBoundingClientRect();
-      childAncestors = [
-        makeClipEntry(measEl, style, r, rootRect),
-        ...parentAncestors,
-      ];
+      childAncestors = [makeClipEntry(style, r, rootRect), ...parentAncestors];
     } else {
       childAncestors = parentAncestors;
     }
@@ -771,7 +791,7 @@ export function collectNodes(element, cloneRoot) {
     }
   }
 
-  walk(element, measRoot);
+  walk(element, cloneRoot);
 
   return nodes;
 }
