@@ -26,18 +26,19 @@ import {
  * placement 同页渲染顺序权重
  *   0  非 rowspan 的 spill（TABLE/TBODY/TR 等容器）→ 最先铺底
  *   1  repeat-header
- *   2  normal（含普通 TD/TH）
- *   3  rowspan TD/TH 的 spill → 最后画，覆盖在同页普通 TD 之上
- *      （CSS §17.5.4：rowspan cell 背景高于同列普通 cell 背景）
+ *   2  normal（含所有 TD/TH 和 text）
+ *   3  rowspan TD/TH spill
+ *
+ * order=2 内部细分顺序由 sortKey 决定（见 streamPaginate sortKey 赋值）：
+ *   普通 element(dfsIndex) < rowspan TD/TH(dfsIndex+N) < text(dfsIndex+2N)
  */
 function placementOrder(p) {
-  if (p.type === 'spill') {
-    const { tag } = p.node;
-    if ((tag === 'TD' || tag === 'TH') && (p.node.rowSpan || 1) > 1) {
-      return 3;
-    }
+  const { tag } = p.node;
+  const isRowspanCell =
+    (tag === 'TD' || tag === 'TH') && (p.node.rowSpan || 1) > 1;
 
-    return 0;
+  if (p.type === 'spill') {
+    return isRowspanCell ? 3 : 0;
   }
 
   if (p.type === 'repeat-header' || p.type === 'repeat-header-child') return 1;
@@ -48,8 +49,8 @@ function placementOrder(p) {
 /**
  * placement 排序：
  *   1. 页码升序
- *   2. 同页内按 placementOrder（spill → repeat-header → normal）
- *   3. 同 placementOrder 内按 dfsIndex 保留原始 DFS 顺序
+ *   2. 同页内按 placementOrder
+ *   3. 同 order 内按 sortKey（默认 = dfsIndex）
  */
 function comparePlacements(a, b) {
   if (a.page !== b.page) return a.page - b.page;
@@ -57,7 +58,7 @@ function comparePlacements(a, b) {
   const typeOrd = placementOrder(a) - placementOrder(b);
   if (typeOrd !== 0) return typeOrd;
 
-  return a.dfsIndex - b.dfsIndex;
+  return (a.sortKey ?? a.dfsIndex) - (b.sortKey ?? b.dfsIndex);
 }
 
 /**
@@ -213,13 +214,14 @@ export function expandSpillPlacements(
   const nodeLastPage = buildNodeLastPageMap(nodePlacements);
 
   for (const p of nodePlacements) {
-    // rowspan TD/TH 用 rowSpanActualBottom（分页后修正值），其他节点用 y+height
-    const nodeBottomPx = p.node.rowSpanActualBottom ?? p.node.y + p.node.height;
+    const nodeBottomPx = p.node.y + p.node.height;
     const pageInfo = pageStartOffsets.get(p.page);
     const pageContentTopPx = pageInfo ? pageInfo.pageContentTopPx : 0;
     const pageBottomGlobal = pageContentTopPx + contentHeightPx;
 
-    if (nodeBottomPx <= pageBottomGlobal) continue;
+    if (nodeBottomPx <= pageBottomGlobal) {
+      continue;
+    }
 
     // 只对有边框或背景的 element 节点展开（text 节点不需要跨页 bg/border）
     if (p.node.type !== 'element') continue;
@@ -233,6 +235,7 @@ export function expandSpillPlacements(
       Math.ceil((nodeBottomPx - pageContentTopPx) / contentHeightPx) +
       p.page -
       1;
+
     const lastPage = Math.min(
       Math.max(lastPageByMap, lastPageByCoord),
       totalPagesCount,
@@ -446,6 +449,30 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
   for (const p of nodePlacements) {
     const info = pageStartOffsets.get(p.page);
     p.pageActualBottomPx = info ? info.pageActualBottomPx : null;
+  }
+
+  // CSS §17.5.4：rowspan cell 背景高于同列普通 cell 背景。
+  // DFS 前序下 rowspan TD dfsIndex 小于同行普通 TD，需要后移确保覆盖。
+  // 用 sortKey 调整：
+  //   rowspan TD/TH element  → dfsIndex + totalNodes   （排在所有普通 element 之后）
+  //   所有 text 节点          → dfsIndex + 2*totalNodes （始终在所有 element 之后）
+  // 普通 element 不设 sortKey，默认用 dfsIndex，排在最前。
+  const totalNodes = nodes.length;
+  for (const p of nodePlacements) {
+    if (p.node.type === 'text') {
+      p.sortKey = p.dfsIndex + 2 * totalNodes;
+      continue;
+    }
+
+    const { tag } = p.node;
+    if (
+      p.type === 'normal' &&
+      p.node.type === 'element' &&
+      (tag === 'TD' || tag === 'TH') &&
+      (p.node.rowSpan || 1) > 1
+    ) {
+      p.sortKey = p.dfsIndex + totalNodes;
+    }
   }
 
   // 跨页展开：为溢出节点在后续页生成 spill placement
