@@ -179,16 +179,13 @@ export function addLastPagePath({ doc, x, y, w, segH, r }) {
 export function addBorderFirstPagePath({ doc, x, y, w, cutY, r }) {
   const { tl, tr } = r;
 
-  // 右侧：顶边 → tr 弧 → 右竖线到截断线
-  doc.moveTo(x + tl, y);
-  doc.lineTo(x + w - tr, y);
-  arcTopRight({ doc, x, y, w, tr });
-  doc.lineTo(x + w, cutY);
-
-  // 左侧：左竖线从截断线 → tl 弧
+  // 一条连续路径（逆时针）：左竖线从截断线 → tl 弧 → 顶边 → tr 弧 → 右竖线到截断线
   doc.moveTo(x, cutY);
   doc.lineTo(x, y + tl);
   arcTopLeft({ doc, x, y, tl });
+  doc.lineTo(x + w - tr, y);
+  arcTopRight({ doc, x, y, w, tr });
+  doc.lineTo(x + w, cutY);
 }
 
 /**

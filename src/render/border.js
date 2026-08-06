@@ -326,27 +326,29 @@ function strokeLeftAtOff({
   isLastPage,
 }) {
   const xi = x + off;
-
-  if (isFirstPage && tl > 0) {
-    doc.moveTo(xi, y + tl);
-    doc.curveTo(
-      xi,
-      y + tl - tl * ARC_K,
-      x + tl - tl * ARC_K,
-      y + off,
-      x + tl,
-      y + off,
-    );
-    doc.stroke();
-  }
-
   const lineTop = isFirstPage ? y + tl : y;
   const lineBot = isLastPage ? y + h - bl : y + h;
 
-  if (lineBot > lineTop) doc.line(xi, lineTop, xi, lineBot);
+  // Build one continuous path: top arc → vertical line → bottom arc
+  if (isFirstPage && tl > 0) {
+    doc.moveTo(x + tl, y + off);
+    doc.curveTo(
+      x + tl - tl * ARC_K,
+      y + off,
+      xi,
+      y + tl - tl * ARC_K,
+      xi,
+      y + tl,
+    );
+  } else {
+    doc.moveTo(xi, lineTop);
+  }
+
+  if (lineBot > lineTop) {
+    doc.lineTo(xi, lineBot);
+  }
 
   if (isLastPage && bl > 0) {
-    doc.moveTo(xi, y + h - bl);
     doc.curveTo(
       xi,
       y + h - bl + bl * ARC_K,
@@ -355,8 +357,9 @@ function strokeLeftAtOff({
       x + bl,
       y + h - off,
     );
-    doc.stroke();
   }
+
+  doc.stroke();
 }
 
 function strokeRightAtOff({
@@ -372,7 +375,10 @@ function strokeRightAtOff({
   isLastPage,
 }) {
   const xr = x + w - off;
+  const lineTop = isFirstPage ? y + tr : y;
+  const lineBot = isLastPage ? y + h - br : y + h;
 
+  // Build one continuous path: top arc → vertical line → bottom arc
   if (isFirstPage && tr > 0) {
     doc.moveTo(x + w - tr, y + off);
     doc.curveTo(
@@ -383,16 +389,15 @@ function strokeRightAtOff({
       xr,
       y + tr,
     );
-    doc.stroke();
+  } else {
+    doc.moveTo(xr, lineTop);
   }
 
-  const lineTop = isFirstPage ? y + tr : y;
-  const lineBot = isLastPage ? y + h - br : y + h;
-
-  if (lineBot > lineTop) doc.line(xr, lineTop, xr, lineBot);
+  if (lineBot > lineTop) {
+    doc.lineTo(xr, lineBot);
+  }
 
   if (isLastPage && br > 0) {
-    doc.moveTo(xr, y + h - br);
     doc.curveTo(
       xr,
       y + h - br + br * ARC_K,
@@ -401,8 +406,9 @@ function strokeRightAtOff({
       x + w - br,
       y + h - off,
     );
-    doc.stroke();
   }
+
+  doc.stroke();
 }
 
 /**
