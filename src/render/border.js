@@ -64,40 +64,32 @@ const PI = Math.PI;
  *   TR: top 管前半段(3π/2→sTR)，right 管后半段(sTR→2π)
  *       sTR = 3π/2 + atan2(bt, br)
  */
-function fillTopBorder({ doc, x, y, w, bt, bl, br, r, color }) {
-  if (bt <= 0) return;
-
+/**
+ * 仅构建 top-border 梯形路径（close），不 fill/clip。
+ * 调用方自行决定后续操作（fill / clip+discard）。
+ */
+function buildTopBorderPath({ doc, x, y, w, bt, bl, br, r }) {
   const { tl, tr } = r;
 
-  doc.setFillColor(color[0], color[1], color[2]);
-
-  // ── 外轮廓（顺时针）────────────────────────────────────
   if (tl > 0) {
     const cxTL = x + tl;
     const cyTL = y + tl;
-    const sTL = PI + Math.atan2(bl, bt); // 分割角
-    // 外弧后半段起点
+    const sTL = PI + Math.atan2(bl, bt);
     doc.moveTo(cxTL + tl * Math.cos(sTL), cyTL + tl * Math.sin(sTL));
-    // 外弧后半段：sTL → 3π/2（顶边切点）
     appendArcSegment(doc, cxTL, cyTL, tl, sTL, (3 * PI) / 2);
-    // 当前点 = (cxTL, cyTL-tl) = (x+tl, y)
   } else {
     doc.moveTo(x, y);
   }
 
-  // 顶边
   doc.lineTo(x + w - tr, y);
 
   if (tr > 0) {
     const cxTR = x + w - tr;
     const cyTR = y + tr;
-    const sTR = (3 * PI) / 2 + Math.atan2(bt, br); // 分割角
-    // 外弧前半段：3π/2（顶边切点）→ sTR
+    const sTR = (3 * PI) / 2 + Math.atan2(bt, br);
     appendArcSegment(doc, cxTR, cyTR, tr, (3 * PI) / 2, sTR);
-    // 当前点 = 外弧分割点 sTR
   }
 
-  // ── 内轮廓（从右往左）────────────────────────────────────
   if (tr > 0) {
     const cxTR = x + w - tr;
     const cyTR = y + tr;
@@ -105,47 +97,42 @@ function fillTopBorder({ doc, x, y, w, bt, bl, br, r, color }) {
     const innerTR = Math.max(tr - Math.max(bt, br), 0);
 
     if (innerTR > 0) {
-      // 径向线：外弧分割点 → 内弧分割点
       doc.lineTo(
         cxTR + innerTR * Math.cos(sTR),
         cyTR + innerTR * Math.sin(sTR),
       );
-      // 内弧前半段反向：sTR → 3π/2
       appendArcSegment(doc, cxTR, cyTR, innerTR, sTR, (3 * PI) / 2);
-      // 当前点 = 内弧顶边端 = (cxTR, cyTR-innerTR) = (x+w-tr, y+tr-innerTR)
     } else {
-      // innerTR=0：内弧退化，用斜切线到内角点（与直角情况一致）
       doc.lineTo(x + w - br, y + bt);
     }
   } else {
-    // 直角TR：斜切线
     doc.lineTo(x + w - br, y + bt);
   }
 
-  // 内顶边
   if (tl > 0) {
     const cxTL = x + tl;
     const cyTL = y + tl;
     const sTL = PI + Math.atan2(bl, bt);
     const innerTL = Math.max(tl - Math.max(bt, bl), 0);
 
-    // 内顶边（到TL内弧顶边端）
-    doc.lineTo(cxTL, cyTL - innerTL); // = (x+tl, y+tl-innerTL)
+    doc.lineTo(cxTL, cyTL - innerTL);
     if (innerTL > 0) {
-      // 内弧后半段反向：3π/2 → sTL
       appendArcSegment(doc, cxTL, cyTL, innerTL, (3 * PI) / 2, sTL);
-      // 当前点 = 内弧分割点 sTL
-      // 径向线：内弧分割点 → 外弧分割点（close 自动完成）
     } else {
-      // innerTL=0：内弧退化，lineTo 到外弧分割点（close 自动完成径向线）
       doc.lineTo(cxTL + tl * Math.cos(sTL), cyTL + tl * Math.sin(sTL));
     }
   } else {
-    // 直角TL：内顶边左端
     doc.lineTo(x + bl, y + bt);
   }
 
   doc.close();
+}
+
+function fillTopBorder({ doc, x, y, w, bt, bl, br, r, color }) {
+  if (bt <= 0) return;
+
+  doc.setFillColor(color[0], color[1], color[2]);
+  buildTopBorderPath({ doc, x, y, w, bt, bl, br, r });
   doc.fill();
 }
 
@@ -174,9 +161,13 @@ function fillTopBorder({ doc, x, y, w, bt, bl, br, r, color }) {
 function fillBottomBorder({ doc, x, y, w, h, bb, bl, br, r, color }) {
   if (bb <= 0) return;
 
-  const { br: rbr, bl: rbl } = r;
-
   doc.setFillColor(color[0], color[1], color[2]);
+  buildBottomBorderPath({ doc, x, y, w, h, bb, bl, br, r });
+  doc.fill();
+}
+
+function buildBottomBorderPath({ doc, x, y, w, h, bb, bl, br, r }) {
+  const { br: rbr, bl: rbl } = r;
 
   // ── 内轮廓起点（从左往右）────────────────────────────────
   if (rbl > 0) {
@@ -244,13 +235,9 @@ function fillBottomBorder({ doc, x, y, w, h, bb, bl, br, r, color }) {
     // 等等，外弧的"前半"是 π/2→sBL 的那半段（bottom 管的），
     // 我们要从底边切点(π/2，也就是(x+rbl,y+h))走到sBL处
     appendArcSegment(doc, cxBL, cyBL, rbl, PI / 2, sBL);
-    // 当前点 = 外弧分割点 sBL
-    // 径向线：外弧分割点 → 内弧分割点（也是 moveTo 起点）
-    // close 会自动完成这段
   }
 
   doc.close();
-  doc.fill();
 }
 
 /**
@@ -268,9 +255,13 @@ function fillBottomBorder({ doc, x, y, w, h, bb, bl, br, r, color }) {
 function fillLeftBorder({ doc, x, y, h, bt, bb, bl, r, color }) {
   if (bl <= 0) return;
 
-  const { tl, bl: rbl } = r;
-
   doc.setFillColor(color[0], color[1], color[2]);
+  buildLeftBorderPath({ doc, x, y, h, bt, bb, bl, r });
+  doc.fill();
+}
+
+function buildLeftBorderPath({ doc, x, y, h, bt, bb, bl, r }) {
+  const { tl, bl: rbl } = r;
 
   if (tl > 0) {
     const cxTL = x + tl;
@@ -278,21 +269,15 @@ function fillLeftBorder({ doc, x, y, h, bt, bb, bl, r, color }) {
     const sTL = PI + Math.atan2(bl, bt);
     const innerTL = Math.max(tl - Math.max(bt, bl), 0);
 
-    // 外弧前半段起点（π处，左边切点）
-    doc.moveTo(x, y + tl); // = (cxTL - tl, cyTL) = (x, y+tl)
-    // 外弧前半段：π → sTL
+    doc.moveTo(x, y + tl);
     appendArcSegment(doc, cxTL, cyTL, tl, PI, sTL);
     if (innerTL > 0) {
-      // 径向线：外弧分割点 → 内弧分割点
       doc.lineTo(
         cxTL + innerTL * Math.cos(sTL),
         cyTL + innerTL * Math.sin(sTL),
       );
-      // 内弧前半反向：sTL → π
       appendArcSegment(doc, cxTL, cyTL, innerTL, sTL, PI);
-      // 当前点 = 内弧左边端 = (cxTL-innerTL, cyTL) = (x+tl-innerTL, y+tl)
     } else {
-      // innerTL=0：斜切线到内角点（与直角一致）
       doc.lineTo(x + bl, y + bt);
     }
   } else {
@@ -300,7 +285,6 @@ function fillLeftBorder({ doc, x, y, h, bt, bb, bl, r, color }) {
     doc.lineTo(x + bl, y + bt);
   }
 
-  // 内竖线（从TL内弧端到BL内弧端）
   if (rbl > 0) {
     const cxBL = x + rbl;
     const cyBL = y + h - rbl;
@@ -308,28 +292,21 @@ function fillLeftBorder({ doc, x, y, h, bt, bb, bl, r, color }) {
     const innerBL = Math.max(rbl - Math.max(bb, bl), 0);
 
     if (innerBL > 0) {
-      // 内竖线：从TL内弧左边端 → BL内弧左边端（π处端点）
-      doc.lineTo(cxBL - innerBL, cyBL); // = (x+rbl-innerBL, y+h-rbl)
-      // 内弧后半反向：π → sBL
+      doc.lineTo(cxBL - innerBL, cyBL);
       appendArcSegment(doc, cxBL, cyBL, innerBL, PI, sBL);
-      // 径向线：内弧分割点 → 外弧分割点
       doc.lineTo(cxBL + rbl * Math.cos(sBL), cyBL + rbl * Math.sin(sBL));
     } else {
-      // innerBL=0：斜切线到外弧分割点（与直角一致）
       doc.lineTo(x + bl, y + h - bb);
       doc.lineTo(cxBL + rbl * Math.cos(sBL), cyBL + rbl * Math.sin(sBL));
     }
 
-    // 外弧后半段：sBL → π
     appendArcSegment(doc, cxBL, cyBL, rbl, sBL, PI);
-    // 当前点 = 外弧左边端 = (x, y+h-rbl)
   } else {
     doc.lineTo(x + bl, y + h - bb);
     doc.lineTo(x, y + h);
   }
 
   doc.close();
-  doc.fill();
 }
 
 /**
@@ -347,25 +324,25 @@ function fillLeftBorder({ doc, x, y, h, bt, bb, bl, r, color }) {
 function fillRightBorder({ doc, x, y, w, h, bt, bb, brW, r, color }) {
   if (brW <= 0) return;
 
+  doc.setFillColor(color[0], color[1], color[2]);
+  buildRightBorderPath({ doc, x, y, w, h, bt, bb, brW, r });
+  doc.fill();
+}
+
+function buildRightBorderPath({ doc, x, y, w, h, bt, bb, brW, r }) {
   const { tr, br: rbr } = r;
 
-  doc.setFillColor(color[0], color[1], color[2]);
-
-  // ── 外轮廓（顺时针：sTR → 右切点 → 右边 → BR切点 → sBR）────────────────
   if (tr > 0) {
     const cxTR = x + w - tr;
     const cyTR = y + tr;
     const sTR = (3 * PI) / 2 + Math.atan2(bt, brW);
 
-    // 外弧后半起点
     doc.moveTo(cxTR + tr * Math.cos(sTR), cyTR + tr * Math.sin(sTR));
-    // 外弧后半：sTR → 2π → 当前点 = (x+w, y+tr)
     appendArcSegment(doc, cxTR, cyTR, tr, sTR, 2 * PI);
   } else {
     doc.moveTo(x + w, y);
   }
 
-  // 外右边：(x+w, y+tr) → (x+w, y+h-rbr)
   if (rbr > 0) {
     doc.lineTo(x + w, y + h - rbr);
   } else {
@@ -378,30 +355,21 @@ function fillRightBorder({ doc, x, y, w, h, bt, bb, brW, r, color }) {
     const sBR = Math.atan2(brW, bb);
     const innerBR = Math.max(rbr - Math.max(bb, brW), 0);
 
-    // 外弧前半：0 → sBR
     appendArcSegment(doc, cxBR, cyBR, rbr, 0, sBR);
-    // 当前点 = 外弧分割点 sBR
 
-    // ── 内轮廓（逆时针：sBR内 → 内右边 → TR内弧端 → sTR）──────────────────
     if (innerBR > 0) {
-      // 径向线：外弧分割点 → 内弧分割点
       doc.lineTo(
         cxBR + innerBR * Math.cos(sBR),
         cyBR + innerBR * Math.sin(sBR),
       );
-      // 内弧前半反向：sBR → 0
       appendArcSegment(doc, cxBR, cyBR, innerBR, sBR, 0);
-      // 当前点 = 内弧右边端 = (cxBR+innerBR, cyBR)
     } else {
-      // innerBR=0：斜切线到内角点
       doc.lineTo(x + w - brW, y + h - bb);
     }
   } else {
-    // 直角BR
     doc.lineTo(x + w - brW, y + h - bb);
   }
 
-  // 内右边：BR内弧端 → TR内弧端（从下往上）
   if (tr > 0) {
     const cxTR = x + w - tr;
     const cyTR = y + tr;
@@ -409,41 +377,52 @@ function fillRightBorder({ doc, x, y, w, h, bt, bb, brW, r, color }) {
     const innerTR = Math.max(tr - Math.max(bt, brW), 0);
 
     if (innerTR > 0) {
-      // 内右边到TR内弧右切点
       doc.lineTo(cxTR + innerTR, cyTR);
-      // 内弧后半反向：2π → sTR
       appendArcSegment(doc, cxTR, cyTR, innerTR, 2 * PI, sTR);
-      // 当前点 = 内弧分割点 sTR
     } else {
-      // innerTR=0：斜切线到内角点
       doc.lineTo(x + w - brW, y + bt);
     }
   } else {
-    // 直角TR
     doc.lineTo(x + w - brW, y + bt);
   }
 
-  // close() 自动画径向线回到 moveTo（外弧 sTR 或直角顶点）
   doc.close();
-  doc.fill();
+}
+
+// ─── 辅助：按 dir 路由到对应 build*BorderPath ────────────────────────────────
+
+/**
+ * 构建指定方向的梯形路径（close，不 fill）。
+ * 用于 dashed/dotted 的 clip 区域。
+ */
+function buildSidePath({ doc, x, y, w, h, dir, bw, bt, bb, bl, br, r }) {
+  if (dir === 'top') {
+    buildTopBorderPath({ doc, x, y, w, bt: bw, bl, br, r });
+  } else if (dir === 'bottom') {
+    buildBottomBorderPath({ doc, x, y, w, h, bb: bw, bl, br, r });
+  } else if (dir === 'left') {
+    buildLeftBorderPath({ doc, x, y, h, bt, bb, bl: bw, r });
+  } else {
+    buildRightBorderPath({ doc, x, y, w, h, bt, bb, brW: bw, r });
+  }
 }
 
 // ─── dashed/dotted fill 实现 ──────────────────────────────────────────────────
 //
-// 浏览器的 dashed/dotted 也是 fill 模型：
-//   dotted：沿边的中线按间距 2*bw 放置实心圆（半径 bw/2）
-//   dashed：沿边的中线按间距 3*bw + 3*bw 放置矩形（长 3*bw，宽 bw）
+// 方案：先用该边的梯形路径做 clip，再沿全边铺放 dash/dot。
+// clip 精确限制了 dash/dot 到该边所属的梯形区域（角落精确裁剪）。
 //
-// 下面的实现沿直边段填充，圆角弧上的点/段暂时省略（角落处跳过）。
-// TODO: 如需在圆角弧上也绘制 dotted/dashed，需按弧长参数化，
-//       计算圆心/矩形中心位置后逐个绘制。
+// TODO: dotted/dashed + border-radius 组合尚未实现。
+//   当前 buildSidePath 传入的 r 由外部计算，梯形 clip 已正确处理直角情况，
+//   圆角时 clip 路径本身正确，但 dot/dash 的铺放范围（x1/y1 的超出量 bw/dashLen）
+//   未针对圆角做收缩，角落可能出现多余的点/段，待后续重构。
 
 /**
  * 沿水平线段绘制 dotted 圆点序列。
- * 从 x0 开始到 x1，沿 y=yMid 按步长 2*r 放置圆（半径 r = bw/2）。
+ * 从 x0+r 开始，步长 = 2*r + gapLen，直到圆心+r 超出 x1。
  */
-function dotLine({ doc, x0, x1, yMid, r }) {
-  const step = r * 2;
+function dotLine({ doc, x0, x1, yMid, r, gapLen }) {
+  const step = 2 * r + gapLen;
   let cx = x0 + r;
 
   while (cx + r <= x1 + 1e-6) {
@@ -454,9 +433,10 @@ function dotLine({ doc, x0, x1, yMid, r }) {
 
 /**
  * 沿竖直线段绘制 dotted 圆点序列。
+ * 从 y0+r 开始，步长 = 2*r + gapLen，直到圆心+r 超出 y1。
  */
-function dotLineV({ doc, xMid, y0, y1, r }) {
-  const step = r * 2;
+function dotLineV({ doc, xMid, y0, y1, r, gapLen }) {
+  const step = 2 * r + gapLen;
   let cy = y0 + r;
 
   while (cy + r <= y1 + 1e-6) {
@@ -467,11 +447,10 @@ function dotLineV({ doc, xMid, y0, y1, r }) {
 
 /**
  * 沿水平线段绘制 dashed 矩形序列。
- * dash 长 dashLen = 3*bw，间距 gapLen = 3*bw（CSS 规范默认）。
+ * dashLen/gapLen 由调用方按"两端固定+中间均分"算法预先计算传入（dashLen:gapLen = 2:1）。
+ * 从 x0 铺到 x1，clip 梯形负责截断角落。
  */
-function dashLine({ doc, x0, x1, yMid, bw }) {
-  const dashLen = bw * 3;
-  const gapLen = bw * 3;
+function dashLine({ doc, x0, x1, yMid, bw, dashLen, gapLen }) {
   const step = dashLen + gapLen;
   let cx = x0;
 
@@ -483,10 +462,9 @@ function dashLine({ doc, x0, x1, yMid, bw }) {
 
 /**
  * 沿竖直线段绘制 dashed 矩形序列。
+ * dashLen/gapLen 由调用方按"两端固定+中间均分"算法预先计算传入（dashLen:gapLen = 2:1）。
  */
-function dashLineV({ doc, xMid, y0, y1, bw }) {
-  const dashLen = bw * 3;
-  const gapLen = bw * 3;
+function dashLineV({ doc, xMid, y0, y1, bw, dashLen, gapLen }) {
   const step = dashLen + gapLen;
   let cy = y0;
 
@@ -501,14 +479,14 @@ function dashLineV({ doc, xMid, y0, y1, bw }) {
 /**
  * 绘制单条 border 边（full fill 模型）。
  * solid/double → 梯形 fill
- * dotted       → 沿中线圆点 fill
- * dashed       → 沿中线矩形 fill
+ * dotted       → 梯形 clip + 圆点序列（dot:gap = 1:1，两端固定+中间均分）
+ * dashed       → 梯形 clip + 矩形序列（dashLen:gapLen = 2:1，两端固定+中间均分）
  *
  * @param {string} dir      - 'top' | 'right' | 'bottom' | 'left'
  * @param {number} bwPx     - border-width（px，原始值，由 parsePx 返回）
  * @param {string} colorStr - CSS color 字符串
  * @param {string} bStyle   - border-style
- * @param {Object} params   - { doc, x, y, w, h, r, toMM, sides }
+ * @param {Object} sides    - 四边信息 { top, right, bottom, left }，每项含 bwPx
  */
 function fillOneSide({
   doc,
@@ -581,61 +559,121 @@ function fillOneSide({
     return;
   }
 
-  if (bStyle === 'dotted') {
-    doc.setFillColor(c[0], c[1], c[2]);
-    const dotR = bw / 2;
-
-    if (dir === 'top') {
-      // 沿顶边中线（y + dotR），从 tl 右端到 tr 左端
-      dotLine({ doc, x0: x + r.tl, x1: x + w - r.tr, yMid: y + dotR, r: dotR });
-    } else if (dir === 'bottom') {
-      dotLine({
-        doc,
-        x0: x + r.bl,
-        x1: x + w - r.br,
-        yMid: y + h - dotR,
-        r: dotR,
-      });
-    } else if (dir === 'left') {
-      // 竖直段：从 tl 下端到 bl 上端
-      const vTop = y + Math.max(r.tl, bt);
-      const vBot = y + h - Math.max(r.bl, bb);
-
-      dotLineV({ doc, xMid: x + dotR, y0: vTop, y1: vBot, r: dotR });
-    } else {
-      const vTop = y + Math.max(r.tr, bt);
-      const vBot = y + h - Math.max(r.br, bb);
-
-      dotLineV({ doc, xMid: x + w - dotR, y0: vTop, y1: vBot, r: dotR });
-    }
-
-    return;
-  }
-
-  if (bStyle === 'dashed') {
+  if (bStyle === 'dotted' || bStyle === 'dashed') {
     doc.setFillColor(c[0], c[1], c[2]);
 
-    if (dir === 'top') {
-      dashLine({ doc, x0: x + r.tl, x1: x + w - r.tr, yMid: y + bw / 2, bw });
-    } else if (dir === 'bottom') {
-      dashLine({
-        doc,
-        x0: x + r.bl,
-        x1: x + w - r.br,
-        yMid: y + h - bw / 2,
-        bw,
-      });
-    } else if (dir === 'left') {
-      const vTop = y + Math.max(r.tl, bt);
-      const vBot = y + h - Math.max(r.bl, bb);
+    // 用该边的梯形路径做 clip，确保 dash/dot 不超出本边区域（角落精确裁剪）
+    doc.saveGraphicsState();
+    buildSidePath({ doc, x, y, w, h, dir, bw, bt, bb, bl, br, r });
+    doc.clip();
+    doc.discardPath();
 
-      dashLineV({ doc, xMid: x + bw / 2, y0: vTop, y1: vBot, bw });
+    if (bStyle === 'dotted') {
+      const dotR = bw / 2;
+      const isH = dir === 'top' || dir === 'bottom';
+      // 仿 dashed 框架：两端各固定一个 dot（被角 clip 截断），中间均分
+      // dot:gap = 1:1，step = 2*bw → nMid = round(outerLen/(2*bw)) - 2
+      // 固定 nMid 后均分 gapLen = (outerLen - (nMid+2)*bw) / (nMid+1)
+      const outerLen = isH ? w : h;
+      const nMid = Math.max(0, Math.round(outerLen / (2.0 * bw)) - 2);
+      const gapLen = (outerLen - (nMid + 2) * bw) / (nMid + 1);
+
+      // 方向查找表：避免重复 if/else，每项返回对应方向的绘制调用
+      const dotDirs = {
+        top: () =>
+          dotLine({
+            doc,
+            x0: x,
+            x1: x + w + bw,
+            yMid: y + dotR,
+            r: dotR,
+            gapLen,
+          }),
+        bottom: () =>
+          dotLine({
+            doc,
+            x0: x,
+            x1: x + w + bw,
+            yMid: y + h - dotR,
+            r: dotR,
+            gapLen,
+          }),
+        left: () =>
+          dotLineV({
+            doc,
+            xMid: x + dotR,
+            y0: y,
+            y1: y + h + bw,
+            r: dotR,
+            gapLen,
+          }),
+        right: () =>
+          dotLineV({
+            doc,
+            xMid: x + w - dotR,
+            y0: y,
+            y1: y + h + bw,
+            r: dotR,
+            gapLen,
+          }),
+      };
+      dotDirs[dir]();
     } else {
-      const vTop = y + Math.max(r.tr, bt);
-      const vBot = y + h - Math.max(r.br, bb);
+      const isH = dir === 'top' || dir === 'bottom';
+      // 浏览器算法：dashLen:gapLen = 2:1，两端固定 + 中间均分
+      // gapLen*(3*nMid+5) = outerLen，nMid = round(outerLen/(3*bw)) - 2
+      const outerLen = isH ? w : h;
+      const nMid = Math.max(0, Math.round(outerLen / (3 * bw)) - 2);
+      const gapLen = outerLen / (3 * nMid + 5);
+      const dashLen = 2 * gapLen;
 
-      dashLineV({ doc, xMid: x + w - bw / 2, y0: vTop, y1: vBot, bw });
+      // 方向查找表：避免重复 if/else，每项返回对应方向的绘制调用
+      const dashDirs = {
+        top: () =>
+          dashLine({
+            doc,
+            x0: x,
+            x1: x + w + dashLen,
+            yMid: y + bw / 2,
+            bw,
+            dashLen,
+            gapLen,
+          }),
+        bottom: () =>
+          dashLine({
+            doc,
+            x0: x,
+            x1: x + w + dashLen,
+            yMid: y + h - bw / 2,
+            bw,
+            dashLen,
+            gapLen,
+          }),
+        left: () =>
+          dashLineV({
+            doc,
+            xMid: x + bw / 2,
+            y0: y,
+            y1: y + h + dashLen,
+            bw,
+            dashLen,
+            gapLen,
+          }),
+        right: () =>
+          dashLineV({
+            doc,
+            xMid: x + w - bw / 2,
+            y0: y,
+            y1: y + h + dashLen,
+            bw,
+            dashLen,
+            gapLen,
+          }),
+      };
+      dashDirs[dir]();
     }
+
+    doc.restoreGraphicsState();
 
     return;
   }
