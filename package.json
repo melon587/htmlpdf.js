@@ -37,7 +37,6 @@
   "scripts": {
     "build": "rollup -c",
     "build:min": "rollup -c --environment MINIFY",
-    "watch": "rollup -c -w",
     "dev": "rollup -c -w",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
@@ -47,12 +46,7 @@
     "docs:dev": "vitepress dev website",
     "docs:build": "vitepress build website",
     "docs:preview": "vitepress preview website",
-    "prepublishOnly": "npm run build && npm run test",
-    "postpublish": "node -e \"const v=process.env.npm_package_version,e=require('child_process').execSync;e('git tag v'+v,{stdio:'inherit'});e('git push origin v'+v,{stdio:'inherit'})\"",
-    "publish:check": "npm pack --dry-run",
-    "version:patch": "npm version patch",
-    "version:minor": "npm version minor",
-    "version:major": "npm version major"
+    "release": "node release.mjs"
   },
   "dependencies": {
     "jspdf": "4.2.1"
@@ -66,6 +60,7 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-promise": "7.3.0",
+    "kolorist": "^1.8.0",
     "prettier": "3.8.3",
     "rollup": "3.30.0",
     "vitepress": "1.6.4",
