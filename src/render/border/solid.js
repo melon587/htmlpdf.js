@@ -32,12 +32,6 @@ function buildTopBorderPath({ doc, x, y, w, bt, bl, br, r }) {
     const cyTR = y + tr;
     const sTR = (3 * PI) / 2 + Math.atan2(bt, br);
     appendArcSegment(doc, cxTR, cyTR, tr, (3 * PI) / 2, sTR);
-  }
-
-  if (tr > 0) {
-    const cxTR = x + w - tr;
-    const cyTR = y + tr;
-    const sTR = (3 * PI) / 2 + Math.atan2(bt, br);
     const innerTR = Math.max(tr - Math.max(bt, br), 0);
 
     if (innerTR > 0) {
