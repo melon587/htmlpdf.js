@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildNodeLastPageMap,
   expandSpillPlacements,
+  buildRepeatHeaderPageSet,
 } from '../src/core/stream-pagination.js';
 
 // ── buildNodeLastPageMap ────────────────────────────────────────────────────
@@ -151,5 +152,167 @@ describe('expandSpillPlacements', () => {
       2,
     );
     expect(spills).toHaveLength(0);
+  });
+});
+
+// ── buildRepeatHeaderPageSet ────────────────────────────────────────────────
+
+describe('buildRepeatHeaderPageSet', () => {
+  // 构造 pageStartOffsets：每页高 1000px
+  function makeOffsets(totalPages) {
+    const offsets = new Map();
+    for (let p = 1; p <= totalPages; p++) {
+      const top = (p - 1) * 1000;
+      offsets.set(p, {
+        pageRawTopPx: top,
+        pageContentTopPx: top,
+        pageActualBottomPx: top + 1000,
+        accumulatedYpx: top,
+        headerHeightPx: 0,
+      });
+    }
+
+    return offsets;
+  }
+
+  // 构造最小 repeatHeaderManager mock
+  function makeManager(headerEl, containerEl) {
+    const headerMeta = {
+      headerNode: { _origEl: headerEl, y: 0, height: 50 },
+      headerChildren: [],
+    };
+
+    return {
+      getHeaderMetaForNode(node) {
+        if (!node._origEl) return null;
+
+        if (!containerEl.contains(node._origEl)) return null;
+
+        return headerMeta;
+      },
+    };
+  }
+
+  it('repeatHeaderManager 为 null：返回空 Map', () => {
+    const map = buildRepeatHeaderPageSet([], makeOffsets(3), null, []);
+    expect(map.size).toBe(0);
+  });
+
+  it('数据行只在首页：不生成任何副本', () => {
+    const headerEl = { contains: (el) => el === headerEl };
+    const dataEl = {};
+    const containerEl = {
+      contains: (el) => el === headerEl || el === dataEl,
+    };
+    const manager = makeManager(headerEl, containerEl);
+
+    // 表头 y=0（page 1），数据行 y=100（page 1）
+    const nodes = [
+      { _origEl: headerEl, y: 0, height: 50 },
+      { _origEl: dataEl, y: 100, height: 20 },
+    ];
+
+    const placements = [];
+    const map = buildRepeatHeaderPageSet(
+      nodes,
+      makeOffsets(1),
+      manager,
+      placements,
+    );
+
+    expect(map.size).toBe(0);
+    expect(placements).toHaveLength(0);
+  });
+
+  it('数据行跨 page 1-3：page 2、3 各生成一个 repeat-header 副本', () => {
+    const headerEl = { contains: (el) => el === headerEl };
+    const dataEl1 = {};
+    const dataEl2 = {};
+    const containerEl = {
+      contains: (el) => el === headerEl || el === dataEl1 || el === dataEl2,
+    };
+    const manager = makeManager(headerEl, containerEl);
+
+    // 表头在 page 1，数据行分别在 page 2（y=1100）和 page 3（y=2100）
+    const nodes = [
+      { _origEl: headerEl, y: 0, height: 50 },
+      { _origEl: dataEl1, y: 1100, height: 20 },
+      { _origEl: dataEl2, y: 2100, height: 20 },
+    ];
+
+    const placements = [];
+    const map = buildRepeatHeaderPageSet(
+      nodes,
+      makeOffsets(3),
+      manager,
+      placements,
+    );
+
+    // page 2 和 page 3 各有一个 origEl 的副本
+    expect(map.get(2)?.has(headerEl)).toBe(true);
+    expect(map.get(3)?.has(headerEl)).toBe(true);
+    // 生成了 2 个 repeat-header placement（无子节点）
+    expect(placements).toHaveLength(2);
+    expect(placements.every((p) => p.type === 'repeat-header')).toBe(true);
+  });
+
+  it('两个表格互不干扰：各自只在自己的数据行页生成副本', () => {
+    // table1：headerEl1，数据行在 page 2
+    // table2：headerEl2，数据行在 page 3
+    const headerEl1 = { id: 'h1', contains: (el) => el === headerEl1 };
+    const headerEl2 = { id: 'h2', contains: (el) => el === headerEl2 };
+    const dataEl1 = { id: 'd1' };
+    const dataEl2 = { id: 'd2' };
+
+    const meta1 = {
+      headerNode: { _origEl: headerEl1, y: 0, height: 50 },
+      headerChildren: [],
+    };
+    const meta2 = {
+      headerNode: { _origEl: headerEl2, y: 500, height: 50 },
+      headerChildren: [],
+    };
+
+    const manager = {
+      getHeaderMetaForNode(node) {
+        if (node._origEl === headerEl1 || node._origEl === dataEl1) {
+          return meta1;
+        }
+
+        if (node._origEl === headerEl2 || node._origEl === dataEl2) {
+          return meta2;
+        }
+
+        return null;
+      },
+    };
+
+    // table1 表头 page1（y=0），数据行 page2（y=1100）
+    // table2 表头 page1（y=500），数据行 page3（y=2100）
+    const nodes = [
+      { _origEl: headerEl1, y: 0, height: 50 },
+      { _origEl: dataEl1, y: 1100, height: 20 },
+      { _origEl: headerEl2, y: 500, height: 50 },
+      { _origEl: dataEl2, y: 2100, height: 20 },
+    ];
+
+    const placements = [];
+    const map = buildRepeatHeaderPageSet(
+      nodes,
+      makeOffsets(3),
+      manager,
+      placements,
+    );
+
+    // page 2 只有 table1 的副本
+    expect(map.get(2)?.has(headerEl1)).toBe(true);
+    expect(map.get(2)?.has(headerEl2)).toBe(false);
+
+    // page 3 只有 table2 的副本
+    expect(map.get(3)?.has(headerEl2)).toBe(true);
+    expect(map.get(3)?.has(headerEl1)).toBe(false);
+
+    // 共 2 个 placement
+    expect(placements).toHaveLength(2);
   });
 });

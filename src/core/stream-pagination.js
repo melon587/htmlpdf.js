@@ -407,7 +407,7 @@ function findPageForY(y, pageStartOffsets) {
  *
  * 返回 Map<page, Set<origEl>>，以 DOM 对象引用为 key，避免 toString 冲突。
  */
-function buildRepeatHeaderPageSet(
+export function buildRepeatHeaderPageSet(
   nodes,
   pageStartOffsets,
   repeatHeaderManager,
