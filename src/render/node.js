@@ -14,7 +14,7 @@ import {
   pushAncestorClips,
   popAncestorClips,
 } from './background';
-import { drawBorder } from './border/index';
+import { drawBorder } from './border';
 import { drawImage } from './image';
 import { drawText } from './text';
 
