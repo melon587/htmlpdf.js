@@ -73,7 +73,30 @@ function drawOneSide({
   const bl = toMM(sides.left.bwPx);
   const br = toMM(sides.right.bwPx);
 
-  const args = { doc, x, y, w, h, r, dir, bw, bt, bb, bl, br, c };
+  const ct = parseColor(sides.top.colorStr) || c;
+  const cb = parseColor(sides.bottom.colorStr) || c;
+  const cl = parseColor(sides.left.colorStr) || c;
+  const cr = parseColor(sides.right.colorStr) || c;
+
+  const args = {
+    doc,
+    x,
+    y,
+    w,
+    h,
+    r,
+    dir,
+    bw,
+    bt,
+    bb,
+    bl,
+    br,
+    c,
+    ct,
+    cb,
+    cl,
+    cr,
+  };
 
   if (bStyle === 'double') {
     drawDoubleBorder(args);
