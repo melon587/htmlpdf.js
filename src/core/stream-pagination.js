@@ -399,21 +399,13 @@ function findPageForY(y, pageStartOffsets) {
 }
 
 /**
- * 第二遍：按 node.y 坐标查页码，生成 normal placements 和 repeat-header placements。
- *
- * repeat-header 处理：
- *   - 对每个 pageStartOffsets 中 headerHeightPx > 0 的页，调用
- *     generateRepeatHeaderPlacements 生成该页的表头副本。
- *   - 原始 THEAD 节点及其子节点：若所在页已有 repeat-header 副本，跳过。
- *
- * @param {Array}       nodes
- * @param {Map}         pageStartOffsets
- * @param {Object|null} repeatHeaderManager
- * @returns {Array} nodePlacements
- */
-/**
  * 构建 repeat-header 副本集合，并将副本 placements 推入 nodePlacements。
- * 返回 Set，key 格式：`${page}-${headerNode._origEl}`。
+ *
+ * 核心逻辑：对每个表格，找出它的数据行（非 thead 节点）出现在哪些页，
+ * 对那些 page > firstPage 的页生成该表格的 repeat-header 副本。
+ * 这样不同表格的 repeat-header 互不干扰，各自只在自己的数据行所在页重复。
+ *
+ * 返回 Map<page, Set<origEl>>，以 DOM 对象引用为 key，避免 toString 冲突。
  */
 function buildRepeatHeaderPageSet(
   nodes,
@@ -421,47 +413,67 @@ function buildRepeatHeaderPageSet(
   repeatHeaderManager,
   nodePlacements,
 ) {
-  const repeatHeaderPageSet = new Set();
+  /** @type {Map<number, Set<Element>>} */
+  const repeatHeaderPageMap = new Map();
 
-  if (!repeatHeaderManager) return repeatHeaderPageSet;
+  if (!repeatHeaderManager) return repeatHeaderPageMap;
 
-  // 一次遍历同时建立：origEl → meta 和 origEl → 首次出现页码
+  // 一次遍历：建立 origEl → meta、origEl → firstPage、origEl → 数据行所在页集合
   const headerMetaByEl = new Map();
   const headerFirstPage = new Map();
+  /** @type {Map<Element, Set<number>>} origEl → 该表格数据行（非 thead）出现的页码集合 */
+  const headerDataPages = new Map();
 
   for (const node of nodes) {
     const headerMeta = repeatHeaderManager.getHeaderMetaForNode(node);
     if (!headerMeta) continue;
 
     const el = headerMeta.headerNode._origEl;
-    if (node._origEl !== el || headerMetaByEl.has(el)) continue;
 
-    headerMetaByEl.set(el, headerMeta);
-    headerFirstPage.set(el, findPageForY(node.y, pageStartOffsets));
+    // 记录 headerNode 本身的 firstPage
+    if (!headerMetaByEl.has(el)) {
+      headerMetaByEl.set(el, headerMeta);
+      headerFirstPage.set(el, findPageForY(node.y, pageStartOffsets));
+      headerDataPages.set(el, new Set());
+    }
+
+    // 非 thead 节点：记录其所在页为该表格的数据行页
+    if (!headerMeta.headerNode._origEl.contains(node._origEl)) {
+      const page = findPageForY(node.y, pageStartOffsets);
+      headerDataPages.get(el).add(page);
+    }
   }
 
-  // 对 headerHeightPx > 0 的页生成 repeat-header placements
-  for (const [page, info] of pageStartOffsets) {
-    if (info.headerHeightPx <= 0) continue;
+  // 对每个表格，在数据行出现的页（且 > firstPage）生成 repeat-header 副本
+  for (const [el, headerMeta] of headerMetaByEl) {
+    const firstPage = headerFirstPage.get(el);
+    const dataPages = headerDataPages.get(el);
 
-    for (const [el, headerMeta] of headerMetaByEl) {
-      const firstPage = headerFirstPage.get(el);
-      if (firstPage >= page) continue;
+    for (const page of dataPages) {
+      if (page <= firstPage) continue;
 
-      const key = `${page}-${el}`;
-      if (repeatHeaderPageSet.has(key)) continue;
+      const pageInfo = pageStartOffsets.get(page);
+      if (!pageInfo) continue;
 
-      repeatHeaderPageSet.add(key);
+      let pageSet = repeatHeaderPageMap.get(page);
+      if (!pageSet) {
+        pageSet = new Set();
+        repeatHeaderPageMap.set(page, pageSet);
+      }
+
+      if (pageSet.has(el)) continue;
+
+      pageSet.add(el);
       const result = generateRepeatHeaderPlacements(
         headerMeta,
         page,
-        info.accumulatedYpx,
+        pageInfo.accumulatedYpx,
       );
       nodePlacements.push(...result.placements);
     }
   }
 
-  return repeatHeaderPageSet;
+  return repeatHeaderPageMap;
 }
 
 /**
@@ -475,7 +487,7 @@ function buildRepeatHeaderPageSet(
 function assignPlacements(nodes, pageStartOffsets, repeatHeaderManager) {
   const nodePlacements = [];
 
-  const repeatHeaderPageSet = buildRepeatHeaderPageSet(
+  const repeatHeaderPageMap = buildRepeatHeaderPageSet(
     nodes,
     pageStartOffsets,
     repeatHeaderManager,
@@ -492,8 +504,8 @@ function assignPlacements(nodes, pageStartOffsets, repeatHeaderManager) {
 
     // 跳过原始表头节点（所在页有 repeat-header 副本时）
     if (headerMeta && shouldSkipOriginalHeader(node, headerMeta)) {
-      const key = `${page}-${headerMeta.headerNode._origEl}`;
-      if (repeatHeaderPageSet.has(key)) continue;
+      const el = headerMeta.headerNode._origEl;
+      if (repeatHeaderPageMap.get(page)?.has(el)) continue;
     }
 
     nodePlacements.push({
