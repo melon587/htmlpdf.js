@@ -4,6 +4,56 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [1.0.6] - 2026-08-17
+
+### ✨ 新功能
+
+#### Dashed / Dotted 边框支持 Border-Radius
+
+- **`dashed` 边框现在支持 `border-radius`** - 圆角虚线边框完整渲染，采用 12 段整圈路径 + Blink 风格 `selectBestDashGap` 算法，使各边虚线段在圆角处均匀对齐
+  - 直角边：clip 梯形 + 矩形 dash 序列（原有逻辑不变）
+  - 圆角：从 `buildRoundedGeom` 计算弧段；每个 dash 块通过 `fillArcDash` 用贝塞尔内弧近似填充
+
+- **`dotted` 边框现在支持 `border-radius`** - 圆角点线边框沿直线段和圆角弧段铺放圆点，不使用 clip，角落圆点不会被截成半圆
+  - 直角边：clip 梯形 + 圆点序列（原有逻辑不变）
+  - 圆角：从 `buildRoundedGeom` 弧段计算圆心；每个圆点通过贝塞尔圆 `fillDot` 填充
+
+### ♻️ 重构
+
+#### `border.js` → `border/` 模块拆分
+
+- **将单文件 `border.js` 重构为 `border/` 目录**，各文件职责清晰：
+  - `border/index.js` — 主入口：`drawBorder`、`drawOneSide` 路由、`drawSpillClosingLines`、跨页 clip 辅助函数
+  - `border/solid.js` — solid（及 double 降级）梯形填充模型；导出 `buildSidePath` 和 `fillOneSideLayer` 供复用
+  - `border/double.js` — double 边框：以 bw/3 宽度调用两次 `fillOneSideLayer`，中间留 bw/3 间隙
+  - `border/dashed.js` — dashed 边框：直角矩形 dash + 圆角 `fillArcDash`
+  - `border/dotted.js` — dotted 边框：直角圆点 + 圆角 `fillDot`
+  - `border/rounded-geom.js` — 圆角边框公共几何：`buildRoundedGeom`（12 段整圈路径、角落元数据、线段几何）和 `selectBestDashGap`（Blink fitting 算法）；由 `dashed.js` 和 `dotted.js` 共用
+
+### 🐛 Bug 修复
+
+#### 多表格 Repeat-Header 冲突
+
+- **修复多表格同页时 repeat-header 生成错误副本的问题** - 当两个表格都配置了 `repeatHeader` 且数据行出现在重叠的页码上时，旧的 `buildRepeatHeaderPageSet` 使用 `"${page}-${el}"` 字符串作为 Set key，但 `el.toString()` 始终返回 `"[object HTMLTableSectionElement]"`，导致不同表格的 thead 节点在同一页共用同一个 key，进而跳过了错误的原始表头
+  - 根本原因：算法还依赖 `pageStartOffsets` 中的 `headerHeightPx` 来判断哪些页需要生成 repeat-header 副本，但 `headerHeightPx` 是由触发换页的节点决定的，并非按表格区分，导致表格 B 可能继承表格 A 的表头高度，错误地生成副本
+  - 修复方案：`buildRepeatHeaderPageSet` 现在扫描每个表格的**数据行**（非 thead 节点）所在页，仅对 `page > 该表格首页` 的页生成 repeat-header 副本，不同表格各自独立计算，互不干扰
+  - Map key 从 `string` 改为 `Map<number, Set<Element>>`，以 DOM 对象引用为 key，消除 `toString()` 冲突
+
+### 🧪 测试
+
+- **导出 `buildRepeatHeaderPageSet`** 以支持单元测试（此前为内部函数，未导出）
+- **为 `buildRepeatHeaderPageSet` 新增 4 个单元测试**，覆盖：
+  - `repeatHeaderManager` 为 null → 返回空 Map
+  - 数据行只在首页 → 不生成任何副本
+  - 数据行跨 page 1-3 → page 2 和 page 3 各生成一个副本
+  - 两个表格数据行页不重叠 → 各自副本互不干扰（即本次修复的核心 bug 场景）
+
+### 📦 迁移指南
+
+无破坏性变更 - 此版本与 v1.0.5 完全向后兼容。
+
+---
+
 ## [1.0.5] - 2026-07-27
 
 ### ✨ 新功能
@@ -350,6 +400,7 @@ htmlpdf(element, {
 
 ---
 
+[1.0.6]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.6
 [1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
 [1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
 [1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3

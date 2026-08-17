@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-08-17
+
+### ✨ Features
+
+#### Dashed & Dotted Border with Border-Radius
+
+- **`dashed` border now supports `border-radius`** - Rounded dashed borders are fully rendered using a per-side 12-segment path with Blink-style `selectBestDashGap` fitting so dashes align evenly around corners
+  - Straight sides: clip-trapezoid + rect dash sequence (unchanged)
+  - Rounded corners: arc segments computed from `buildRoundedGeom`; each dash block filled via `fillArcDash` using a bezier inner-arc approximation
+
+- **`dotted` border now supports `border-radius`** - Rounded dotted borders place circular dots along both straight sides and corner arcs without clipping, so corner dots are never half-cut
+  - Straight sides: clip-trapezoid + dot sequence (unchanged)
+  - Rounded corners: dot centers computed from `buildRoundedGeom` arc segments; each dot filled via bezier circle (`fillDot`)
+
+### ♻️ Refactoring
+
+#### `border.js` → `border/` Module Split
+
+- **Refactored the monolithic `border.js` into a `border/` directory** with clear per-responsibility modules:
+  - `border/index.js` — main entry: `drawBorder`, `drawOneSide` router, `drawSpillClosingLines`, page-clip helper
+  - `border/solid.js` — solid (and double-line fallback) trapezoid-fill model; exports `buildSidePath` and `fillOneSideLayer` for reuse
+  - `border/double.js` — double border: two `fillOneSideLayer` calls at bw/3 widths with bw/3 gap
+  - `border/dashed.js` — dashed border: straight-side rect-dash + rounded `fillArcDash`
+  - `border/dotted.js` — dotted border: straight-side circle-dot + rounded `fillDot`
+  - `border/rounded-geom.js` — shared rounded-border geometry: `buildRoundedGeom` (12-segment full-perimeter path, corner metadata, line geometry) and `selectBestDashGap` (Blink fitting algorithm); shared by `dashed.js` and `dotted.js`
+
+### 🐛 Bug Fixes
+
+#### Repeat-Header Conflict Between Multiple Tables
+
+- **Fixed repeat-header generating incorrect copies when multiple tables share the same page** - When two tables both had `repeatHeader` configured and their data rows appeared on overlapping pages, the old `buildRepeatHeaderPageSet` used a `Set<string>` key of `"${page}-${el}"` where `el.toString()` always returned `"[object HTMLTableSectionElement]"`, causing different tables' thead nodes to collide on the same key and skip the wrong original headers
+  - Root cause: the algorithm also relied on `headerHeightPx` from `pageStartOffsets` to decide which pages needed a repeat-header copy, but `headerHeightPx` was set by whichever node triggered the page break — not per-table — so table B could inherit table A's header height and generate spurious copies
+  - Fix: `buildRepeatHeaderPageSet` now scans each table's **data rows** (non-thead nodes) to find which pages they appear on, then generates a repeat-header copy only for pages where `page > firstPage` of that table. Different tables' repeat-headers are now computed independently and cannot interfere
+  - Map key changed from `string` to `Map<number, Set<Element>>` using DOM object references, eliminating the `toString()` collision
+
+### 🧪 Testing
+
+- **Exported `buildRepeatHeaderPageSet`** for unit testing (was previously unexported)
+- **Added 4 unit tests for `buildRepeatHeaderPageSet`** covering:
+  - `repeatHeaderManager` is `null` → returns empty Map
+  - Data rows only on first page → no copies generated
+  - Data rows spanning pages 1–3 → copies generated for pages 2 and 3
+  - Two tables with non-overlapping data pages → each table's copies are independent (the core bug scenario)
+
+### 📦 Migration Guide
+
+No breaking changes — this release is fully backward compatible with v1.0.5.
+
+---
+
 ## [1.0.5] - 2026-07-27
 
 ### ✨ Features
@@ -350,6 +400,7 @@ Built with:
 
 ---
 
+[1.0.6]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.6
 [1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
 [1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
 [1.0.3]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.3
