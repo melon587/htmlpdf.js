@@ -1,0 +1,1008 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>jsPDF dashed border 验证</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: monospace;
+        background: #eee;
+        padding: 16px;
+      }
+      h1 {
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      .cols {
+        display: flex;
+        gap: 32px;
+        align-items: flex-start;
+      }
+      .col-label {
+        font-size: 12px;
+        color: #555;
+        margin-bottom: 6px;
+      }
+      .page-wrap {
+        background: white;
+        border: 1px solid #ccc;
+        position: relative;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      button {
+        padding: 5px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-bottom: 6px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>jsPDF 原生 API — 圆角 dashed border 验证</h1>
+    <div class="cols">
+      <div>
+        <div class="col-label">浏览器原生 CSS</div>
+        <div
+          class="page-wrap"
+          id="browser-page"
+        ></div>
+      </div>
+      <div>
+        <div class="col-label">Canvas2D 镜像实现</div>
+        <canvas
+          id="dbg-canvas"
+          style="border: 1px solid #ccc; background: white; display: block"
+        ></canvas>
+      </div>
+      <div>
+        <button id="btn">下载 PDF</button>
+        <div class="col-label">jsPDF 输出（iframe 预览）</div>
+        <iframe
+          id="pdf-frame"
+          style="border: 1px solid #ccc; display: block"
+        ></iframe>
+      </div>
+    </div>
+
+    <script src="node_modules/jspdf/dist/jspdf.umd.js"></script>
+    <script>
+      const { jsPDF } = window.jspdf;
+      const PI = Math.PI;
+
+      // ── Canvas2D 镜像实现，用于快速验证 dash 效果 ──
+      (function () {
+        const canvas = document.getElementById('dbg-canvas');
+        const SCALE = 0.6;
+        const MM2PX = 3.7795;
+        const S = MM2PX * SCALE; // mm → px
+        const PW = Math.round(210 * S);
+        const PH = Math.round(297 * S);
+        canvas.width = PW;
+        canvas.height = PH;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, PW, PH);
+
+        function selectBestDashGap(strokeLen, dashLen, gapLen, closed) {
+          const available = closed ? strokeLen : strokeLen + gapLen;
+          const minN = Math.floor(available / (dashLen + gapLen));
+          const maxN = minN + 1;
+          const minG = closed ? minN : minN - 1;
+          const maxG = closed ? maxN : maxN - 1;
+          const gMin =
+            minG > 0
+              ? (strokeLen - minN * dashLen) / minG
+              : strokeLen - minN * dashLen;
+          const gMax =
+            maxG > 0
+              ? (strokeLen - maxN * dashLen) / maxG
+              : strokeLen - maxN * dashLen;
+          if (gMax <= 0) return gMin;
+          return Math.abs(gMin - gapLen) < Math.abs(gMax - gapLen)
+            ? gMin
+            : gMax;
+        }
+
+        // dash 块：外弧 R，内边用二次贝塞尔曲线过两端精确点（外凸）
+        // 控制点 = 两端切线交点（垂直于径向），保证过端点且弧向外凸
+        function fillArcDashC2D(ctx, cx, cy, R, innerR0, innerR1, t0, t1) {
+          if (t1 <= t0) return;
+          const p0x = cx + innerR0 * Math.cos(t0);
+          const p0y = cy + innerR0 * Math.sin(t0);
+          const p1x = cx + innerR1 * Math.cos(t1);
+          const p1y = cy + innerR1 * Math.sin(t1);
+          // 切线方向：垂直于径向，顺时针方向
+          const d0x = -Math.sin(t0),
+            d0y = Math.cos(t0);
+          const d1x = -Math.sin(t1),
+            d1y = Math.cos(t1);
+          // 求两切线交点：p0 + s*d0 = p1 + t*d1
+          // s*d0x - t*d1x = p1x - p0x
+          // s*d0y - t*d1y = p1y - p0y
+          const det = d0x * -d1y - d0y * -d1x;
+          let cpx, cpy;
+          if (Math.abs(det) > 1e-10) {
+            const dx = p1x - p0x,
+              dy = p1y - p0y;
+            const s = (dx * -d1y - dy * -d1x) / det;
+            cpx = p0x + s * d0x;
+            cpy = p0y + s * d0y;
+          } else {
+            cpx = (p0x + p1x) / 2;
+            cpy = (p0y + p1y) / 2;
+          }
+          ctx.beginPath();
+          ctx.moveTo(cx + R * Math.cos(t0), cy + R * Math.sin(t0));
+          ctx.arc(cx, cy, R, t0, t1, false);
+          if (innerR0 > 0 || innerR1 > 0) {
+            ctx.lineTo(p1x, p1y);
+            ctx.quadraticCurveTo(cpx, cpy, p0x, p0y);
+          } else {
+            ctx.lineTo(cx, cy);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        function drawDashedBorderC2D(ctx, x, y, w, h, r, sides) {
+          const bwT = sides.top.bw * S,
+            bwR = sides.right.bw * S;
+          const bwB = sides.bottom.bw * S,
+            bwL = sides.left.bw * S;
+          const bws = [bwT, bwR, bwB, bwL];
+          const colors = [
+            sides.top.color,
+            sides.right.color,
+            sides.bottom.color,
+            sides.left.color,
+          ];
+          x *= S;
+          y *= S;
+          w *= S;
+          h *= S;
+          const R = Math.min(r * S, w / 2, h / 2);
+          const cxTL = x + R,
+            cyTL = y + R;
+          const cxTR = x + w - R,
+            cyTR = y + R;
+          const cxBR = x + w - R,
+            cyBR = y + h - R;
+          const cxBL = x + R,
+            cyBL = y + h - R;
+
+          const sTL = PI + Math.atan2(bwL, bwT);
+          const sTR = (3 * PI) / 2 + Math.atan2(bwT, bwR);
+          const sBR = Math.atan2(bwR, bwB);
+          const sBL = PI / 2 + Math.atan2(bwB, bwL);
+
+          const segs = [
+            { kind: 'line', len: w - 2 * R },
+            { kind: 'arc', cx: cxTR, cy: cyTR, t0: (3 * PI) / 2, t1: sTR },
+            { kind: 'arc', cx: cxTR, cy: cyTR, t0: sTR, t1: 2 * PI },
+            { kind: 'line', len: h - 2 * R },
+            { kind: 'arc', cx: cxBR, cy: cyBR, t0: 0, t1: sBR },
+            { kind: 'arc', cx: cxBR, cy: cyBR, t0: sBR, t1: PI / 2 },
+            { kind: 'line', len: w - 2 * R },
+            { kind: 'arc', cx: cxBL, cy: cyBL, t0: PI / 2, t1: sBL },
+            { kind: 'arc', cx: cxBL, cy: cyBL, t0: sBL, t1: PI },
+            { kind: 'line', len: h - 2 * R },
+            { kind: 'arc', cx: cxTL, cy: cyTL, t0: PI, t1: sTL },
+            { kind: 'arc', cx: cxTL, cy: cyTL, t0: sTL, t1: (3 * PI) / 2 },
+          ];
+
+          const lineGeom = [
+            { x1: x + R, y1: y + bwT / 2, x2: x + w - R, y2: y + bwT / 2 },
+            {
+              x1: x + w - bwR / 2,
+              y1: y + R,
+              x2: x + w - bwR / 2,
+              y2: y + h - R,
+            },
+            {
+              x1: x + w - R,
+              y1: y + h - bwB / 2,
+              x2: x + R,
+              y2: y + h - bwB / 2,
+            },
+            { x1: x + bwL / 2, y1: y + h - R, x2: x + bwL / 2, y2: y + R },
+          ];
+          const lineSegIdx = [0, 3, 6, 9];
+
+          const corners = [
+            { segs: [1, 2], t0: (3 * PI) / 2, t1: 2 * PI, bwA: bwT, bwB: bwR },
+            { segs: [4, 5], t0: 0, t1: PI / 2, bwA: bwR, bwB: bwB },
+            { segs: [7, 8], t0: PI / 2, t1: PI, bwA: bwB, bwB: bwL },
+            { segs: [10, 11], t0: PI, t1: (3 * PI) / 2, bwA: bwL, bwB: bwT },
+          ];
+
+          // clip helper using canvas save/restore + clip
+          function clipForSideC2D(si) {
+            const BIG = Math.max(w, h) * 3;
+            function splitPt(cx, cy, angle) {
+              const len = Math.max(w, h) * 2;
+              return {
+                x: cx + len * Math.cos(angle),
+                y: cy + len * Math.sin(angle),
+              };
+            }
+            ctx.beginPath();
+            if (si === 0) {
+              const pL = splitPt(cxTL, cyTL, sTL),
+                pR = splitPt(cxTR, cyTR, sTR);
+              ctx.moveTo(cxTL, cyTL);
+              ctx.lineTo(pL.x, pL.y);
+              ctx.lineTo(x - BIG, y - BIG);
+              ctx.lineTo(x + w + BIG, y - BIG);
+              ctx.lineTo(pR.x, pR.y);
+              ctx.lineTo(cxTR, cyTR);
+            } else if (si === 1) {
+              const pT = splitPt(cxTR, cyTR, sTR),
+                pB = splitPt(cxBR, cyBR, sBR);
+              ctx.moveTo(cxTR, cyTR);
+              ctx.lineTo(pT.x, pT.y);
+              ctx.lineTo(x + w + BIG, y - BIG);
+              ctx.lineTo(x + w + BIG, y + h + BIG);
+              ctx.lineTo(pB.x, pB.y);
+              ctx.lineTo(cxBR, cyBR);
+            } else if (si === 2) {
+              const pR = splitPt(cxBR, cyBR, sBR),
+                pL = splitPt(cxBL, cyBL, sBL);
+              ctx.moveTo(cxBR, cyBR);
+              ctx.lineTo(pR.x, pR.y);
+              ctx.lineTo(x + w + BIG, y + h + BIG);
+              ctx.lineTo(x - BIG, y + h + BIG);
+              ctx.lineTo(pL.x, pL.y);
+              ctx.lineTo(cxBL, cyBL);
+            } else {
+              const pB = splitPt(cxBL, cyBL, sBL),
+                pT = splitPt(cxTL, cyTL, sTL);
+              ctx.moveTo(cxBL, cyBL);
+              ctx.lineTo(pB.x, pB.y);
+              ctx.lineTo(x - BIG, y + h + BIG);
+              ctx.lineTo(x - BIG, y - BIG);
+              ctx.lineTo(pT.x, pT.y);
+              ctx.lineTo(cxTL, cyTL);
+            }
+            ctx.closePath();
+            ctx.clip();
+          }
+
+          for (let si = 0; si < 4; si++) {
+            const bw = bws[si];
+            const color = colors[si];
+            const rc = R > 0 ? R - bw / 2 : 0;
+
+            let off = 0;
+            const gOff = segs.map((seg) => {
+              const o = off;
+              off +=
+                seg.kind === 'line'
+                  ? seg.len
+                  : rc > 0
+                    ? rc * Math.abs(seg.t1 - seg.t0)
+                    : 0;
+              return o;
+            });
+            const totalPerimeter = off;
+
+            const dashLen = 2 * bw;
+            const gap = selectBestDashGap(totalPerimeter, dashLen, bw, true);
+            const period = dashLen + gap;
+            const c = color;
+            const cssColor = `rgb(${c[0]},${c[1]},${c[2]})`;
+
+            // 1. 直线段
+            ctx.save();
+            clipForSideC2D(si);
+            ctx.strokeStyle = cssColor;
+            ctx.lineWidth = bw;
+            const liIdx = lineSegIdx[si];
+            const lineOff = gOff[liIdx];
+            const dashOffset = lineOff % period;
+            ctx.setLineDash([dashLen, gap]);
+            ctx.lineDashOffset = -dashOffset;
+            const lg = lineGeom[si];
+            ctx.beginPath();
+            ctx.moveTo(lg.x1, lg.y1);
+            ctx.lineTo(lg.x2, lg.y2);
+            ctx.stroke();
+            ctx.restore();
+
+            // 2. 弧段
+            ctx.save();
+            clipForSideC2D(si);
+            ctx.fillStyle = cssColor;
+            const n = segs.length;
+            const arcIdxs = [(liIdx - 1 + n) % n, (liIdx + 1) % n];
+
+            for (const ai of arcIdxs) {
+              const seg = segs[ai];
+              if (seg.kind !== 'arc') continue;
+              const corner = corners.find((c) => c.segs.includes(ai));
+              const cornerSpan = corner.t1 - corner.t0;
+              const arcSpan = Math.abs(seg.t1 - seg.t0);
+              const arcLen = rc > 0 ? rc * arcSpan : 0;
+              if (arcLen <= 0) continue;
+              const arcStart = gOff[ai];
+              const arcEnd = arcStart + arcLen;
+
+              const firstDi = Math.floor(arcStart / period);
+              for (let di = firstDi; di * period < arcEnd + dashLen; di++) {
+                const dStart = di * period;
+                const dEnd = dStart + dashLen;
+                const cStart = Math.max(dStart, arcStart);
+                const cEnd = Math.min(dEnd, arcEnd);
+                if (cEnd <= cStart) continue;
+                const relStart = cStart - arcStart;
+                const relEnd = cEnd - arcStart;
+                const tA = rc > 0 ? seg.t0 + relStart / rc : seg.t0;
+                const tB = rc > 0 ? seg.t0 + relEnd / rc : seg.t1;
+                if (tB <= tA) continue;
+
+                // 内边两端插值 innerR，中间用弧近似（端点精确，无缝隙）
+                const fracA = (tA - corner.t0) / cornerSpan;
+                const fracB = (tB - corner.t0) / cornerSpan;
+                const iR0 = Math.max(
+                  R - corner.bwA + (corner.bwA - corner.bwB) * fracA,
+                  0,
+                );
+                const iR1 = Math.max(
+                  R - corner.bwA + (corner.bwA - corner.bwB) * fracB,
+                  0,
+                );
+                fillArcDashC2D(ctx, seg.cx, seg.cy, R, iR0, iR1, tA, tB);
+              }
+            }
+            ctx.restore();
+          }
+        }
+
+        const CASES_LOCAL = [
+          {
+            label: '四边同色同宽 r=8mm',
+            x: 15,
+            y: 15,
+            w: 80,
+            h: 30,
+            r: 8,
+            sides: {
+              top: { bw: 2, color: [102, 51, 204] },
+              right: { bw: 2, color: [102, 51, 204] },
+              bottom: { bw: 2, color: [102, 51, 204] },
+              left: { bw: 2, color: [102, 51, 204] },
+            },
+          },
+          {
+            label: '四边不同颜色同宽 r=8mm',
+            x: 15,
+            y: 55,
+            w: 80,
+            h: 30,
+            r: 8,
+            sides: {
+              top: { bw: 2, color: [229, 57, 53] },
+              right: { bw: 2, color: [30, 136, 229] },
+              bottom: { bw: 2, color: [67, 160, 71] },
+              left: { bw: 2, color: [251, 140, 0] },
+            },
+          },
+          {
+            label: '四边不同颜色不同宽 r=8mm',
+            x: 15,
+            y: 95,
+            w: 80,
+            h: 35,
+            r: 8,
+            sides: {
+              top: { bw: 1, color: [229, 57, 53] },
+              right: { bw: 2.8, color: [30, 136, 229] },
+              bottom: { bw: 1.8, color: [67, 160, 71] },
+              left: { bw: 4, color: [251, 140, 0] },
+            },
+          },
+          {
+            label: '无圆角 r=0',
+            x: 15,
+            y: 142,
+            w: 80,
+            h: 28,
+            r: 0,
+            sides: {
+              top: { bw: 0.7, color: [229, 57, 53] },
+              right: { bw: 3.5, color: [30, 136, 229] },
+              bottom: { bw: 2, color: [67, 160, 71] },
+              left: { bw: 1.4, color: [251, 140, 0] },
+            },
+          },
+          {
+            label: '大圆角 r=18mm',
+            x: 15,
+            y: 182,
+            w: 80,
+            h: 40,
+            r: 18,
+            sides: {
+              top: { bw: 1.4, color: [156, 39, 176] },
+              right: { bw: 3.5, color: [0, 150, 136] },
+              bottom: { bw: 1.4, color: [156, 39, 176] },
+              left: { bw: 3.5, color: [0, 150, 136] },
+            },
+          },
+        ];
+        for (const c of CASES_LOCAL) {
+          drawDashedBorderC2D(ctx, c.x, c.y, c.w, c.h, c.r, c.sides);
+          ctx.font = `${6 * S}px monospace`;
+          ctx.fillStyle = '#aaa';
+          ctx.fillText(c.label, c.x * S, (c.y + c.h + 3.5) * S);
+        }
+      })();
+    </script>
+    <script>
+      const SCALE = 0.6;
+      const MM2PX = 3.7795;
+      const PAGE_W_MM = 210;
+      const PAGE_H_MM = 297;
+
+      const CASES = [
+        {
+          label: '四边同色同宽 r=8mm',
+          x: 15,
+          y: 15,
+          w: 80,
+          h: 30,
+          r: 8,
+          sides: {
+            top: { bw: 2, color: [102, 51, 204] },
+            right: { bw: 2, color: [102, 51, 204] },
+            bottom: { bw: 2, color: [102, 51, 204] },
+            left: { bw: 2, color: [102, 51, 204] },
+          },
+        },
+        {
+          label: '四边不同颜色同宽 r=8mm',
+          x: 15,
+          y: 55,
+          w: 80,
+          h: 30,
+          r: 8,
+          sides: {
+            top: { bw: 2, color: [229, 57, 53] },
+            right: { bw: 2, color: [30, 136, 229] },
+            bottom: { bw: 2, color: [67, 160, 71] },
+            left: { bw: 2, color: [251, 140, 0] },
+          },
+        },
+        {
+          label: '四边不同颜色不同宽 r=8mm',
+          x: 15,
+          y: 95,
+          w: 80,
+          h: 35,
+          r: 8,
+          sides: {
+            top: { bw: 1, color: [229, 57, 53] },
+            right: { bw: 2.8, color: [30, 136, 229] },
+            bottom: { bw: 1.8, color: [67, 160, 71] },
+            left: { bw: 4, color: [251, 140, 0] },
+          },
+        },
+        {
+          label: '无圆角 r=0',
+          x: 15,
+          y: 142,
+          w: 80,
+          h: 28,
+          r: 0,
+          sides: {
+            top: { bw: 0.7, color: [229, 57, 53] },
+            right: { bw: 3.5, color: [30, 136, 229] },
+            bottom: { bw: 2, color: [67, 160, 71] },
+            left: { bw: 1.4, color: [251, 140, 0] },
+          },
+        },
+        {
+          label: '大圆角 r=18mm',
+          x: 15,
+          y: 182,
+          w: 80,
+          h: 40,
+          r: 18,
+          sides: {
+            top: { bw: 1.4, color: [156, 39, 176] },
+            right: { bw: 3.5, color: [0, 150, 136] },
+            bottom: { bw: 1.4, color: [156, 39, 176] },
+            left: { bw: 3.5, color: [0, 150, 136] },
+          },
+        },
+      ];
+
+      // ─── 浏览器对比列 ─────────────────────────────────────────────────────────
+      const pageW = Math.round(PAGE_W_MM * MM2PX * SCALE);
+      const pageH = Math.round(PAGE_H_MM * MM2PX * SCALE);
+      const browserPage = document.getElementById('browser-page');
+      browserPage.style.width = pageW + 'px';
+      browserPage.style.height = pageH + 'px';
+      function mm(v) {
+        return v * MM2PX * SCALE + 'px';
+      }
+      function rgb(c) {
+        return `rgb(${c[0]},${c[1]},${c[2]})`;
+      }
+      for (const c of CASES) {
+        const { x, y, w, h, r, sides: s } = c;
+        const box = document.createElement('div');
+        box.style.cssText = `
+          position:absolute; left:${mm(x)}; top:${mm(y)};
+          width:${mm(w)}; height:${mm(h)};
+          border-top:${mm(s.top.bw)} dashed ${rgb(s.top.color)};
+          border-right:${mm(s.right.bw)} dashed ${rgb(s.right.color)};
+          border-bottom:${mm(s.bottom.bw)} dashed ${rgb(s.bottom.color)};
+          border-left:${mm(s.left.bw)} dashed ${rgb(s.left.color)};
+          border-radius:${mm(r)};
+        `;
+        browserPage.appendChild(box);
+        const lbl = document.createElement('div');
+        lbl.style.cssText = `position:absolute;left:${mm(x)};top:${mm(y + h + 1)};font-size:8px;color:#aaa;`;
+        lbl.textContent = c.label;
+        browserPage.appendChild(lbl);
+      }
+
+      // ─── jsPDF 工具 ───────────────────────────────────────────────────────────
+
+      // 贝塞尔圆弧（与 radius.js 完全一致）
+      function appendArcSegment(doc, cx, cy, r, startRad, endRad) {
+        if (r <= 0) return;
+        const delta = endRad - startRad;
+        if (Math.abs(delta) > PI / 2 + 1e-9) {
+          const mid = startRad + delta / 2;
+          appendArcSegment(doc, cx, cy, r, startRad, mid);
+          appendArcSegment(doc, cx, cy, r, mid, endRad);
+          return;
+        }
+        const k = (4 / 3) * Math.tan(delta / 4);
+        const cosS = Math.cos(startRad),
+          sinS = Math.sin(startRad);
+        const cosE = Math.cos(endRad),
+          sinE = Math.sin(endRad);
+        doc.curveTo(
+          cx + r * (cosS - k * sinS),
+          cy + r * (sinS + k * cosS),
+          cx + r * (cosE + k * sinE),
+          cy + r * (sinE - k * cosE),
+          cx + r * cosE,
+          cy + r * sinE,
+        );
+      }
+
+      // Blink selectBestDashGap
+      function selectBestDashGap(strokeLen, dashLen, gapLen, closed) {
+        const available = closed ? strokeLen : strokeLen + gapLen;
+        const minN = Math.floor(available / (dashLen + gapLen));
+        const maxN = minN + 1;
+        const minG = closed ? minN : minN - 1;
+        const maxG = closed ? maxN : maxN - 1;
+        const gMin =
+          minG > 0
+            ? (strokeLen - minN * dashLen) / minG
+            : strokeLen - minN * dashLen;
+        const gMax =
+          maxG > 0
+            ? (strokeLen - maxN * dashLen) / maxG
+            : strokeLen - maxN * dashLen;
+        if (gMax <= 0) return gMin;
+        return Math.abs(gMin - gapLen) < Math.abs(gMax - gapLen) ? gMin : gMax;
+      }
+
+      // dash 块：外弧 R，内边用二次贝塞尔曲线过两端精确点（外凸）
+      function fillArcDash(doc, cx, cy, R, innerR0, innerR1, t0, t1) {
+        if (t1 <= t0) return;
+        const p0x = cx + innerR0 * Math.cos(t0);
+        const p0y = cy + innerR0 * Math.sin(t0);
+        const p1x = cx + innerR1 * Math.cos(t1);
+        const p1y = cy + innerR1 * Math.sin(t1);
+        const d0x = -Math.sin(t0),
+          d0y = Math.cos(t0);
+        const d1x = -Math.sin(t1),
+          d1y = Math.cos(t1);
+        const det = d0x * -d1y - d0y * -d1x;
+        let cpx, cpy;
+        if (Math.abs(det) > 1e-10) {
+          const dx = p1x - p0x,
+            dy = p1y - p0y;
+          const s = (dx * -d1y - dy * -d1x) / det;
+          cpx = p0x + s * d0x;
+          cpy = p0y + s * d0y;
+        } else {
+          cpx = (p0x + p1x) / 2;
+          cpy = (p0y + p1y) / 2;
+        }
+        doc.moveTo(cx + R * Math.cos(t0), cy + R * Math.sin(t0));
+        appendArcSegment(doc, cx, cy, R, t0, t1);
+        if (innerR0 > 0 || innerR1 > 0) {
+          doc.lineTo(p1x, p1y);
+          const c1x = p1x + (2 / 3) * (cpx - p1x);
+          const c1y = p1y + (2 / 3) * (cpy - p1y);
+          const c2x = p0x + (2 / 3) * (cpx - p0x);
+          const c2y = p0y + (2 / 3) * (cpy - p0y);
+          doc.curveTo(c1x, c1y, c2x, c2y, p0x, p0y);
+        } else {
+          doc.lineTo(cx, cy);
+        }
+        doc.close();
+        doc.fill();
+      }
+
+      // ─── 主绘制函数 ──────────────────────────────────────────────────────────
+      // 架构：
+      //   直线段：setLineDashPattern + stroke（lineWidth=bw，clip 到该 side 梯形）
+      //   角落弧段：计算 dash 相位，逐个 fillArcDash（梯形扇形 fill，自带颜色归属）
+      function drawDashedBorder(doc, x, y, w, h, r, sides) {
+        const bwT = sides.top.bw,
+          bwR = sides.right.bw;
+        const bwB = sides.bottom.bw,
+          bwL = sides.left.bw;
+        const bws = [bwT, bwR, bwB, bwL];
+        const colors = [
+          sides.top.color,
+          sides.right.color,
+          sides.bottom.color,
+          sides.left.color,
+        ];
+
+        const R = Math.min(r, w / 2, h / 2);
+        const cxTL = x + R,
+          cyTL = y + R;
+        const cxTR = x + w - R,
+          cyTR = y + R;
+        const cxBR = x + w - R,
+          cyBR = y + h - R;
+        const cxBL = x + R,
+          cyBL = y + h - R;
+
+        // 分割角
+        const sTL = PI + Math.atan2(bwL, bwT);
+        const sTR = (3 * PI) / 2 + Math.atan2(bwT, bwR);
+        const sBR = Math.atan2(bwR, bwB);
+        const sBL = PI / 2 + Math.atan2(bwB, bwL);
+
+        // ── 整圈路径段描述（用于 perimeter 计算，每个 side 有独立 rc）
+        // 12段顺序：[0]top线 [1]TR-A(top) [2]TR-B(right) [3]right线
+        //           [4]BR-A(right) [5]BR-B(bottom) [6]bottom线
+        //           [7]BL-A(bottom) [8]BL-B(left) [9]left线
+        //           [10]TL-A(left) [11]TL-B(top)
+        // arc段：{ kind:'arc', cx,cy, t0,t1, bw(该段所属side的bw), color }
+        // line段：{ kind:'line', len, bw, color }
+        const segs = [
+          { kind: 'line', len: w - 2 * R, bw: bwT, color: colors[0] },
+          {
+            kind: 'arc',
+            cx: cxTR,
+            cy: cyTR,
+            t0: (3 * PI) / 2,
+            t1: sTR,
+            bw: bwT,
+            color: colors[0],
+          },
+          {
+            kind: 'arc',
+            cx: cxTR,
+            cy: cyTR,
+            t0: sTR,
+            t1: 2 * PI,
+            bw: bwR,
+            color: colors[1],
+          },
+          { kind: 'line', len: h - 2 * R, bw: bwR, color: colors[1] },
+          {
+            kind: 'arc',
+            cx: cxBR,
+            cy: cyBR,
+            t0: 0,
+            t1: sBR,
+            bw: bwR,
+            color: colors[1],
+          },
+          {
+            kind: 'arc',
+            cx: cxBR,
+            cy: cyBR,
+            t0: sBR,
+            t1: PI / 2,
+            bw: bwB,
+            color: colors[2],
+          },
+          { kind: 'line', len: w - 2 * R, bw: bwB, color: colors[2] },
+          {
+            kind: 'arc',
+            cx: cxBL,
+            cy: cyBL,
+            t0: PI / 2,
+            t1: sBL,
+            bw: bwB,
+            color: colors[2],
+          },
+          {
+            kind: 'arc',
+            cx: cxBL,
+            cy: cyBL,
+            t0: sBL,
+            t1: PI,
+            bw: bwL,
+            color: colors[3],
+          },
+          { kind: 'line', len: h - 2 * R, bw: bwL, color: colors[3] },
+          {
+            kind: 'arc',
+            cx: cxTL,
+            cy: cyTL,
+            t0: PI,
+            t1: sTL,
+            bw: bwL,
+            color: colors[3],
+          },
+          {
+            kind: 'arc',
+            cx: cxTL,
+            cy: cyTL,
+            t0: sTL,
+            t1: (3 * PI) / 2,
+            bw: bwT,
+            color: colors[0],
+          },
+        ];
+
+        // ── 每条 side 独立计算 perimeter + fitting
+        // side i 的 rc = R - bws[i]/2（用各自 bw），弧长用 rc * |dt|
+        // 直线段长度固定，arc 段弧长随该 side 的 rc 变化
+        // 注意：整圈 perimeter 用"各段按自己 bw 的 rc"计算 → 同一段在不同 side 里弧长不同
+        // 这和 Blink 的行为一致：每条 side 独立 fitting，arc 段弧长用该 side 的 rc
+
+        // 直线段的 x1/y1/x2/y2（画线用）
+        const lineGeom = [
+          { x1: x + R, y1: y + bwT / 2, x2: x + w - R, y2: y + bwT / 2 }, // top
+          {
+            x1: x + w - bwR / 2,
+            y1: y + R,
+            x2: x + w - bwR / 2,
+            y2: y + h - R,
+          }, // right
+          {
+            x1: x + w - R,
+            y1: y + h - bwB / 2,
+            x2: x + R,
+            y2: y + h - bwB / 2,
+          }, // bottom
+          { x1: x + bwL / 2, y1: y + h - R, x2: x + bwL / 2, y2: y + R }, // left
+        ];
+
+        // 每条 side 的 line 段在 segs[] 中的索引
+        const lineSegIdx = [0, 3, 6, 9];
+
+        // clip 梯形（用分割角射线）
+        const BIG = Math.max(w, h) * 3;
+        function splitPt(cx, cy, angle) {
+          const len = Math.max(w, h) * 2;
+          return {
+            x: cx + len * Math.cos(angle),
+            y: cy + len * Math.sin(angle),
+          };
+        }
+        function clipForSide(si) {
+          if (si === 0) {
+            const pL = splitPt(cxTL, cyTL, sTL),
+              pR = splitPt(cxTR, cyTR, sTR);
+            doc.moveTo(cxTL, cyTL);
+            doc.lineTo(pL.x, pL.y);
+            doc.lineTo(x - BIG, y - BIG);
+            doc.lineTo(x + w + BIG, y - BIG);
+            doc.lineTo(pR.x, pR.y);
+            doc.lineTo(cxTR, cyTR);
+          } else if (si === 1) {
+            const pT = splitPt(cxTR, cyTR, sTR),
+              pB = splitPt(cxBR, cyBR, sBR);
+            doc.moveTo(cxTR, cyTR);
+            doc.lineTo(pT.x, pT.y);
+            doc.lineTo(x + w + BIG, y - BIG);
+            doc.lineTo(x + w + BIG, y + h + BIG);
+            doc.lineTo(pB.x, pB.y);
+            doc.lineTo(cxBR, cyBR);
+          } else if (si === 2) {
+            const pR = splitPt(cxBR, cyBR, sBR),
+              pL = splitPt(cxBL, cyBL, sBL);
+            doc.moveTo(cxBR, cyBR);
+            doc.lineTo(pR.x, pR.y);
+            doc.lineTo(x + w + BIG, y + h + BIG);
+            doc.lineTo(x - BIG, y + h + BIG);
+            doc.lineTo(pL.x, pL.y);
+            doc.lineTo(cxBL, cyBL);
+          } else {
+            const pB = splitPt(cxBL, cyBL, sBL),
+              pT = splitPt(cxTL, cyTL, sTL);
+            doc.moveTo(cxBL, cyBL);
+            doc.lineTo(pB.x, pB.y);
+            doc.lineTo(x - BIG, y + h + BIG);
+            doc.lineTo(x - BIG, y - BIG);
+            doc.lineTo(pT.x, pT.y);
+            doc.lineTo(cxTL, cyTL);
+          }
+          doc.close();
+          doc.clip();
+          doc.discardPath();
+        }
+
+        // ── 逐 side 绘制 ────────────────────────────────────────────────────────
+        for (let si = 0; si < 4; si++) {
+          const bw = bws[si];
+          const color = colors[si];
+          const rc = R > 0 ? R - bw / 2 : 0;
+          const innerR = Math.max(R - bw, 0);
+
+          // 计算该 side 的全圈 globalOff：所有弧段统一用当前 side 的 rc 算弧长
+          // （phase 连续性要求：整圈用同一个 rc，颜色/innerR 是独立属性）
+          let off = 0;
+          const gOff = segs.map((seg) => {
+            const o = off;
+            if (seg.kind === 'line') {
+              off += seg.len;
+            } else {
+              off += rc > 0 ? rc * Math.abs(seg.t1 - seg.t0) : 0;
+            }
+            return o;
+          });
+          const totalPerimeter = off;
+
+          const dashLen = 2 * bw;
+          const gap = selectBestDashGap(totalPerimeter, dashLen, bw, true);
+          const period = dashLen + gap;
+
+          // ── 1. 直线段：setLineDash + stroke，clip 到该 side 梯形
+          doc.saveGraphicsState();
+          clipForSide(si);
+          doc.setDrawColor(color[0], color[1], color[2]);
+          doc.setLineWidth(bw);
+          const liIdx = lineSegIdx[si];
+          const lineOff = gOff[liIdx];
+          const dashOffset = lineOff % period;
+          doc.setLineDashPattern([dashLen, gap], dashOffset);
+          const lg = lineGeom[si];
+          doc.moveTo(lg.x1, lg.y1);
+          doc.lineTo(lg.x2, lg.y2);
+          doc.stroke();
+          doc.restoreGraphicsState();
+
+          // ── 2. 角落弧段：逐个 dash 块 fill 梯形扇形（在 clip 保护内）
+          //    preArc：li-1，postArc：li+1（在 segs 里）
+          const n = segs.length;
+          const arcIdxs = [
+            (liIdx - 1 + n) % n, // preArc
+            (liIdx + 1) % n, // postArc
+          ];
+
+          doc.saveGraphicsState();
+          clipForSide(si);
+
+          for (const ai of arcIdxs) {
+            const seg = segs[ai];
+            if (seg.kind !== 'arc') continue;
+
+            const segColor = seg.color;
+            // 弧段两端的 bw（用于 innerR 渐变）
+            // 每个弧段归属于某侧，但两端连接不同的 side
+            // seg.bwStart / seg.bwEnd 需要根据弧段在路径里的位置确定
+            // segs 顺序：[0]top线 [1]TR-A(top,bwT→bwT) [2]TR-B(bwR→bwR)
+            //            [3]right线 [4]BR-A(bwR→bwR) [5]BR-B(bwB→bwB)
+            //            [6]bottom线 [7]BL-A(bwB→bwB) [8]BL-B(bwL→bwL)
+            //            [9]left线 [10]TL-A(bwL→bwL) [11]TL-B(bwT→bwT)
+            // 实际两端 bw：弧段 start 端连接前一 line，end 端连接后一 line
+            // TR角：seg[1] start=bwT, end=bwT；seg[2] start=bwR, end=bwR
+            // 但分割角处两侧是不同 side，所以跨分割角的那段才有渐变
+            // seg[1]=TR-A属于top，两端都是bwT；seg[2]=TR-B属于right，两端都是bwR
+            // → 同一个角落的两段各自是均匀宽度，只有在视觉上合并才有渐变
+            // 浏览器的渐变实际是：整个角落（TR-A + TR-B 合并）从 bwT 渐变到 bwR
+            // 我们按 seg.bw 固定宽度是对的，但 seg.bw 需要是"该段在整个角落里的插值"
+            // 重新理解：每段 arc 对应的 innerR 应该按该段角度在整个角落里的位置插值
+            // 整个 TR 角落：t0=3π/2 → t_split=sTR → t1=2π，总span=(π/2)
+            //   TR-A: [3π/2, sTR]，属于top，innerR 端点：
+            //     t=3π/2处：innerR=R-bwT（top线延伸过来）
+            //     t=sTR处：由于是分割点，innerR=渐变中间值？
+            // 其实浏览器的渐变是整个角落用 stroke 画，innerR 在整个 π/2 弧上线性变化
+            // 对应：t从corner_start到corner_end，innerR从R-bwA到R-bwB线性插值
+            // TR角 corner_start=3π/2, corner_end=2π
+            //   任意 t 处：innerR(t) = (R-bwT) + [(R-bwR)-(R-bwT)] * (t-3π/2)/(π/2)
+            //             = (R-bwT) + (bwT-bwR) * (t-3π/2)/(π/2)
+            // 所以需要知道每个弧段属于哪个角落，以及整个角落的起止角和两端 bw
+
+            // 角落信息：[cornerStart, cornerEnd, bwStart, bwEnd]
+            const corners = [
+              // TR: seg[1]=TR-A, seg[2]=TR-B
+              {
+                segs: [1, 2],
+                t0: (3 * PI) / 2,
+                t1: 2 * PI,
+                bwA: bwT,
+                bwB: bwR,
+              },
+              // BR: seg[4]=BR-A, seg[5]=BR-B
+              { segs: [4, 5], t0: 0, t1: PI / 2, bwA: bwR, bwB: bwB },
+              // BL: seg[7]=BL-A, seg[8]=BL-B
+              { segs: [7, 8], t0: PI / 2, t1: PI, bwA: bwB, bwB: bwL },
+              // TL: seg[10]=TL-A, seg[11]=TL-B
+              { segs: [10, 11], t0: PI, t1: (3 * PI) / 2, bwA: bwL, bwB: bwT },
+            ];
+            const corner = corners.find((c) => c.segs.includes(ai));
+            const cornerSpan = corner.t1 - corner.t0;
+
+            const arcSpan = Math.abs(seg.t1 - seg.t0);
+            const arcLen = rc > 0 ? rc * arcSpan : 0;
+            if (arcLen <= 0) continue;
+
+            const arcStart = gOff[ai];
+            const arcEnd = arcStart + arcLen;
+
+            doc.setFillColor(segColor[0], segColor[1], segColor[2]);
+
+            const firstDi = Math.floor(arcStart / period);
+            for (let di = firstDi; di * period < arcEnd + dashLen; di++) {
+              const dStart = di * period;
+              const dEnd = dStart + dashLen;
+              const cStart = Math.max(dStart, arcStart);
+              const cEnd = Math.min(dEnd, arcEnd);
+              if (cEnd <= cStart) continue;
+
+              const relStart = cStart - arcStart;
+              const relEnd = cEnd - arcStart;
+              const tA = rc > 0 ? seg.t0 + relStart / rc : seg.t0;
+              const tB = rc > 0 ? seg.t0 + relEnd / rc : seg.t1;
+              if (tB <= tA) continue;
+
+              const fracA = (tA - corner.t0) / cornerSpan;
+              const fracB = (tB - corner.t0) / cornerSpan;
+              const iR0 = Math.max(
+                R - corner.bwA + (corner.bwA - corner.bwB) * fracA,
+                0,
+              );
+              const iR1 = Math.max(
+                R - corner.bwA + (corner.bwA - corner.bwB) * fracB,
+                0,
+              );
+              fillArcDash(doc, seg.cx, seg.cy, R, iR0, iR1, tA, tB);
+            }
+          }
+
+          doc.restoreGraphicsState();
+        }
+
+        doc.setLineDashPattern([], 0);
+      }
+
+      // ─── 构建 PDF ─────────────────────────────────────────────────────────────
+      function buildDoc() {
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        for (const c of CASES) {
+          drawDashedBorder(doc, c.x, c.y, c.w, c.h, c.r, c.sides);
+          doc.setFontSize(6);
+          doc.setTextColor(160);
+          doc.text(c.label, c.x, c.y + c.h + 3.5);
+        }
+        return doc;
+      }
+
+      // ─── 预览 + 下载 ─────────────────────────────────────────────────────────
+      const iframe = document.getElementById('pdf-frame');
+      iframe.style.width = pageW + 'px';
+      iframe.style.height = pageH + 'px';
+      iframe.src = buildDoc().output('datauristring');
+
+      document.getElementById('btn').addEventListener('click', () => {
+        buildDoc().save('dashed-border-test.pdf');
+      });
+    </script>
+  </body>
+</html>

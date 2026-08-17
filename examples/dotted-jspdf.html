@@ -1,0 +1,550 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>jsPDF dotted border 验证</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: monospace;
+        background: #eee;
+        padding: 16px;
+      }
+      h1 {
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      .cols {
+        display: flex;
+        gap: 32px;
+        align-items: flex-start;
+      }
+      .col-label {
+        font-size: 12px;
+        color: #555;
+        margin-bottom: 6px;
+      }
+      .page-wrap {
+        background: white;
+        border: 1px solid #ccc;
+        position: relative;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      button {
+        padding: 5px 12px;
+        font-size: 12px;
+        cursor: pointer;
+        margin-bottom: 6px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>jsPDF 原生 API — 圆角 dotted border 验证</h1>
+    <div class="cols">
+      <div>
+        <div class="col-label">浏览器原生 CSS</div>
+        <div
+          class="page-wrap"
+          id="browser-page"
+        ></div>
+      </div>
+      <div>
+        <button id="btn">下载 PDF</button>
+        <div class="col-label">jsPDF 输出（iframe 预览）</div>
+        <iframe
+          id="pdf-frame"
+          style="border: 1px solid #ccc; display: block"
+        ></iframe>
+      </div>
+    </div>
+
+    <script src="node_modules/jspdf/dist/jspdf.umd.js"></script>
+    <script>
+      const { jsPDF } = window.jspdf;
+      const PI = Math.PI;
+      const SCALE = 0.6;
+      const MM2PX = 3.7795;
+      const PAGE_W_MM = 210;
+      const PAGE_H_MM = 297;
+
+      const CASES = [
+        {
+          label: '四边同色同宽 r=8mm',
+          x: 15,
+          y: 15,
+          w: 80,
+          h: 30,
+          r: 8,
+          sides: {
+            top: { bw: 2, color: [102, 51, 204] },
+            right: { bw: 2, color: [102, 51, 204] },
+            bottom: { bw: 2, color: [102, 51, 204] },
+            left: { bw: 2, color: [102, 51, 204] },
+          },
+        },
+        {
+          label: '四边不同颜色同宽 r=8mm',
+          x: 15,
+          y: 55,
+          w: 80,
+          h: 30,
+          r: 8,
+          sides: {
+            top: { bw: 2, color: [229, 57, 53] },
+            right: { bw: 2, color: [30, 136, 229] },
+            bottom: { bw: 2, color: [67, 160, 71] },
+            left: { bw: 2, color: [251, 140, 0] },
+          },
+        },
+        {
+          label: '四边不同颜色不同宽 r=8mm',
+          x: 15,
+          y: 95,
+          w: 80,
+          h: 35,
+          r: 8,
+          sides: {
+            top: { bw: 1, color: [229, 57, 53] },
+            right: { bw: 2.8, color: [30, 136, 229] },
+            bottom: { bw: 1.8, color: [67, 160, 71] },
+            left: { bw: 4, color: [251, 140, 0] },
+          },
+        },
+        {
+          label: '无圆角 r=0',
+          x: 15,
+          y: 142,
+          w: 80,
+          h: 28,
+          r: 0,
+          sides: {
+            top: { bw: 0.7, color: [229, 57, 53] },
+            right: { bw: 3.5, color: [30, 136, 229] },
+            bottom: { bw: 2, color: [67, 160, 71] },
+            left: { bw: 1.4, color: [251, 140, 0] },
+          },
+        },
+        {
+          label: '大圆角 r=18mm',
+          x: 15,
+          y: 182,
+          w: 80,
+          h: 40,
+          r: 18,
+          sides: {
+            top: { bw: 1.4, color: [156, 39, 176] },
+            right: { bw: 3.5, color: [0, 150, 136] },
+            bottom: { bw: 1.4, color: [156, 39, 176] },
+            left: { bw: 3.5, color: [0, 150, 136] },
+          },
+        },
+      ];
+
+      // ─── 浏览器对比列 ─────────────────────────────────────────────────────────
+      const pageW = Math.round(PAGE_W_MM * MM2PX * SCALE);
+      const pageH = Math.round(PAGE_H_MM * MM2PX * SCALE);
+      const browserPage = document.getElementById('browser-page');
+      browserPage.style.width = pageW + 'px';
+      browserPage.style.height = pageH + 'px';
+      function mm(v) {
+        return v * MM2PX * SCALE + 'px';
+      }
+      function rgb(c) {
+        return `rgb(${c[0]},${c[1]},${c[2]})`;
+      }
+      for (const c of CASES) {
+        const { x, y, w, h, r, sides: s } = c;
+        const box = document.createElement('div');
+        box.style.cssText = `
+          position:absolute; left:${mm(x)}; top:${mm(y)};
+          width:${mm(w)}; height:${mm(h)};
+          border-top:${mm(s.top.bw)} dotted ${rgb(s.top.color)};
+          border-right:${mm(s.right.bw)} dotted ${rgb(s.right.color)};
+          border-bottom:${mm(s.bottom.bw)} dotted ${rgb(s.bottom.color)};
+          border-left:${mm(s.left.bw)} dotted ${rgb(s.left.color)};
+          border-radius:${mm(r)};
+        `;
+        browserPage.appendChild(box);
+        const lbl = document.createElement('div');
+        lbl.style.cssText = `position:absolute;left:${mm(x)};top:${mm(y + h + 1)};font-size:8px;color:#aaa;`;
+        lbl.textContent = c.label;
+        browserPage.appendChild(lbl);
+      }
+
+      // ─── jsPDF 工具 ───────────────────────────────────────────────────────────
+
+      // 贝塞尔圆弧（与 radius.js 完全一致）
+      function appendArcSegment(doc, cx, cy, r, startRad, endRad) {
+        if (r <= 0) return;
+        const delta = endRad - startRad;
+        if (Math.abs(delta) > PI / 2 + 1e-9) {
+          const mid = startRad + delta / 2;
+          appendArcSegment(doc, cx, cy, r, startRad, mid);
+          appendArcSegment(doc, cx, cy, r, mid, endRad);
+          return;
+        }
+        const k = (4 / 3) * Math.tan(delta / 4);
+        const cosS = Math.cos(startRad),
+          sinS = Math.sin(startRad);
+        const cosE = Math.cos(endRad),
+          sinE = Math.sin(endRad);
+        doc.curveTo(
+          cx + r * (cosS - k * sinS),
+          cy + r * (sinS + k * cosS),
+          cx + r * (cosE + k * sinE),
+          cy + r * (sinE - k * cosE),
+          cx + r * cosE,
+          cy + r * sinE,
+        );
+      }
+
+      // Blink selectBestDashGap（dotted: dashLen=bw, gap=bw）
+      function selectBestDashGap(strokeLen, dashLen, gapLen, closed) {
+        const available = closed ? strokeLen : strokeLen + gapLen;
+        const minN = Math.floor(available / (dashLen + gapLen));
+        const maxN = minN + 1;
+        const minG = closed ? minN : minN - 1;
+        const maxG = closed ? maxN : maxN - 1;
+        const gMin =
+          minG > 0
+            ? (strokeLen - minN * dashLen) / minG
+            : strokeLen - minN * dashLen;
+        const gMax =
+          maxG > 0
+            ? (strokeLen - maxN * dashLen) / maxG
+            : strokeLen - maxN * dashLen;
+        if (gMax <= 0) return gMin;
+        return Math.abs(gMin - gapLen) < Math.abs(gMax - gapLen) ? gMin : gMax;
+      }
+
+      // dot 块：圆形填充（dotted border 的每个点是圆）
+      function fillDot(doc, cx, cy, r) {
+        if (r <= 0) return;
+        // 用贝塞尔近似圆
+        const k = (4 / 3) * Math.tan(PI / 8); // π/4 的 tan(δ/4)
+        doc.moveTo(cx + r, cy);
+        appendArcSegment(doc, cx, cy, r, 0, PI / 2);
+        appendArcSegment(doc, cx, cy, r, PI / 2, PI);
+        appendArcSegment(doc, cx, cy, r, PI, (3 * PI) / 2);
+        appendArcSegment(doc, cx, cy, r, (3 * PI) / 2, 2 * PI);
+        doc.close();
+        doc.fill();
+      }
+
+      // ─── 主绘制函数 ──────────────────────────────────────────────────────────
+      // dotted border：每个点是圆，直径=bw，间距由 selectBestDashGap 决定
+      // 直线段：沿线方向等间距放圆
+      // 角落弧段：沿弧长等间距放圆
+      function drawDottedBorder(doc, x, y, w, h, r, sides) {
+        const bwT = sides.top.bw,
+          bwR = sides.right.bw;
+        const bwB = sides.bottom.bw,
+          bwL = sides.left.bw;
+        const bws = [bwT, bwR, bwB, bwL];
+        const colors = [
+          sides.top.color,
+          sides.right.color,
+          sides.bottom.color,
+          sides.left.color,
+        ];
+
+        const R = Math.min(r, w / 2, h / 2);
+        const cxTL = x + R,
+          cyTL = y + R;
+        const cxTR = x + w - R,
+          cyTR = y + R;
+        const cxBR = x + w - R,
+          cyBR = y + h - R;
+        const cxBL = x + R,
+          cyBL = y + h - R;
+
+        // 分割角
+        const sTL = PI + Math.atan2(bwL, bwT);
+        const sTR = (3 * PI) / 2 + Math.atan2(bwT, bwR);
+        const sBR = Math.atan2(bwR, bwB);
+        const sBL = PI / 2 + Math.atan2(bwB, bwL);
+
+        const segs = [
+          { kind: 'line', len: w - 2 * R, bw: bwT, color: colors[0] },
+          {
+            kind: 'arc',
+            cx: cxTR,
+            cy: cyTR,
+            t0: (3 * PI) / 2,
+            t1: sTR,
+            bw: bwT,
+            color: colors[0],
+          },
+          {
+            kind: 'arc',
+            cx: cxTR,
+            cy: cyTR,
+            t0: sTR,
+            t1: 2 * PI,
+            bw: bwR,
+            color: colors[1],
+          },
+          { kind: 'line', len: h - 2 * R, bw: bwR, color: colors[1] },
+          {
+            kind: 'arc',
+            cx: cxBR,
+            cy: cyBR,
+            t0: 0,
+            t1: sBR,
+            bw: bwR,
+            color: colors[1],
+          },
+          {
+            kind: 'arc',
+            cx: cxBR,
+            cy: cyBR,
+            t0: sBR,
+            t1: PI / 2,
+            bw: bwB,
+            color: colors[2],
+          },
+          { kind: 'line', len: w - 2 * R, bw: bwB, color: colors[2] },
+          {
+            kind: 'arc',
+            cx: cxBL,
+            cy: cyBL,
+            t0: PI / 2,
+            t1: sBL,
+            bw: bwB,
+            color: colors[2],
+          },
+          {
+            kind: 'arc',
+            cx: cxBL,
+            cy: cyBL,
+            t0: sBL,
+            t1: PI,
+            bw: bwL,
+            color: colors[3],
+          },
+          { kind: 'line', len: h - 2 * R, bw: bwL, color: colors[3] },
+          {
+            kind: 'arc',
+            cx: cxTL,
+            cy: cyTL,
+            t0: PI,
+            t1: sTL,
+            bw: bwL,
+            color: colors[3],
+          },
+          {
+            kind: 'arc',
+            cx: cxTL,
+            cy: cyTL,
+            t0: sTL,
+            t1: (3 * PI) / 2,
+            bw: bwT,
+            color: colors[0],
+          },
+        ];
+
+        // 直线段中心点坐标（dot 放在线的中心线上）
+        const lineGeom = [
+          { x1: x + R, y1: y + bwT / 2, x2: x + w - R, y2: y + bwT / 2 }, // top
+          {
+            x1: x + w - bwR / 2,
+            y1: y + R,
+            x2: x + w - bwR / 2,
+            y2: y + h - R,
+          }, // right
+          {
+            x1: x + w - R,
+            y1: y + h - bwB / 2,
+            x2: x + R,
+            y2: y + h - bwB / 2,
+          }, // bottom
+          { x1: x + bwL / 2, y1: y + h - R, x2: x + bwL / 2, y2: y + R }, // left
+        ];
+
+        const lineSegIdx = [0, 3, 6, 9];
+
+        const corners = [
+          { segs: [1, 2], t0: (3 * PI) / 2, t1: 2 * PI, bwA: bwT, bwB: bwR },
+          { segs: [4, 5], t0: 0, t1: PI / 2, bwA: bwR, bwB: bwB },
+          { segs: [7, 8], t0: PI / 2, t1: PI, bwA: bwB, bwB: bwL },
+          { segs: [10, 11], t0: PI, t1: (3 * PI) / 2, bwA: bwL, bwB: bwT },
+        ];
+
+        // clip 梯形
+        const BIG = Math.max(w, h) * 3;
+        function splitPt(cx, cy, angle) {
+          const len = Math.max(w, h) * 2;
+          return {
+            x: cx + len * Math.cos(angle),
+            y: cy + len * Math.sin(angle),
+          };
+        }
+        function clipForSide(si) {
+          if (si === 0) {
+            const pL = splitPt(cxTL, cyTL, sTL),
+              pR = splitPt(cxTR, cyTR, sTR);
+            doc.moveTo(cxTL, cyTL);
+            doc.lineTo(pL.x, pL.y);
+            doc.lineTo(x - BIG, y - BIG);
+            doc.lineTo(x + w + BIG, y - BIG);
+            doc.lineTo(pR.x, pR.y);
+            doc.lineTo(cxTR, cyTR);
+          } else if (si === 1) {
+            const pT = splitPt(cxTR, cyTR, sTR),
+              pB = splitPt(cxBR, cyBR, sBR);
+            doc.moveTo(cxTR, cyTR);
+            doc.lineTo(pT.x, pT.y);
+            doc.lineTo(x + w + BIG, y - BIG);
+            doc.lineTo(x + w + BIG, y + h + BIG);
+            doc.lineTo(pB.x, pB.y);
+            doc.lineTo(cxBR, cyBR);
+          } else if (si === 2) {
+            const pR = splitPt(cxBR, cyBR, sBR),
+              pL = splitPt(cxBL, cyBL, sBL);
+            doc.moveTo(cxBR, cyBR);
+            doc.lineTo(pR.x, pR.y);
+            doc.lineTo(x + w + BIG, y + h + BIG);
+            doc.lineTo(x - BIG, y + h + BIG);
+            doc.lineTo(pL.x, pL.y);
+            doc.lineTo(cxBL, cyBL);
+          } else {
+            const pB = splitPt(cxBL, cyBL, sBL),
+              pT = splitPt(cxTL, cyTL, sTL);
+            doc.moveTo(cxBL, cyBL);
+            doc.lineTo(pB.x, pB.y);
+            doc.lineTo(x - BIG, y + h + BIG);
+            doc.lineTo(x - BIG, y - BIG);
+            doc.lineTo(pT.x, pT.y);
+            doc.lineTo(cxTL, cyTL);
+          }
+          doc.close();
+          doc.clip();
+          doc.discardPath();
+        }
+
+        // ── 逐 side 绘制 ────────────────────────────────────────────────────────
+        // dotted 不需要 clip：每个圆点圆心已经精确落在各自 side 的弧/线上，
+        // clip 反而会把跨分割线的圆点切成半圆。
+        for (let si = 0; si < 4; si++) {
+          const bw = bws[si];
+          const color = colors[si];
+          const rc = R > 0 ? R - bw / 2 : 0;
+          // dotted: 点的直径 = bw，gap ≈ bw
+          const dotR = bw / 2;
+          const dotLen = bw; // 点直径（占用弧长）
+          const gapLen = bw; // 期望间隔
+
+          // 全圈 perimeter（弧段用该 side 的 rc）
+          let off = 0;
+          const gOff = segs.map((seg) => {
+            const o = off;
+            if (seg.kind === 'line') {
+              off += seg.len;
+            } else {
+              off += rc > 0 ? rc * Math.abs(seg.t1 - seg.t0) : 0;
+            }
+            return o;
+          });
+          const totalPerimeter = off;
+
+          const gap = selectBestDashGap(totalPerimeter, dotLen, gapLen, true);
+          const period = dotLen + gap;
+
+          doc.setFillColor(color[0], color[1], color[2]);
+
+          const liIdx = lineSegIdx[si];
+
+          // ── 1. 直线段：沿线方向等间距放圆点
+          {
+            const lineOff = gOff[liIdx];
+            const seg = segs[liIdx];
+            if (seg.len > 0) {
+              const lg = lineGeom[si];
+              const lineLen = seg.len;
+              const lineStart = lineOff;
+              const lineEnd = lineStart + lineLen;
+              // 点中心在 lineOff + dotR + k*period
+              const firstDi = Math.floor(lineStart / period);
+              for (
+                let di = firstDi;
+                di * period + dotR < lineEnd + dotLen;
+                di++
+              ) {
+                const dotCenter = di * period + dotR;
+                if (dotCenter < lineStart || dotCenter > lineEnd) continue;
+                const t = (dotCenter - lineStart) / lineLen;
+                const cx = lg.x1 + (lg.x2 - lg.x1) * t;
+                const cy = lg.y1 + (lg.y2 - lg.y1) * t;
+                fillDot(doc, cx, cy, dotR);
+              }
+            }
+          }
+
+          // ── 2. 角落弧段：沿弧长等间距放圆点
+          const n = segs.length;
+          const arcIdxs = [(liIdx - 1 + n) % n, (liIdx + 1) % n];
+
+          for (const ai of arcIdxs) {
+            const seg = segs[ai];
+            if (seg.kind !== 'arc') continue;
+
+            const corner = corners.find((c) => c.segs.includes(ai));
+            const cornerSpan = corner.t1 - corner.t0;
+
+            const arcSpan = Math.abs(seg.t1 - seg.t0);
+            const arcLen = rc > 0 ? rc * arcSpan : 0;
+            if (arcLen <= 0) continue;
+
+            const arcStart = gOff[ai];
+            const arcEnd = arcStart + arcLen;
+
+            // 点中心沿弧长方向放置
+            const firstDi = Math.floor(arcStart / period);
+            for (let di = firstDi; di * period + dotR < arcEnd + dotLen; di++) {
+              const dotCenter = di * period + dotR;
+              if (dotCenter < arcStart || dotCenter > arcEnd) continue;
+
+              const relCenter = dotCenter - arcStart;
+              const tC =
+                rc > 0 ? seg.t0 + relCenter / rc : (seg.t0 + seg.t1) / 2;
+
+              // 点中心半径：在圆角中心线上（R - bw/2 的弧上），即 rc
+              // dotR 就是 bw/2，圆心放在 rc 弧上
+              const cx = seg.cx + rc * Math.cos(tC);
+              const cy = seg.cy + rc * Math.sin(tC);
+              fillDot(doc, cx, cy, dotR);
+            }
+          }
+        }
+      }
+
+      // ─── 构建 PDF ─────────────────────────────────────────────────────────────
+      function buildDoc() {
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        for (const c of CASES) {
+          drawDottedBorder(doc, c.x, c.y, c.w, c.h, c.r, c.sides);
+          doc.setFontSize(6);
+          doc.setTextColor(160);
+          doc.text(c.label, c.x, c.y + c.h + 3.5);
+        }
+        return doc;
+      }
+
+      // ─── 预览 + 下载 ─────────────────────────────────────────────────────────
+      const iframe = document.getElementById('pdf-frame');
+      iframe.style.width = pageW + 'px';
+      iframe.style.height = pageH + 'px';
+      iframe.src = buildDoc().output('datauristring');
+
+      document.getElementById('btn').addEventListener('click', () => {
+        buildDoc().save('dotted-border-test.pdf');
+      });
+    </script>
+  </body>
+</html>
