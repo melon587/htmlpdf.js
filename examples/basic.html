@@ -2997,12 +2997,13 @@
                 height: 10,
                 render(doc, { pageNumber, totalPages, pageWidth, margin }) {
                   doc.setFontSize(9);
-                  doc.setTextColor(100);
-                  doc.text('htmlpdf Export Test', margin, margin - 2);
+                  doc.setFont('roboto');
+                  const headerY = 10 * 0.65;
+                  doc.text('htmlpdf Export Test', margin, headerY);
                   doc.text(
                     `${pageNumber} / ${totalPages}`,
                     pageWidth - margin,
-                    margin - 2,
+                    headerY,
                     { align: 'right' },
                   );
                 },
@@ -3014,11 +3015,12 @@
                   { pageNumber, totalPages, pageWidth, pageHeight, margin },
                 ) {
                   doc.setFontSize(8);
-                  doc.setTextColor(150);
+                  doc.setFont('roboto');
+                  const footerY = pageHeight - 8 * 0.35;
                   doc.text(
-                    `${pageNumber}  /  ${totalPages} `,
+                    `${pageNumber}  /  ${totalPages}`,
                     pageWidth / 2,
-                    pageHeight - margin + 4,
+                    footerY,
                     { align: 'center' },
                   );
                 },

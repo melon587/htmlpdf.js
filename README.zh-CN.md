@@ -132,6 +132,8 @@ fonts: [
 
 ### 自定义字体
 
+> 需要提供 `.ttf` 字体文件。可以从以下仓库获取现成字体：https://github.com/melon587/fonts.git
+
 ```javascript
 const blob = await htmlpdf(element, {
   fonts: [
@@ -189,31 +191,41 @@ const blob = await htmlpdf(element, {
 
 ### 页眉和页脚
 
+`render` 回调中的 `headerHeight` / `footerHeight`（单位 mm）可帮助你将文字定位在页眉/页脚区域内，无需硬编码偏移量。
+
 ```javascript
 const blob = await htmlpdf(element, {
   header: {
     height: 10, // 页眉高度（单位：mm）
-    render(doc, { pageNumber, totalPages, pageWidth, margin }) {
+    render(doc, { pageNumber, totalPages, pageWidth, margin, headerHeight }) {
+      doc.setFont('noto-sans-sc'); // 渲染中文需先设置字体
       doc.setFontSize(9);
-      doc.text('我的文档', margin, margin - 2);
+      // 在页眉区域（y=0 ~ y=headerHeight）内垂直居中
+      const y = headerHeight * 0.65;
+      doc.text('我的文档', margin, y);
       doc.text(
         `第 ${pageNumber} 页 / 共 ${totalPages} 页`,
         pageWidth - margin,
-        margin - 2,
-        { align: 'right' },
+        y,
+        {
+          align: 'right',
+        },
       );
     },
   },
   footer: {
     height: 8, // 页脚高度（单位：mm）
-    render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) {
+    render(
+      doc,
+      { pageNumber, totalPages, pageWidth, pageHeight, footerHeight },
+    ) {
+      doc.setFont('noto-sans-sc'); // 渲染中文需先设置字体
       doc.setFontSize(8);
-      doc.text(
-        `${pageNumber} / ${totalPages}`,
-        pageWidth / 2,
-        pageHeight - margin + 4,
-        { align: 'center' },
-      );
+      // 在页脚区域（y=pageHeight-footerHeight ~ y=pageHeight）内垂直居中
+      const y = pageHeight - footerHeight * 0.35;
+      doc.text(`${pageNumber} / ${totalPages}`, pageWidth / 2, y, {
+        align: 'center',
+      });
     },
   },
 });

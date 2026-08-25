@@ -2749,27 +2749,26 @@ async function onClick() {
       height: 10,
       render(doc, { pageNumber, totalPages, pageWidth, margin }) {
         doc.setFontSize(9);
-        doc.setTextColor(100);
-        doc.text('htmlpdf Export Test', margin, margin - 2);
-        doc.text(
-          `${pageNumber} / ${totalPages}`,
-          pageWidth - margin,
-          margin - 2,
-          { align: 'right' },
-        );
+        // header 区域: y=0 ~ y=headerHeight(10mm)，文字垂直居中约 y=6.5mm
+        const headerY = 10 * 0.65;
+        doc.text('htmlpdf Export Test', margin, headerY);
+        doc.text(`${pageNumber} / ${totalPages}`, pageWidth - margin, headerY, {
+          align: 'right',
+        });
       },
     },
     footer: {
       height: 8,
-      render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) {
+      render(
+        doc,
+        { pageNumber, totalPages, pageWidth, pageHeight },
+      ) {
         doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(
-          `${pageNumber}  /  ${totalPages} `,
-          pageWidth / 2,
-          pageHeight - margin + 4,
-          { align: 'center' },
-        );
+        // footer 区域: y=(pageHeight-footerHeight) ~ y=pageHeight，文字垂直居中
+        const footerY = pageHeight - 8 * 0.35;
+        doc.text(`${pageNumber}  /  ${totalPages}`, pageWidth / 2, footerY, {
+          align: 'center',
+        });
       },
     },
   });

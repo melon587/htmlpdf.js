@@ -133,6 +133,8 @@ fonts: [
 
 ### Custom Fonts
 
+> Font files (`.ttf`) are required. You can find ready-to-use fonts at: https://github.com/melon587/fonts.git
+
 ```javascript
 const blob = await htmlpdf(element, {
   fonts: [
@@ -190,31 +192,34 @@ const blob = await htmlpdf(element, {
 
 ### Header and Footer
 
+The `render` callback receives `headerHeight` / `footerHeight` (in mm) so you can position text inside the header/footer area without hard-coding offsets.
+
 ```javascript
 const blob = await htmlpdf(element, {
   header: {
     height: 10, // Header height in mm
-    render(doc, { pageNumber, totalPages, pageWidth, margin }) {
+    render(doc, { pageNumber, totalPages, pageWidth, margin, headerHeight }) {
       doc.setFontSize(9);
-      doc.text('My Document', margin, margin - 2);
-      doc.text(
-        `Page ${pageNumber} / ${totalPages}`,
-        pageWidth - margin,
-        margin - 2,
-        { align: 'right' },
-      );
+      // Center text vertically within the header band (y=0 ~ y=headerHeight)
+      const y = headerHeight * 0.65;
+      doc.text('My Document', margin, y);
+      doc.text(`Page ${pageNumber} / ${totalPages}`, pageWidth - margin, y, {
+        align: 'right',
+      });
     },
   },
   footer: {
     height: 8, // Footer height in mm
-    render(doc, { pageNumber, totalPages, pageWidth, pageHeight, margin }) {
+    render(
+      doc,
+      { pageNumber, totalPages, pageWidth, pageHeight, footerHeight },
+    ) {
       doc.setFontSize(8);
-      doc.text(
-        `${pageNumber} / ${totalPages}`,
-        pageWidth / 2,
-        pageHeight - margin + 4,
-        { align: 'center' },
-      );
+      // Center text vertically within the footer band (y=pageHeight-footerHeight ~ y=pageHeight)
+      const y = pageHeight - footerHeight * 0.35;
+      doc.text(`${pageNumber} / ${totalPages}`, pageWidth / 2, y, {
+        align: 'center',
+      });
     },
   },
 });
