@@ -120,11 +120,20 @@ export async function injectFontsToDocument(iframeDoc, fonts) {
 
   // 3. 主动触发字体加载并等待完成
   // unicode-range 字体是懒加载的——fonts.ready 在字体未被使用时会立即 resolve，
-  // 必须用 fonts.load() 强制加载，确保 getClientRects() 使用正确的字体 metrics
+  // 必须用 fonts.load() 强制加载，确保 getClientRects() 使用正确的字体 metrics。
+  // 注意：iframe 内的 fonts.load() 会重新发起网络请求，若被 CSP 拦截会 reject，
+  // 此处吞掉错误以防中断整个 PDF 生成流程（字体加载失败只是降级，不是致命错误）。
   if (iframeDoc.fonts?.load) {
     await Promise.all(
       fonts.map((c) =>
-        iframeDoc.fonts.load(`${c.fontWeight || 400} 16px '${c.fontFamily}'`),
+        iframeDoc.fonts
+          .load(`${c.fontWeight || 400} 16px '${c.fontFamily}'`)
+          .catch((err) => {
+            console.warn(
+              `[htmlpdf] fonts.load failed for '${c.fontFamily}', skipping:`,
+              err,
+            );
+          }),
       ),
     );
   }

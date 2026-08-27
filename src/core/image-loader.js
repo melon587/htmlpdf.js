@@ -3,7 +3,7 @@
  * 图片加载模块
  *
  * 负责在 iframe 销毁前将所有图片数据缓存到 node 上，供渲染层使用：
- * - IMG 标签    → canvas.drawImage → base64 + _srcCanvas
+ * - IMG 标签    → loadImageAsBase64(crossOrigin) → base64 + _srcCanvas（避免 canvas tainted）
  * - CANVAS 标签 → 直接保存 canvas 引用（检测透明度选择 PNG/JPEG）
  * - background-image → loadImageAsBase64() → base64 + 原始尺寸
  */
@@ -81,41 +81,40 @@ export async function preloadImages(nodes) {
     nodes.map((e) => {
       if (e.type !== 'element') return null;
 
-      // IMG 标签：将 iframe 内已加载的图片绘到 canvas，保存 base64 和像素尺寸。
-      // _srcCanvas 直接作为裁切源，drawImage 无需重新解码 Image 对象。
+      // IMG 标签：通过 loadImageAsBase64 重新加载（带 crossOrigin=anonymous），
+      // 避免直接复用 iframe 内未带 CORS 属性的 imgEl 导致 canvas tainted 问题。
       if (e.tag === 'IMG' && e._el?.src) {
-        const imgEl = e._el;
-        const natW = imgEl.naturalWidth || imgEl.width;
-        const natH = imgEl.naturalHeight || imgEl.height;
+        const url = e._el.src;
 
-        // 图片未加载（隐藏/网络失败）时尺寸为 0，跳过避免创建无效 canvas
-        if (!natW || !natH) {
-          console.warn(
-            '[htmlpdf] preloadImages: IMG has zero dimensions, skipping:',
-            imgEl.src,
-          );
+        return loadImageAsBase64(url).then((result) => {
+          if (!result) {
+            console.warn(
+              '[htmlpdf] preloadImages: IMG load failed (CORS or network):',
+              url,
+            );
 
-          return null;
-        }
+            return null;
+          }
 
-        const canvas = document.createElement('canvas');
-        canvas.width = natW;
-        canvas.height = natH;
-        try {
-          canvas.getContext('2d').drawImage(imgEl, 0, 0);
-          // 检测透明通道：有 alpha 像素用 PNG 保留透明度，否则用 JPEG 减小体积
-          const hasAlpha = canvasHasAlpha(canvas);
-          e.src = canvasToDataUrl(canvas, hasAlpha);
-          e.naturalWidth = natW;
-          e.naturalHeight = natH;
-          e._srcCanvas = canvas;
-          e._srcFormat = hasAlpha ? 'PNG' : 'JPEG';
-        } catch (err) {
-          console.warn(
-            '[htmlpdf] preloadImages: canvas.drawImage failed:',
-            err,
-          );
-        }
+          // 将 base64 解码为 canvas，供渲染层做跨页裁切
+          return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              canvas.width = result.w;
+              canvas.height = result.h;
+              canvas.getContext('2d').drawImage(img, 0, 0);
+              e.src = result.src;
+              e.naturalWidth = result.w;
+              e.naturalHeight = result.h;
+              e._srcCanvas = canvas;
+              e._srcFormat = result.format;
+              resolve(null);
+            };
+            img.onerror = () => resolve(null);
+            img.src = result.src; // base64，同域，不会 tainted
+          });
+        });
       }
 
       // CANVAS 标签：cloneNode 不复制像素，_el 指向原始 DOM canvas。
