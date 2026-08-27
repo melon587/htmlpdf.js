@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-08-27
+
+### 🐛 Bug Fixes
+
+#### Cross-Origin Image Rendering (canvas tainted)
+
+- **Fixed cross-origin `<img>` elements being silently dropped from the PDF** - Images served from a different origin (e.g. OSS / CDN) were previously drawn from the iframe's already-loaded `imgEl` directly into a canvas. Because that element was loaded without `crossOrigin="anonymous"`, the canvas became tainted and `toDataURL()` threw a `SecurityError`, leaving the node with no image data and nothing rendered in the PDF.
+  - Fix: `preloadImages` now re-fetches each `<img>` URL via `loadImageAsBase64` (which sets `crossOrigin = "anonymous"`), converts the result to base64, then decodes it back into a clean canvas for cropping. The canvas is never tainted because the source is a same-origin data URL.
+  - Prerequisite: the image server must return `Access-Control-Allow-Origin` response headers. If it does not, a `console.warn` is emitted and the image is skipped (same behavior as before, but now explicit).
+
+#### Document Cloning Failure When Font Load is Blocked by CSP
+
+- **Fixed `Failed to create cloned document: A network error occurred` crash** - `injectFontsToDocument` called `iframeDoc.fonts.load()` to force-load fonts for accurate layout measurement. When the browser's CSP blocked the font fetch inside the iframe, `fonts.load()` rejected and the unhandled rejection propagated up through `createClonedDocument`, aborting the entire PDF generation with a misleading error.
+  - Fix: each `fonts.load()` call now has a `.catch()` that emits a `console.warn` and continues. Font loading failure is non-fatal — it only affects layout measurement accuracy, not PDF output correctness.
+
+### 📦 Migration Guide
+
+No breaking changes — this release is fully backward compatible with v1.0.6.
+
+---
+
 ## [1.0.6] - 2026-08-17
 
 ### ✨ Features
@@ -400,6 +421,7 @@ Built with:
 
 ---
 
+[1.0.7]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.7
 [1.0.6]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.6
 [1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
 [1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4

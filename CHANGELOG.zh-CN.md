@@ -4,6 +4,27 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [1.0.7] - 2026-08-27
+
+### 🐛 Bug 修复
+
+#### 跨域图片渲染（canvas tainted）
+
+- **修复跨域 `<img>` 图片在 PDF 中无法渲染的问题** - 来自不同域（如 OSS / CDN）的图片，之前直接把 iframe 内已加载的 `imgEl` 绘制到 canvas，由于该元素加载时没有携带 `crossOrigin="anonymous"`，canvas 被污染后调用 `toDataURL()` 抛出 `SecurityError`，导致节点图片数据丢失，PDF 中该图片位置为空白。
+  - 修复方案：`preloadImages` 现在通过 `loadImageAsBase64`（内部设置 `crossOrigin = "anonymous"`）重新请求每个 `<img>` URL，将结果转为 base64 后再解码到干净的 canvas 供裁切使用。由于源数据是同域的 data URL，canvas 不会被污染。
+  - 前提条件：图片服务端必须返回 `Access-Control-Allow-Origin` 响应头。若未配置，会输出 `console.warn` 并跳过该图片（行为与修复前一致，但现在有明确提示）。
+
+#### CSP 拦截字体加载导致文档克隆失败
+
+- **修复 `Failed to create cloned document: A network error occurred` 崩溃** - `injectFontsToDocument` 调用 `iframeDoc.fonts.load()` 强制加载字体以确保布局测量精度。当浏览器 CSP 拦截了 iframe 内的字体请求时，`fonts.load()` 会 reject，未处理的异常一路向上穿透 `createClonedDocument`，导致整个 PDF 生成过程以一个误导性的错误信息中止。
+  - 修复方案：每个 `fonts.load()` 调用都加了 `.catch()`，失败时输出 `console.warn` 并继续执行。字体加载失败属于非致命错误——仅影响布局测量精度，不影响 PDF 输出结果。
+
+### 📦 迁移指南
+
+无破坏性变更 - 此版本与 v1.0.6 完全向后兼容。
+
+---
+
 ## [1.0.6] - 2026-08-17
 
 ### ✨ 新功能
@@ -400,6 +421,7 @@ htmlpdf(element, {
 
 ---
 
+[1.0.7]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.7
 [1.0.6]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.6
 [1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
 [1.0.4]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.4
