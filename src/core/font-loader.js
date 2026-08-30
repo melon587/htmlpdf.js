@@ -70,6 +70,27 @@ export async function loadFontsToJsPDF(ctx, fonts) {
       const fontBase64 = await getFontBase64(config);
 
       if (fontBase64) {
+        const style = config.fontStyle;
+        const validStyles = ['normal', 'italic', undefined, null, ''];
+        if (!validStyles.includes(style)) {
+          console.warn(
+            `[htmlpdf] Invalid fontStyle "${style}" for font "${config.fontFamily}". ` +
+              `fontStyle only accepts "normal" or "italic". ` +
+              `To set font weight, use fontWeight instead (e.g. fontWeight: 700).`,
+          );
+        }
+
+        const weight = config.fontWeight;
+        const validWeights = [400, 700, 'normal', 'bold', undefined, null, ''];
+        if (!validWeights.includes(weight)) {
+          console.warn(
+            `[htmlpdf] Unsupported fontWeight "${weight}" for font "${config.fontFamily}". ` +
+              `jsPDF only recognizes 400/"normal" and 700/"bold". ` +
+              `Other values (e.g. 600) will register as a non-standard variant and likely fall back to the default font. ` +
+              `Use fontWeight: 700 for bold, or 400 for normal.`,
+          );
+        }
+
         doc.addFileToVFS(`${config.fontFamily}.ttf`, fontBase64);
         doc.addFont(
           `${config.fontFamily}.ttf`,
