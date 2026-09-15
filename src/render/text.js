@@ -397,6 +397,69 @@ export function drawSegmentAligned({
 }
 
 /**
+ * 绘制 text-decoration 线（underline / line-through）
+ * 在文本渲染完成后调用，使用已测量的文本总宽度。
+ *
+ * @param {Object} opts
+ * @param {Object} opts.doc         - jsPDF 实例
+ * @param {string} opts.decoration  - CSS textDecoration 值
+ * @param {string} opts.color       - CSS color 值（与文字同色）
+ * @param {number} opts.x           - 文本左边缘 x（mm）
+ * @param {number} opts.y           - 文本中线 y（mm，baseline:'middle'）
+ * @param {number} opts.totalWidth  - 文本总宽（mm）
+ * @param {number} opts.fontSize    - 字号（px）
+ * @param {Object} opts.ctx         - 渲染上下文（含 toPt）
+ */
+function drawTextDecoration({
+  doc,
+  decoration,
+  color,
+  x,
+  y,
+  totalWidth,
+  fontSize,
+}) {
+  if (!decoration || decoration === 'none') return;
+
+  const hasUnderline = decoration.includes('underline');
+  const hasLineThrough = decoration.includes('line-through');
+  if (!hasUnderline && !hasLineThrough) return;
+
+  const rgb = parseColor(color);
+  if (rgb) doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+  else doc.setDrawColor(0, 0, 0);
+
+  // 线宽约为字号的 5%（pt 转 mm：1pt ≈ 0.353mm）
+  const lineWidthMM = fontSize * 0.05 * 0.353;
+  doc.setLineWidth(lineWidthMM);
+
+  // 字号 mm（1px ≈ 0.264mm，用于偏移计算）
+  const fontSizeMM = fontSize * 0.264;
+
+  if (hasUnderline) {
+    // 下划线：基线以下约 10% 字号
+    const uy = y + fontSizeMM * 0.4;
+    doc.line(x, uy, x + totalWidth, uy);
+  }
+
+  if (hasLineThrough) {
+    // 删除线：中线（y 已是 middle baseline）
+    doc.line(x, y, x + totalWidth, y);
+  }
+}
+
+/**
+ * 计算文本左边缘 x（mm），供装饰线使用（统一为左边缘）
+ */
+function resolveDecorationX(x, totalWidth, textAlign) {
+  if (textAlign === 'right') return x - totalWidth;
+
+  if (textAlign === 'center') return x - totalWidth / 2;
+
+  return x;
+}
+
+/**
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
  * 渲染路径：
@@ -443,17 +506,31 @@ export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
       textAlign,
       rtlOptions: isRTL ? rtlOptions : undefined,
     });
-
-    return;
+  } else {
+    drawMultiSegmentAligned({
+      segments,
+      textAlign,
+      x,
+      y,
+      fontStyle,
+      ctx,
+      rtlOptions: isRTL ? rtlOptions : undefined,
+    });
   }
 
-  drawMultiSegmentAligned({
-    segments,
-    textAlign,
-    x,
-    y,
-    fontStyle,
-    ctx,
-    rtlOptions: isRTL ? rtlOptions : undefined,
-  });
+  // ── text-decoration（下划线 / 删除线）────────────────────────────────────────
+  if (style.textDecoration && style.textDecoration !== 'none') {
+    const widths = measureSegmentWidths(segments, fontStyle, ctx);
+    const totalWidth = widths.reduce((sum, w) => sum + w, 0);
+    const decorX = resolveDecorationX(x, totalWidth, textAlign);
+    drawTextDecoration({
+      doc,
+      decoration: style.textDecoration,
+      color: style.color,
+      x: decorX,
+      y,
+      totalWidth,
+      fontSize,
+    });
+  }
 }
