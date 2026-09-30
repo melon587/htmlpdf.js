@@ -1,5 +1,3 @@
-import { isVisible, getPageBreak } from '../utils';
-
 /**
  * @file node-parser.js
  * DOM → 扁平节点列表解析模块
@@ -42,6 +40,8 @@ import { isVisible, getPageBreak } from '../utils';
  * 所有坐标相对于克隆根元素左上角，单位 px。
  * 文本规范化：`raw.replace(/\s+/g, ' ').trim()` 确保 PDF 渲染和浏览器显示一致。
  */
+
+import { isVisible, getPageBreak } from '../utils';
 
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD']);
 
@@ -468,18 +468,18 @@ function parseElement({
       textAlign: style.textAlign,
       lineHeight: style.lineHeight,
       textDecoration: style.textDecoration,
-      borderTopWidth: borderTopWidth,
-      borderRightWidth: borderRightWidth,
-      borderBottomWidth: borderBottomWidth,
-      borderLeftWidth: borderLeftWidth,
-      borderTopColor: borderTopColor,
-      borderRightColor: borderRightColor,
-      borderBottomColor: borderBottomColor,
-      borderLeftColor: borderLeftColor,
-      borderTopStyle: borderTopStyle,
-      borderRightStyle: borderRightStyle,
-      borderBottomStyle: borderBottomStyle,
-      borderLeftStyle: borderLeftStyle,
+      borderTopWidth,
+      borderRightWidth,
+      borderBottomWidth,
+      borderLeftWidth,
+      borderTopColor,
+      borderRightColor,
+      borderBottomColor,
+      borderLeftColor,
+      borderTopStyle,
+      borderRightStyle,
+      borderBottomStyle,
+      borderLeftStyle,
       borderTopLeftRadius: style.borderTopLeftRadius,
       borderTopRightRadius: style.borderTopRightRadius,
       borderBottomLeftRadius: style.borderBottomLeftRadius,
@@ -499,6 +499,17 @@ function parseElement({
  * 关键：Range 的 setStart/setEnd 下标必须对应 textNode 的原始文本（raw），
  * 而不是规范化后的文本，否则下标错位导致坐标测量偏差。
  * 每行字符收集后再做一次 white-space 规范化，与浏览器渲染行为一致。
+ *
+ * @param {object} opts
+ * @param {Text}   opts.textNode              - 原始 DOM 文本节点（用于 Range 定位）
+ * @param {string} opts.raw                   - 文本节点原始内容（与 textNode offset 一一对应）
+ * @param {Range}  opts.docRange              - 复用的 Range 对象
+ * @param {DOMRect} opts.rootRect             - 克隆根元素 getBoundingClientRect()
+ * @param {object} opts.nodeStyle             - 父元素 computedStyle 快照
+ * @param {string|null} opts.pdfFont          - pdf-font 属性值
+ * @param {Element} opts.origParent           - 原始树父元素（用于 _origEl）
+ * @param {Array}  opts.overflowClipAncestors - overflow:hidden 祖先链
+ * @returns {Array} 文本节点列表
  */
 function processMultilineText({
   textNode,
@@ -577,7 +588,18 @@ function processMultilineText({
 
 /**
  * 解析文本节点，规范化空白字符，测量坐标
- * 关键修复：`raw.replace(/\s+/g, ' ').trim()` 移除 HTML 源码中的换行和多余空格
+ *
+ * 用 `raw.replace(/\s+/g, ' ').trim()` 折叠 HTML 源码里的多余空白，
+ * 与浏览器 white-space:normal 渲染行为保持一致。
+ *
+ * @param {object}  opts
+ * @param {Text}    opts.textNode              - 原始 DOM 文本节点
+ * @param {Element} opts.measParent            - 克隆树父元素（用于测量坐标和读取样式）
+ * @param {DOMRect} opts.rootRect              - 克隆根元素 getBoundingClientRect()
+ * @param {Window}  opts.win                   - iframe window
+ * @param {Element} opts.origParent            - 原始树父元素（用于 _origEl）
+ * @param {Array}   opts.overflowClipAncestors - overflow:hidden 祖先链
+ * @returns {Array} 文本节点列表（单行返回长度为 1 的数组，多行返回多个）
  */
 function parseTextNode({
   textNode,
@@ -592,15 +614,11 @@ function parseTextNode({
 
   const style = win.getComputedStyle(measParent);
 
-  // 🔧 修复：规范化文本，处理 HTML 源码中的换行和多余空格
-  // 浏览器的 CSS white-space 处理会将连续空白折叠为单个空格
-  // 我们需要在 PDF 渲染前也做同样的处理
+  // 规范化文本：折叠 HTML 源码里的连续空白，与浏览器 white-space:normal 行为一致
   const normalizedText = raw.replace(/\s+/g, ' ').trim();
 
-  // 读取 pdf-font 属性（已在 document-cloner.js 的 enhanceClonedDOM 中传播）
-  const pdfFont = measParent.hasAttribute('pdf-font')
-    ? measParent.getAttribute('pdf-font')
-    : null;
+  // 读取 pdf-font 属性（已在 document-cloner.js 的 enhanceCloneRoot 中传播）
+  const pdfFont = measParent.getAttribute('pdf-font');
 
   const nodeStyle = {
     color: style.color,
