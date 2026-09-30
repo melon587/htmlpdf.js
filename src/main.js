@@ -8,7 +8,7 @@
  * ├─ 3. collectNodes()              DOM → 节点树（带坐标、样式）
  * │   └─ preloadImages()            预加载图片（iframe 销毁前）
  * ├─ 4. destroyDocument()           释放 iframe
- * ├─ 5. loadFontsToJsPDF()          注册自定义字体
+ * ├─ 5. injectFontsToJsPDF()         注册自定义字体
  * ├─ 6. createRepeatHeaderManager() 建立 repeat-header 管理器
  * │   getPageBreakLinesMap()        建立 pageBreakBorder 映射
  * ├─ 7. streamPaginate()            流式分页，生成 allPlacements
@@ -25,7 +25,7 @@ import {
   collectNodes,
   preloadImages,
   destroyDocument,
-  loadFontsToJsPDF,
+  injectFontsToJsPDF,
   renderHeaderFooter,
   createRepeatHeaderManager,
   streamPaginate,
@@ -117,8 +117,8 @@ export async function htmlpdf(element, options = {}) {
   }
   tick('images', 0.4);
 
-  // 加载自定义字体到 jsPDF
-  await loadFontsToJsPDF(ctx, fonts);
+  // 注入自定义字体到 jsPDF
+  await injectFontsToJsPDF(ctx, fonts);
   tick('fonts', 0.5);
 
   // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────

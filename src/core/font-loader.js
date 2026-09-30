@@ -3,8 +3,14 @@ import { buildFontFaceRule } from '../utils';
 // 字体缓存（模块级，跨调用共享）
 const fontCache = new Map();
 
+// jsPDF 支持的合法 fontStyle / fontWeight 值
+const VALID_FONT_STYLES = ['normal', 'italic', undefined, null, ''];
+const VALID_FONT_WEIGHTS = [400, 700, 'normal', 'bold', undefined, null, ''];
+
 /**
  * 从 URL 获取字体文件并转换为 Base64（带缓存）
+ * @param {string} url - 字体文件 URL
+ * @returns {Promise<string>} Base64 编码的字体数据
  */
 export async function fetchFontAsBase64(url) {
   if (fontCache.has(url)) {
@@ -12,25 +18,25 @@ export async function fetchFontAsBase64(url) {
   }
 
   const response = await fetch(url);
-  if (!response.ok) {
+  if (response.ok) {
+    const buffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    const chunkSize = 8192;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      binary += String.fromCharCode.apply(null, chunk);
+    }
+
+    const base64 = btoa(binary);
+
+    fontCache.set(url, base64);
+
+    return base64;
+  } else {
     throw new Error(`Failed to fetch font: ${url} (${response.status})`);
   }
-
-  const buffer = await response.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-
-  const chunkSize = 8192;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode.apply(null, chunk);
-  }
-
-  const base64 = btoa(binary);
-
-  fontCache.set(url, base64);
-
-  return base64;
 }
 
 /**
@@ -54,53 +60,150 @@ async function getFontBase64(config) {
 }
 
 /**
- * 加载字体到 jsPDF
- * @param {Object} ctx - ctx实例
- * @param {Array} fonts - 字体配置数组
+ * 校验字体配置的 fontStyle 和 fontWeight，不合法时打印警告
+ * @param {Object} config - 字体配置对象
+ * @param {string} config.fontFamily - 字体名称
+ * @param {string} config.fontStyle - 字体样式
+ * @param {number|string} config.fontWeight - 字体粗细
+ * @returns {void}
  */
-export async function loadFontsToJsPDF(ctx, fonts) {
-  if (!fonts || fonts.length === 0) {
-    return;
+function warnInvalidFontConfig({ fontFamily, fontStyle, fontWeight }) {
+  if (!VALID_FONT_STYLES.includes(fontStyle)) {
+    console.warn(
+      `[htmlpdf] Invalid fontStyle "${fontStyle}" for font "${fontFamily}". ` +
+        `fontStyle only accepts "normal" or "italic". ` +
+        `To set font weight, use fontWeight instead (e.g. fontWeight: 700).`,
+    );
   }
 
-  const { doc } = ctx;
+  if (!VALID_FONT_WEIGHTS.includes(fontWeight)) {
+    console.warn(
+      `[htmlpdf] Unsupported fontWeight "${fontWeight}" for font "${fontFamily}". ` +
+        `jsPDF only recognizes 400/"normal" and 700/"bold". ` +
+        `Other values (e.g. 600) will register as a non-standard variant and likely fall back to the default font. ` +
+        `Use fontWeight: 700 for bold, or 400 for normal.`,
+    );
+  }
+}
 
-  await Promise.all(
+/**
+ * 将单个字体注册到 jsPDF 实例
+ * @param {Object} doc - jsPDF 实例
+ * @param {Object} config - 字体配置对象
+ * @param {string} fontBase64 - Base64 编码的字体数据
+ * @returns {void}
+ */
+function registerFontToJsPDF(doc, config, fontBase64) {
+  const { fontFamily, fontStyle, fontWeight } = config;
+  doc.addFileToVFS(`${fontFamily}.ttf`, fontBase64);
+  doc.addFont(`${fontFamily}.ttf`, fontFamily, fontStyle, fontWeight);
+}
+
+/**
+ * 注入单个字体配置到 jsPDF 实例（校验 + 注册）
+ * @param {Object} doc - jsPDF 实例
+ * @param {Object} config - 字体配置对象
+ * @returns {Promise<void>}
+ */
+async function injectOneFontToJsPDF(doc, config) {
+  const fontBase64 = await getFontBase64(config);
+
+  if (fontBase64) {
+    warnInvalidFontConfig(config);
+    registerFontToJsPDF(doc, config, fontBase64);
+  }
+}
+
+/**
+ * 注入字体配置数组到 jsPDF 实例
+ * @param {Object} ctx - Context 实例
+ * @param {Array} fonts - 字体配置数组
+ * @returns {Promise<void>}
+ */
+export async function injectFontsToJsPDF(ctx, fonts) {
+  if (fonts && fonts.length > 0) {
+    const { doc } = ctx;
+    await Promise.all(fonts.map((config) => injectOneFontToJsPDF(doc, config)));
+  }
+}
+
+/**
+ * 获取所有字体的 @font-face 规则，过滤掉加载失败的
+ * @param {Array} fonts - 字体配置数组
+ * @returns {Promise<string[]>} 有效的 @font-face 规则数组
+ */
+async function buildFontFaceRules(fonts) {
+  const allRules = await Promise.all(
     fonts.map(async (config) => {
-      const fontBase64 = await getFontBase64(config);
+      const base64 = await getFontBase64(config);
 
-      if (fontBase64) {
-        const style = config.fontStyle;
-        const validStyles = ['normal', 'italic', undefined, null, ''];
-        if (!validStyles.includes(style)) {
-          console.warn(
-            `[htmlpdf] Invalid fontStyle "${style}" for font "${config.fontFamily}". ` +
-              `fontStyle only accepts "normal" or "italic". ` +
-              `To set font weight, use fontWeight instead (e.g. fontWeight: 700).`,
-          );
-        }
-
-        const weight = config.fontWeight;
-        const validWeights = [400, 700, 'normal', 'bold', undefined, null, ''];
-        if (!validWeights.includes(weight)) {
-          console.warn(
-            `[htmlpdf] Unsupported fontWeight "${weight}" for font "${config.fontFamily}". ` +
-              `jsPDF only recognizes 400/"normal" and 700/"bold". ` +
-              `Other values (e.g. 600) will register as a non-standard variant and likely fall back to the default font. ` +
-              `Use fontWeight: 700 for bold, or 400 for normal.`,
-          );
-        }
-
-        doc.addFileToVFS(`${config.fontFamily}.ttf`, fontBase64);
-        doc.addFont(
-          `${config.fontFamily}.ttf`,
-          config.fontFamily,
-          config.fontStyle,
-          config.fontWeight,
-        );
-      }
+      return base64 ? buildFontFaceRule(config, base64) : null;
     }),
   );
+
+  return allRules.filter(Boolean);
+}
+
+/**
+ * 将 @font-face 规则注入 iframe 文档的 <head>
+ * @param {Document} iframeDoc - iframe 的 document
+ * @param {string[]} rules - @font-face 规则数组
+ * @returns {void}
+ */
+function injectFontFaceStyle(iframeDoc, rules) {
+  const styleEl = iframeDoc.createElement('style');
+  styleEl.setAttribute('data-htmlpdf-fonts', '1');
+  styleEl.textContent = rules.join('\n');
+  iframeDoc.head.appendChild(styleEl);
+}
+
+/**
+ * 强制触发单个字体在 iframe 内加载，CSP 拦截时降级跳过
+ * @param {Document} iframeDoc - iframe 的 document
+ * @param {Object} config - 字体配置对象
+ * @returns {Promise<void>}
+ */
+function loadOneFontInDocument(iframeDoc, config) {
+  return iframeDoc.fonts
+    .load(`${config.fontWeight || 400} 16px '${config.fontFamily}'`)
+    .catch((err) => {
+      console.warn(
+        `[htmlpdf] fonts.load failed for '${config.fontFamily}', skipping:`,
+        err,
+      );
+    });
+}
+
+/**
+ * 强制触发 iframe 内所有字体加载并等待完成
+ * unicode-range 字体是懒加载的——fonts.ready 在字体未被使用时会立即 resolve，
+ * 必须用 fonts.load() 强制加载，确保 getClientRects() 使用正确的字体 metrics。
+ * @param {Document} iframeDoc - iframe 的 document
+ * @param {Array} fonts - 字体配置数组
+ * @returns {Promise<void>}
+ */
+async function waitForFontsLoad(iframeDoc, fonts) {
+  if (iframeDoc.fonts?.load) {
+    await Promise.all(
+      fonts.map((config) => loadOneFontInDocument(iframeDoc, config)),
+    );
+  }
+}
+
+/**
+ * 将注入字体前置到 body font-family，确保测量时优先命中注入字体
+ * @param {Document} iframeDoc - iframe 的 document
+ * @param {Array} fonts - 字体配置数组
+ * @returns {void}
+ */
+function prependFontsToBody(iframeDoc, fonts) {
+  if (iframeDoc.body) {
+    const current = iframeDoc.defaultView.getComputedStyle(
+      iframeDoc.body,
+    ).fontFamily;
+    const injected = fonts.map((c) => `'${c.fontFamily}'`).join(', ');
+    iframeDoc.body.style.setProperty('font-family', `${injected}, ${current}`);
+  }
 }
 
 /**
@@ -112,59 +215,20 @@ export async function loadFontsToJsPDF(ctx, fonts) {
  * 注入完整 @font-face（含 base64 src + unicode-range），等 fonts.ready 后
  * 字体已可用于布局测量。iframe 销毁时未完成的 fetch 显示为 canceled，这是
  * 浏览器的正常清理行为，不影响功能——字体数据已通过 fontCache 缓存，
- * loadFontsToJsPDF 复用同一份 base64，不会重复 fetch。
+ * injectFontsToJsPDF 复用同一份 base64，不会重复 fetch。
  *
  * @param {Document} iframeDoc - iframe 的 document
  * @param {Array} fonts - 字体配置数组
  * @returns {Promise<void>}
  */
 export async function injectFontsToDocument(iframeDoc, fonts) {
-  if (!fonts || fonts.length === 0) return;
+  if (fonts && fonts.length > 0) {
+    const rules = await buildFontFaceRules(fonts);
 
-  // 1. 获取所有字体的 base64，过滤掉加载失败的
-  const allRules = await Promise.all(
-    fonts.map(async (config) => {
-      const base64 = await getFontBase64(config);
-
-      return base64 ? buildFontFaceRule(config, base64) : null;
-    }),
-  );
-  const rules = allRules.filter(Boolean);
-
-  if (rules.length === 0) return;
-
-  // 2. 注入 @font-face 样式到 iframe
-  const styleEl = iframeDoc.createElement('style');
-  styleEl.setAttribute('data-htmlpdf-fonts', '1');
-  styleEl.textContent = rules.join('\n');
-  iframeDoc.head.appendChild(styleEl);
-
-  // 3. 主动触发字体加载并等待完成
-  // unicode-range 字体是懒加载的——fonts.ready 在字体未被使用时会立即 resolve，
-  // 必须用 fonts.load() 强制加载，确保 getClientRects() 使用正确的字体 metrics。
-  // 注意：iframe 内的 fonts.load() 会重新发起网络请求，若被 CSP 拦截会 reject，
-  // 此处吞掉错误以防中断整个 PDF 生成流程（字体加载失败只是降级，不是致命错误）。
-  if (iframeDoc.fonts?.load) {
-    await Promise.all(
-      fonts.map((c) =>
-        iframeDoc.fonts
-          .load(`${c.fontWeight || 400} 16px '${c.fontFamily}'`)
-          .catch((err) => {
-            console.warn(
-              `[htmlpdf] fonts.load failed for '${c.fontFamily}', skipping:`,
-              err,
-            );
-          }),
-      ),
-    );
-  }
-
-  // 4. 将注入字体前置到 body font-family，确保测量时优先命中注入字体
-  if (iframeDoc.body) {
-    const current = iframeDoc.defaultView.getComputedStyle(
-      iframeDoc.body,
-    ).fontFamily;
-    const injected = fonts.map((c) => `'${c.fontFamily}'`).join(', ');
-    iframeDoc.body.style.setProperty('font-family', `${injected}, ${current}`);
+    if (rules.length > 0) {
+      injectFontFaceStyle(iframeDoc, rules);
+      await waitForFontsLoad(iframeDoc, fonts);
+      prependFontsToBody(iframeDoc, fonts);
+    }
   }
 }
