@@ -151,21 +151,23 @@ async function preloadBgNode(e) {
  * @returns {Promise<void>|null}
  */
 function preloadNode(e) {
-  if (e.type !== 'element') return null;
+  if (e.type === 'element') {
+    // IMG 标签：通过 loadImageAsBase64 重新加载（带 crossOrigin=anonymous），
+    // 避免直接复用 iframe 内未带 CORS 属性的 imgEl 导致 canvas tainted 问题。
+    if (e.tag === 'IMG' && e._el?.src) {
+      return preloadImgNode(e);
+    }
 
-  // IMG 标签：通过 loadImageAsBase64 重新加载（带 crossOrigin=anonymous），
-  // 避免直接复用 iframe 内未带 CORS 属性的 imgEl 导致 canvas tainted 问题。
-  if (e.tag === 'IMG' && e._el?.src) {
-    return preloadImgNode(e);
+    // CANVAS 标签：cloneNode 不复制像素，_el 指向原始 DOM canvas。
+    if (e.tag === 'CANVAS' && e._el) {
+      preloadCanvasNode(e);
+    }
+
+    // background-image url → base64 + 原始尺寸
+    return preloadBgNode(e);
   }
 
-  // CANVAS 标签：cloneNode 不复制像素，_el 指向原始 DOM canvas。
-  if (e.tag === 'CANVAS' && e._el) {
-    preloadCanvasNode(e);
-  }
-
-  // background-image url → base64 + 原始尺寸
-  return preloadBgNode(e);
+  return null;
 }
 
 /**
