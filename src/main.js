@@ -4,10 +4,10 @@
  *
  * htmlpdf(element, options)
  * ├─ 1. new Context()               初始化 jsPDF、计算页面尺寸
- * ├─ 2. createClonedDocument()      克隆 DOM 到 iframe，注入字体
+ * ├─ 2. cloneDocument()            克隆 DOM 到 iframe，注入字体
  * ├─ 3. collectNodes()              DOM → 节点树（带坐标、样式）
  * │   └─ preloadImages()            预加载图片（iframe 销毁前）
- * ├─ 4. destroyClonedDocument()     释放 iframe
+ * ├─ 4. destroyDocument()           释放 iframe
  * ├─ 5. loadFontsToJsPDF()          注册自定义字体
  * ├─ 6. createRepeatHeaderManager() 建立 repeat-header 管理器
  * │   getPageBreakLinesMap()        建立 pageBreakBorder 映射
@@ -21,10 +21,10 @@
 
 import {
   Context,
-  createClonedDocument,
+  cloneDocument,
   collectNodes,
   preloadImages,
-  destroyClonedDocument,
+  destroyDocument,
   loadFontsToJsPDF,
   renderHeaderFooter,
   createRepeatHeaderManager,
@@ -100,12 +100,12 @@ export async function htmlpdf(element, options = {}) {
 
   const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
 
-  // 初始化jsPDF上下文 用于调用api
+  // 初始化 jsPDF 上下文
   const ctx = new Context(element, options);
   const { doc, toMM } = ctx;
 
   // 克隆目标元素（传入 fonts，注入字体到克隆文档）
-  const { iframe, cloneRoot } = await createClonedDocument(element, fonts);
+  const { iframe, cloneRoot } = await cloneDocument(element, fonts);
   tick('clone', 0.2);
 
   let nodes;
@@ -113,11 +113,11 @@ export async function htmlpdf(element, options = {}) {
     nodes = collectNodes(element, cloneRoot);
     await preloadImages(nodes); // 在 iframe 销毁前预加载图片
   } finally {
-    destroyClonedDocument(iframe);
+    destroyDocument(iframe);
   }
   tick('images', 0.4);
 
-  // 加载自定义字体到 jsPDF 用于渲染pdf时可以选择对应的字体
+  // 加载自定义字体到 jsPDF
   await loadFontsToJsPDF(ctx, fonts);
   tick('fonts', 0.5);
 
