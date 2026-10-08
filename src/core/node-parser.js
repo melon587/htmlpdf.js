@@ -554,7 +554,13 @@ function processMultilineText({
     // 查找该字符属于哪一行（通过 Y 坐标判断，容差 2px）
     let lineGroup = lineGroups.find((g) => Math.abs(g.top - charRect.top) < 2);
 
-    if (!lineGroup) {
+    if (lineGroup) {
+      // 扩展该行的边界矩形
+      lineGroup.left = Math.min(lineGroup.left, charRect.left);
+      lineGroup.right = Math.max(lineGroup.right, charRect.right);
+      lineGroup.bottom = Math.max(lineGroup.bottom, charRect.bottom);
+      lineGroup.height = Math.max(lineGroup.height, charRect.height);
+    } else {
       lineGroup = {
         top: charRect.top,
         left: charRect.left,
@@ -564,12 +570,6 @@ function processMultilineText({
         chars: [],
       };
       lineGroups.push(lineGroup);
-    } else {
-      // 扩展该行的边界矩形
-      lineGroup.left = Math.min(lineGroup.left, charRect.left);
-      lineGroup.right = Math.max(lineGroup.right, charRect.right);
-      lineGroup.bottom = Math.max(lineGroup.bottom, charRect.bottom);
-      lineGroup.height = Math.max(lineGroup.height, charRect.height);
     }
 
     lineGroup.chars.push(raw[charIdx]);
