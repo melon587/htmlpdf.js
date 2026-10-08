@@ -19,9 +19,11 @@ import { matchesSelector } from '../utils';
  * @param {Object} entry - { node, offsetYpx, exitAtPx }
  */
 function addLine(linesByPage, page, entry) {
-  if (!linesByPage.has(page)) linesByPage.set(page, []);
-
-  linesByPage.get(page).push(entry);
+  if (linesByPage.has(page)) {
+    linesByPage.get(page).push(entry);
+  } else {
+    linesByPage.set(page, [entry]);
+  }
 }
 
 /**
@@ -83,10 +85,13 @@ export function collectPageBreakLines({
     if (pageBreakBorderMap.has(node)) {
       // 这是表格容器节点，初始化 Map 条目
       // _origEl 为 null 时跳过，避免 undefined 成为 Map key 导致所有表共享列表
-      if (node._origEl && !trNodesByTable.has(node._origEl))
+      if (node._origEl && !trNodesByTable.has(node._origEl)) {
         trNodesByTable.set(node._origEl, []);
+      }
 
-      if (!placementsByTable.has(node)) placementsByTable.set(node, []);
+      if (!placementsByTable.has(node)) {
+        placementsByTable.set(node, []);
+      }
     }
 
     // 如果是 TR，从其 _origEl 向上查找第一个在 trNodesByTable 中的祖先容器
@@ -128,18 +133,20 @@ export function collectPageBreakLines({
 
       // 最后一页：表格底部在当前页内 → 不需要出口线
       const nodeBottomPx = tableNode.y + tableNode.height;
-      if (nodeBottomPx <= pageBottomGlobal) continue;
+      const tableExceedsPage = nodeBottomPx > pageBottomGlobal;
 
-      // 找最后一个完整 TR 的底部，作为出口线位置
-      const lastTrBottomPx = findLastTrBottomPx(
-        trNodes,
-        pageTopGlobal,
-        pageBottomGlobal,
-      );
-      const exitAtPx =
-        lastTrBottomPx !== null ? lastTrBottomPx : pageBottomGlobal;
+      if (tableExceedsPage) {
+        // 找最后一个完整 TR 的底部，作为出口线位置
+        const lastTrBottomPx = findLastTrBottomPx(
+          trNodes,
+          pageTopGlobal,
+          pageBottomGlobal,
+        );
+        const exitAtPx =
+          lastTrBottomPx !== null ? lastTrBottomPx : pageBottomGlobal;
 
-      addLine(linesByPage, pageNum, { node: tableNode, offsetYpx, exitAtPx });
+        addLine(linesByPage, pageNum, { node: tableNode, offsetYpx, exitAtPx });
+      }
     }
   }
 
