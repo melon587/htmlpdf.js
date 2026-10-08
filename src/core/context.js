@@ -18,7 +18,7 @@ const PX_TO_MM = 25.4 / 96;
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render: fn }
  * @returns {object} 渲染上下文对象
  */
-export function Context(rootElement, options = {}) {
+export function initContext(rootElement, options = {}) {
   const {
     format = 'a4',
     orientation = 'portrait',

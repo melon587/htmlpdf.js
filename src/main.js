@@ -3,7 +3,7 @@
  * htmlpdf 主入口：HTML → PDF 转换流程编排
  *
  * htmlpdf(element, options)
- * ├─ 1. new Context()               初始化 jsPDF、计算页面尺寸
+ * ├─ 1. initContext()              初始化 jsPDF、计算页面尺寸
  * ├─ 2. cloneDocument()            克隆 DOM 到 iframe，注入字体
  * ├─ 3. parseNodes()                DOM → 节点树（带坐标、样式）
  * │   └─ preloadImages()            预加载图片（iframe 销毁前）
@@ -20,7 +20,7 @@
  */
 
 import {
-  Context,
+  initContext,
   cloneDocument,
   parseNodes,
   preloadImages,
@@ -101,7 +101,7 @@ export async function htmlpdf(element, options = {}) {
   const { output = 'blob', fonts = [], header, footer, tables = [] } = options;
 
   // 初始化 jsPDF 上下文
-  const ctx = new Context(element, options);
+  const ctx = initContext(element, options);
   const { doc, toMM } = ctx;
 
   // 克隆目标元素（传入 fonts，注入字体到克隆文档）
