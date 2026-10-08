@@ -80,7 +80,7 @@ export const TABLE_TAGS = new Set([
  *
  * @param {Element} cloneRoot - iframe 内的克隆根元素
  * @param {Window}  win       - 测量窗口
- * @returns {{ tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap }}
+ * @returns {{ tableCollapseMap, tableAllCells, cellRectMap, cellStyleMap, cellTableMap }}
  */
 function buildTableCache(cloneRoot, win) {
   const tableCollapseMap = new WeakMap();
@@ -120,6 +120,10 @@ function buildTableCache(cloneRoot, win) {
 
 /**
  * 检测 td/th 是否处于 border-collapse 表格中（O(1) WeakMap 查询）。
+ *
+ * @param {Element} cellEl     - td 或 th 元素（克隆树）
+ * @param {object}  tableCache - buildTableCache() 返回的缓存
+ * @returns {boolean} 是否处于 border-collapse 表格中
  */
 function isCollapseTable(cellEl, tableCache) {
   const tableEl = tableCache.cellTableMap.get(cellEl);
@@ -374,6 +378,9 @@ function shouldCollectAsClipAncestor(el, computedStyle) {
  * @param {CSSStyleDeclaration} s       - 该元素的 getComputedStyle 结果
  * @param {DOMRect}            r        - 该元素的 getBoundingClientRect 结果
  * @param {DOMRect}            rootRect - 根元素 bounding rect（坐标原点）
+ * @returns {{ x, y, width, height, borderTopWidth, borderRightWidth, borderBottomWidth,
+ *             borderLeftWidth, borderTopLeftRadius, borderTopRightRadius,
+ *             borderBottomRightRadius, borderBottomLeftRadius }} clip 祖先 entry
  */
 function makeClipEntry(s, r, rootRect) {
   return {
@@ -625,72 +632,75 @@ function parseTextNode({
   overflowClipAncestors,
 }) {
   const raw = textNode.textContent;
-  if (!raw || !raw.trim()) return [];
 
-  const style = win.getComputedStyle(measParent);
+  if (raw && raw.trim()) {
+    const style = win.getComputedStyle(measParent);
 
-  // 规范化文本：折叠 HTML 源码里的连续空白，与浏览器 white-space:normal 行为一致
-  const normalizedText = raw.replace(/\s+/g, ' ').trim();
+    // 规范化文本：折叠 HTML 源码里的连续空白，与浏览器 white-space:normal 行为一致
+    const normalizedText = raw.replace(/\s+/g, ' ').trim();
 
-  // 读取 pdf-font 属性（已在 document-cloner.js 的 enhanceCloneRoot 中传播）
-  const pdfFont = measParent.getAttribute('pdf-font');
+    // 读取 pdf-font 属性（已在 document-cloner.js 的 enhanceCloneRoot 中传播）
+    const pdfFont = measParent.getAttribute('pdf-font');
 
-  const nodeStyle = {
-    color: style.color,
-    fontSize: style.fontSize,
-    fontFamily: style.fontFamily,
-    fontWeight: style.fontWeight,
-    fontStyle: style.fontStyle,
-    textAlign: style.textAlign,
-    lineHeight: style.lineHeight,
-    textDecoration: style.textDecoration,
-    direction: style.direction,
-    opacity: style.opacity,
-  };
+    const nodeStyle = {
+      color: style.color,
+      fontSize: style.fontSize,
+      fontFamily: style.fontFamily,
+      fontWeight: style.fontWeight,
+      fontStyle: style.fontStyle,
+      textAlign: style.textAlign,
+      lineHeight: style.lineHeight,
+      textDecoration: style.textDecoration,
+      direction: style.direction,
+      opacity: style.opacity,
+    };
 
-  const docRange = win.document.createRange();
+    const docRange = win.document.createRange();
 
-  // 测量整个文本节点的坐标
-  docRange.setStart(textNode, 0);
-  docRange.setEnd(textNode, raw.length);
-  const rects = docRange.getClientRects();
+    // 测量整个文本节点的坐标
+    docRange.setStart(textNode, 0);
+    docRange.setEnd(textNode, raw.length);
+    const rects = docRange.getClientRects();
 
-  if (!rects || rects.length === 0) return [];
+    if (rects && rects.length > 0) {
+      // 多行文本处理：当文本换行时，getClientRects() 返回多个 rect
+      // 需要逐字符分析，确定每个字符属于哪一行
+      if (rects.length > 1) {
+        return processMultilineText({
+          textNode,
+          raw, // 原始文本：用于 Range 下标（必须与 textNode offset 一一对应）
+          docRange,
+          rootRect,
+          nodeStyle,
+          pdfFont,
+          origParent,
+          overflowClipAncestors,
+        });
+      }
 
-  // 多行文本处理：当文本换行时，getClientRects() 返回多个 rect
-  // 需要逐字符分析，确定每个字符属于哪一行
-  if (rects.length > 1) {
-    return processMultilineText({
-      textNode,
-      raw, // 原始文本：用于 Range 下标（必须与 textNode offset 一一对应）
-      docRange,
-      rootRect,
-      nodeStyle,
-      pdfFont,
-      origParent,
-      overflowClipAncestors,
-    });
+      // 单行文本：直接使用第一个 rect
+      const r = rects[0];
+      if (r.width > 0 && r.height > 0) {
+        return [
+          {
+            type: 'text',
+            tag: '#text',
+            text: normalizedText,
+            x: r.left - rootRect.left,
+            y: r.top - rootRect.top,
+            width: r.width,
+            height: r.height,
+            style: nodeStyle,
+            pdfFont,
+            _origEl: origParent,
+            overflowClipAncestors,
+          },
+        ];
+      }
+    }
   }
 
-  // 单行文本：直接使用第一个 rect
-  const r = rects[0];
-  if (r.width === 0 || r.height === 0) return [];
-
-  return [
-    {
-      type: 'text',
-      tag: '#text',
-      text: normalizedText,
-      x: r.left - rootRect.left,
-      y: r.top - rootRect.top,
-      width: r.width,
-      height: r.height,
-      style: nodeStyle,
-      pdfFont,
-      _origEl: origParent,
-      overflowClipAncestors,
-    },
-  ];
+  return [];
 }
 
 /**
