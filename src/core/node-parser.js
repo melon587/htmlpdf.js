@@ -217,7 +217,7 @@ function getPrevRowCellBorderBottom({
 
 /**
  * 针对 border-collapse 表格中的 td/th，计算需要覆盖的 border 值。
- * 非 td/th、伪元素、或非 collapse 表格时返回 null（不覆盖）。
+ * 非 collapse 单元格时返回 null（不覆盖）。
  *
  * 去重策略（避免相邻单元格把共享边画两次导致线变粗）：
  *
@@ -273,6 +273,36 @@ function resolveCellBorderOverrides({
 }
 
 /**
+ * 根据 border-collapse 覆盖结果和 computedStyle，计算四条边的 border 属性。
+ *
+ * @param {CSSStyleDeclaration} style          - 元素的 getComputedStyle 结果
+ * @param {{ top, left } | null} borderOverrides - resolveCellBorderOverrides() 返回值
+ * @returns {{ borderTopWidth, borderTopColor, borderTopStyle,
+ *             borderRightWidth, borderRightColor, borderRightStyle,
+ *             borderBottomWidth, borderBottomColor, borderBottomStyle,
+ *             borderLeftWidth, borderLeftColor, borderLeftStyle }}
+ */
+function resolveBorderStyle(style, borderOverrides) {
+  const bTop = borderOverrides?.top;
+  const bLeft = borderOverrides?.left;
+
+  return {
+    borderTopWidth: bTop ? bTop.width : style.borderTopWidth,
+    borderTopColor: bTop ? bTop.color : style.borderTopColor,
+    borderTopStyle: bTop ? bTop.style : style.borderTopStyle,
+    borderRightWidth: style.borderRightWidth,
+    borderRightColor: style.borderRightColor,
+    borderRightStyle: style.borderRightStyle,
+    borderBottomWidth: style.borderBottomWidth,
+    borderBottomColor: style.borderBottomColor,
+    borderBottomStyle: style.borderBottomStyle,
+    borderLeftWidth: bLeft ? bLeft.width : style.borderLeftWidth,
+    borderLeftColor: bLeft ? bLeft.color : style.borderLeftColor,
+    borderLeftStyle: bLeft ? bLeft.style : style.borderLeftStyle,
+  };
+}
+
+/**
  * 计算 TR 节点的 rowSpanChildMaxHeight：
  * TR 内含 rowspan>1 的 TD/TH 时，取这些格子高度的最大值；
  * 非 TR 或伪元素时返回 0。
@@ -295,9 +325,18 @@ function calcRowSpanChildMaxHeight(tag, isPseudo, measEl, cellRectMap) {
 /**
  * 读取 TD/TH 的 rowSpan 属性并缓存，避免 iframe 销毁后依赖活 DOM 引用。
  * 非 TD/TH 或伪元素时返回 1。
+ *
+ * @param {string}       tag      - 标签名
+ * @param {boolean}      isPseudo - 是否为物化伪元素
+ * @param {Element|null} origEl   - 原始 DOM 元素
+ * @returns {number} rowSpan 值（最小为 1）
  */
 function getCellRowSpan(tag, isPseudo, origEl) {
-  return CELL_TAGS.has(tag) && !isPseudo ? origEl?.rowSpan || 1 : 1;
+  if (CELL_TAGS.has(tag) && !isPseudo) {
+    return origEl?.rowSpan || 1;
+  }
+
+  return 1;
 }
 
 /**
@@ -407,24 +446,7 @@ function parseElement({
     cellRect: rect,
     tableCache,
   });
-  const bTop = borderOverrides?.top;
-  const bLeft = borderOverrides?.left;
-
-  const borderTopWidth = bTop ? bTop.width : style.borderTopWidth;
-  const borderTopColor = bTop ? bTop.color : style.borderTopColor;
-  const borderTopStyle = bTop ? bTop.style : style.borderTopStyle;
-
-  const borderRightWidth = style.borderRightWidth;
-  const borderRightColor = style.borderRightColor;
-  const borderRightStyle = style.borderRightStyle;
-
-  const borderBottomWidth = style.borderBottomWidth;
-  const borderBottomColor = style.borderBottomColor;
-  const borderBottomStyle = style.borderBottomStyle;
-
-  const borderLeftWidth = bLeft ? bLeft.width : style.borderLeftWidth;
-  const borderLeftColor = bLeft ? bLeft.color : style.borderLeftColor;
-  const borderLeftStyle = bLeft ? bLeft.style : style.borderLeftStyle;
+  const borderStyle = resolveBorderStyle(style, borderOverrides);
 
   const { cellRectMap } = tableCache;
 
@@ -464,18 +486,7 @@ function parseElement({
       textAlign: style.textAlign,
       lineHeight: style.lineHeight,
       textDecoration: style.textDecoration,
-      borderTopWidth,
-      borderRightWidth,
-      borderBottomWidth,
-      borderLeftWidth,
-      borderTopColor,
-      borderRightColor,
-      borderBottomColor,
-      borderLeftColor,
-      borderTopStyle,
-      borderRightStyle,
-      borderBottomStyle,
-      borderLeftStyle,
+      ...borderStyle,
       borderTopLeftRadius: style.borderTopLeftRadius,
       borderTopRightRadius: style.borderTopRightRadius,
       borderBottomLeftRadius: style.borderBottomLeftRadius,
