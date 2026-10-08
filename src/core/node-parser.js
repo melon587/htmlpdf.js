@@ -123,9 +123,12 @@ function buildTableCache(cloneRoot, win) {
  */
 function isCollapseTable(cellEl, tableCache) {
   const tableEl = tableCache.cellTableMap.get(cellEl);
-  if (!tableEl) return false;
 
-  return tableCache.tableCollapseMap.get(tableEl) === true;
+  if (tableEl) {
+    return tableCache.tableCollapseMap.get(tableEl) === true;
+  }
+
+  return false;
 }
 
 /** 坐标容差（px）：处理亚像素对齐误差 */
@@ -167,16 +170,17 @@ function getPrevCellBorderRight({
 
   // 2. 同 TR 未找到时，在整张 table 查 rowspan 跨行格子
   const table = cellTableMap.get(cellEl);
-  if (!table) return '0px';
 
-  for (const { el, rect, brw } of tableAllCells.get(table) ?? []) {
-    if (el === cellEl) continue;
+  if (table) {
+    for (const { el, rect, brw } of tableAllCells.get(table) ?? []) {
+      if (el === cellEl) continue;
 
-    const hMatch = Math.abs(rect.right - cellRect.left) <= COORD_EPS;
-    const vCovers =
-      rect.top <= cellRect.top + COORD_EPS &&
-      rect.bottom >= cellRect.bottom - COORD_EPS;
-    if (hMatch && vCovers && brw !== '0px') return brw;
+      const hMatch = Math.abs(rect.right - cellRect.left) <= COORD_EPS;
+      const vCovers =
+        rect.top <= cellRect.top + COORD_EPS &&
+        rect.bottom >= cellRect.bottom - COORD_EPS;
+      if (hMatch && vCovers && brw !== '0px') return brw;
+    }
   }
 
   return '0px';
@@ -199,17 +203,18 @@ function getPrevRowCellBorderBottom({
   cellTableMap,
 }) {
   const table = cellTableMap.get(cellEl);
-  if (!table) return '0px';
 
-  for (const { el, rect, bbw } of tableAllCells.get(table) ?? []) {
-    if (el === cellEl) continue;
+  if (table) {
+    for (const { el, rect, bbw } of tableAllCells.get(table) ?? []) {
+      if (el === cellEl) continue;
 
-    const vMatch = Math.abs(rect.bottom - cellRect.top) <= COORD_EPS;
-    const hOverlap =
-      rect.left < cellRect.right - COORD_EPS &&
-      rect.right > cellRect.left + COORD_EPS;
+      const vMatch = Math.abs(rect.bottom - cellRect.top) <= COORD_EPS;
+      const hOverlap =
+        rect.left < cellRect.right - COORD_EPS &&
+        rect.right > cellRect.left + COORD_EPS;
 
-    if (vMatch && hOverlap && bbw !== '0px') return bbw;
+      if (vMatch && hOverlap && bbw !== '0px') return bbw;
+    }
   }
 
   return '0px';
@@ -241,35 +246,38 @@ function resolveCellBorderOverrides({
   cellRect,
   tableCache,
 }) {
-  if (!isCollapse) return null;
+  if (isCollapse) {
+    const { tableAllCells, cellRectMap, cellStyleMap, cellTableMap } =
+      tableCache;
 
-  const { tableAllCells, cellRectMap, cellStyleMap, cellTableMap } = tableCache;
+    const zero = { width: '0px', color: 'transparent', style: 'none' };
+    const shared = { cellRect, tableAllCells, cellTableMap };
 
-  const zero = { width: '0px', color: 'transparent', style: 'none' };
-  const shared = { cellRect, tableAllCells, cellTableMap };
+    // 横向：上邻有 bottom → 抑制自身 top
+    const prevBottom = getPrevRowCellBorderBottom({
+      cellEl: measEl,
+      ...shared,
+    });
+    const suppressTop = prevBottom !== '0px';
 
-  // 横向：上邻有 bottom → 抑制自身 top
-  const prevBottom = getPrevRowCellBorderBottom({
-    cellEl: measEl,
-    ...shared,
-  });
-  const suppressTop = prevBottom !== '0px';
+    // 纵向：左邻有 right → 抑制自身 left
+    const prevRight = getPrevCellBorderRight({
+      cellEl: measEl,
+      cellRectMap,
+      cellStyleMap,
+      ...shared,
+    });
+    const suppressLeft = prevRight !== '0px';
 
-  // 纵向：左邻有 right → 抑制自身 left
-  const prevRight = getPrevCellBorderRight({
-    cellEl: measEl,
-    cellRectMap,
-    cellStyleMap,
-    ...shared,
-  });
-  const suppressLeft = prevRight !== '0px';
+    if (suppressTop || suppressLeft) {
+      return {
+        top: suppressTop ? zero : null,
+        left: suppressLeft ? zero : null,
+      };
+    }
+  }
 
-  if (!suppressTop && !suppressLeft) return null;
-
-  return {
-    top: suppressTop ? zero : null,
-    left: suppressLeft ? zero : null,
-  };
+  return null;
 }
 
 /**
