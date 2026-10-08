@@ -4,12 +4,13 @@
  *
  * ## 核心流程
  *
- * collectNodes(element, cloneRoot)
- *   ├─ walk(origEl, measEl)   协同遍历原始树与克隆树
- *   │  ├─ parseElement()      元素 → {type, x, y, width, height, style, ...}
- *   │  └─ parseTextNode()     文本 → [{type, text, x, y, pdfFont, ...}]
- *   │     ├─ 规范化文本       移除 HTML 源码中的换行和多余空格
- *   │     └─ 多行处理         rects.length > 1 时逐字符分析，按行分组（top 容差 2px）
+ * parseNodes(element, cloneRoot)
+ *   ├─ initTraversal()                       初始化遍历上下文
+ *   └─ traverseNode(origEl, measEl, ctx)    协同遍历原始树与克隆树
+ *      ├─ parseElement()      元素 → {type, x, y, width, height, style, ...}
+ *      └─ parseTextNode()     文本 → [{type, text, x, y, pdfFont, ...}]
+ *         ├─ 规范化文本       移除 HTML 源码中的换行和多余空格
+ *         └─ 多行处理         rects.length > 1 时逐字符分析，按行分组（top 容差 2px）
  *
  * ## 关键设计：协同遍历（Clone-primary dual-walk）
  *
@@ -29,8 +30,8 @@
  *
  * ## 约束：克隆树与原始树子节点顺序必须一致
  *
- * walk() 用 origIndex 同步推进 origChildren。
- * document-cloner.js 注入的伪元素 span 带有 data-pseudo 属性，walk() 遇到时
+ * traverseNode() 用 origIndex 同步推进 origChildren。
+ * document-cloner.js 注入的伪元素 span 带有 data-pseudo 属性，traverseNode() 遇到时
  * 不推进 origIndex。
  * 若将来在 document-cloner.js 中新增其他注入操作，必须同样用 data-* 属性标记，
  * 否则会导致 origIndex 错位，产生 silent bug。
@@ -235,14 +236,12 @@ function getPrevRowCellBorderBottom({
  *   各方向为 { width, color, style } 覆盖对象，或 null（不抑制该方向）
  */
 function resolveCellBorderOverrides({
-  tag,
-  isPseudo,
   isCollapse,
   measEl,
   cellRect,
   tableCache,
 }) {
-  if (!CELL_TAGS.has(tag) || isPseudo || !isCollapse) return null;
+  if (!isCollapse) return null;
 
   const { tableAllCells, cellRectMap, cellStyleMap, cellTableMap } = tableCache;
 
@@ -314,7 +313,7 @@ function shouldCollectAsClipAncestor(el, computedStyle) {
   const ov = computedStyle.overflow;
   if (ov === 'hidden' || ov === 'scroll' || ov === 'auto') return true;
 
-  if (el.tagName === 'TABLE' && el.style?.overflow === 'hidden') {
+  if (el.tagName === 'TABLE' && el.style.overflow === 'hidden') {
     return true;
   }
 
@@ -323,9 +322,8 @@ function shouldCollectAsClipAncestor(el, computedStyle) {
 
 /**
  * 从当前节点的 style 和坐标构造 clip 祖先 entry。
- * 供 walk() 在遍历时增量维护 clipAncestorCache 使用。
+ * 供 traverseNode() 在遍历时增量维护 clipAncestorCache 使用。
  *
- * @param {Element}            el       - 目标元素（已知是 clip 祖先）
  * @param {CSSStyleDeclaration} s       - 该元素的 getComputedStyle 结果
  * @param {DOMRect}            r        - 该元素的 getBoundingClientRect 结果
  * @param {DOMRect}            rootRect - 根元素 bounding rect（坐标原点）
@@ -364,7 +362,7 @@ function getMediaEl(origEl, measEl) {
 /**
  * 解析元素节点，提取坐标、尺寸和样式。
  *
- * overflowClipAncestors 由调用方（walk）传入——walk 遍历时通过
+ * overflowClipAncestors 由调用方（traverseNode）传入——traverseNode 遍历时通过
  * clipAncestorCache 增量推导，避免每个节点向上重复遍历祖先链。
  *
  * @param {Element|null} origEl              - 原始 DOM 元素；伪元素传 null
@@ -404,8 +402,6 @@ function parseElement({
   // 两个方向均用坐标匹配，正确处理 colspan/rowspan。跨页安全。
   // cellRect 直接复用上方已测量的 rect，避免重复触发 layout。
   const borderOverrides = resolveCellBorderOverrides({
-    tag,
-    isPseudo,
     isCollapse: collapseCell,
     measEl,
     cellRect: rect,
@@ -577,7 +573,7 @@ function processMultilineText({
       width: group.right - group.left,
       height: group.height,
       style: nodeStyle,
-      pdfFont: pdfFont,
+      pdfFont,
       _origEl: origParent,
       overflowClipAncestors,
     });
@@ -679,11 +675,31 @@ function parseTextNode({
 }
 
 /**
- * 递归遍历 DOM 树，返回扁平化节点列表
+ * 初始化 DFS 遍历上下文。
+ *
+ * @param {Element} cloneRoot - iframe 内的克隆根元素
+ * @returns {{ measWin, rootRect, tableCache, clipAncestorCache, nodes }}
+ */
+function initTraversal(cloneRoot) {
+  const measWin = cloneRoot.ownerDocument.defaultView;
+  const rootRect = cloneRoot.getBoundingClientRect();
+  const tableCache = buildTableCache(cloneRoot, measWin);
+
+  // clipAncestorCache: measEl → 该节点的子节点所应看到的 clip 祖先数组
+  // （即：当前节点若是 clip 祖先则 prepend 自身，否则复用父节点数组）
+  const clipAncestorCache = new WeakMap();
+  // 根节点不是 clip 上下文，初始化为空数组
+  clipAncestorCache.set(cloneRoot, []);
+
+  return { measWin, rootRect, tableCache, clipAncestorCache, nodes: [] };
+}
+
+/**
+ * DFS 遍历一个节点及其子树，解析后追加到 ctx.nodes。
  *
  * ## overflow clip 祖先缓存（clipAncestorCache）
  *
- * walk 是深度优先，父节点先于子节点处理。每个节点 walk 时：
+ * traverseNode 是深度优先，父节点先于子节点处理。每个节点遍历时：
  *   1. 从父节点的 clipAncestorCache 取已有祖先数组（O(1)）
  *   2. 判断当前节点自身是否是 clip 祖先：
  *      - 是 → 把自身 entry prepend 到父节点数组，得到子节点应看到的祖先链
@@ -694,122 +710,118 @@ function parseTextNode({
  * 彻底替代原来对每个节点向上完整遍历祖先链的 O(depth) 做法。
  * getBoundingClientRect / getComputedStyle 只在实际是 clip 祖先时才调用。
  *
- * @param {Element} element   - 原始根元素
- * @param {Element} cloneRoot - iframe 内的克隆根元素（用于测量）
- * @returns {Array} 扁平化节点列表
+ * @param {Element|null} origEl - 原始 DOM 元素；物化伪元素传 null
+ * @param {Element}      measEl - iframe 内的克隆元素
+ * @param {object}       ctx    - initTraversal() 返回的遍历上下文
  */
-export function collectNodes(element, cloneRoot) {
-  const measWin = cloneRoot.ownerDocument.defaultView;
-  const rootRect = cloneRoot.getBoundingClientRect();
+function traverseNode(origEl, measEl, ctx) {
+  const { measWin, rootRect, tableCache, clipAncestorCache, nodes } = ctx;
 
-  // 预构建表格缓存：一次遍历，之后每个 TD/TH 查询均为 O(1)
-  const tableCache = buildTableCache(cloneRoot, measWin);
+  // origEl 为 null 表示物化的伪元素（原始 DOM 中不存在对应节点）
+  if (origEl && SKIP_TAGS.has(origEl.tagName)) return;
 
-  // clipAncestorCache: measEl → 该节点的子节点所应看到的 clip 祖先数组
-  // （即：当前节点若是 clip 祖先则 prepend 自身，否则复用父节点数组）
-  const clipAncestorCache = new WeakMap();
-  // 根节点不是 clip 上下文，初始化为空数组
-  clipAncestorCache.set(cloneRoot, []);
+  const style = measWin.getComputedStyle(measEl);
+  if (!isVisible(style)) return;
 
-  const nodes = [];
+  // 从父节点缓存取祖先数组（父节点保证先于当前节点遍历）
+  const parentAncestors = clipAncestorCache.get(measEl.parentElement) ?? [];
 
-  function walk(origEl, measEl) {
-    // origEl 为 null 表示物化的伪元素（原始 DOM 中不存在对应节点）
-    if (origEl && SKIP_TAGS.has(origEl.tagName)) return;
+  // 当前节点是否是 clip 祖先？是则 prepend 自身 entry（子节点需要看到它）
+  let childAncestors;
+  if (shouldCollectAsClipAncestor(measEl, style)) {
+    const r = measEl.getBoundingClientRect();
+    childAncestors = [makeClipEntry(style, r, rootRect), ...parentAncestors];
+  } else {
+    childAncestors = parentAncestors;
+  }
 
-    const style = measWin.getComputedStyle(measEl);
-    if (!isVisible(style)) return;
+  clipAncestorCache.set(measEl, childAncestors);
 
-    // 从父节点缓存取祖先数组（父节点保证先于当前节点 walk）
-    const parentAncestors = clipAncestorCache.get(measEl.parentElement) ?? [];
+  // 当前节点的 overflowClipAncestors = 父节点视角的祖先数组
+  nodes.push(
+    parseElement({
+      origEl,
+      measEl,
+      rootRect,
+      win: measWin,
+      tableCache,
+      overflowClipAncestors: parentAncestors,
+    }),
+  );
 
-    // 当前节点是否是 clip 祖先？是则 prepend 自身 entry（子节点需要看到它）
-    let childAncestors;
-    if (shouldCollectAsClipAncestor(measEl, style)) {
-      const r = measEl.getBoundingClientRect();
-      childAncestors = [makeClipEntry(style, r, rootRect), ...parentAncestors];
-    } else {
-      childAncestors = parentAncestors;
+  const measChildren = measEl.childNodes;
+  // 伪元素没有原始子节点，origChildren 为空 NodeList
+  const origChildren = origEl ? origEl.childNodes : [];
+
+  // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
+  let origIndex = 0;
+
+  // 推进 origIndex 直到遇到目标 nodeType
+  function advanceOrig(nodeType) {
+    while (
+      origIndex < origChildren.length &&
+      origChildren[origIndex].nodeType !== nodeType
+    ) {
+      origIndex += 1;
     }
+  }
 
-    clipAncestorCache.set(measEl, childAncestors);
+  // 解析文本节点并追加到 nodes
+  function pushTextNodes(measChild, origParent) {
+    const textNodes = parseTextNode({
+      textNode: measChild,
+      measParent: measEl,
+      rootRect,
+      win: measWin,
+      origParent,
+      overflowClipAncestors: childAncestors,
+    });
+    for (const n of textNodes) nodes.push(n);
+  }
 
-    // 当前节点的 overflowClipAncestors = 父节点视角的祖先数组
-    nodes.push(
-      parseElement({
-        origEl,
-        measEl,
-        rootRect,
-        win: measWin,
-        tableCache,
-        overflowClipAncestors: parentAncestors,
-      }),
-    );
+  for (let i = 0; i < measChildren.length; i += 1) {
+    const measChild = measChildren[i];
 
-    const measChildren = measEl.childNodes;
-    // 伪元素没有原始子节点，origChildren 为空 NodeList
-    const origChildren = origEl ? origEl.childNodes : [];
-
-    // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
-    let origIndex = 0;
-
-    // 推进 origIndex 直到遇到目标 nodeType
-    function advanceOrig(nodeType) {
-      while (
-        origIndex < origChildren.length &&
-        origChildren[origIndex].nodeType !== nodeType
-      ) {
-        origIndex += 1;
-      }
-    }
-
-    // 解析文本节点并追加到 nodes
-    function pushTextNodes(measChild, origParent) {
-      const textNodes = parseTextNode({
-        textNode: measChild,
-        measParent: measEl,
-        rootRect,
-        win: measWin,
-        origParent,
-        overflowClipAncestors: childAncestors,
-      });
-      for (const n of textNodes) nodes.push(n);
-    }
-
-    for (let i = 0; i < measChildren.length; i += 1) {
-      const measChild = measChildren[i];
-
-      if (measChild.nodeType === Node.ELEMENT_NODE) {
-        if (measChild.hasAttribute('data-pseudo')) {
-          // 物化的伪元素在原始 DOM 中不存在，origEl 传 null 以满足 _origEl 契约
-          // （_origEl 仅用于 contains()/matchesSelector()，伪元素不参与这两类判断）
-          walk(null, measChild);
-        } else {
-          // 普通元素：从 origChildren 中找对应节点
-          advanceOrig(Node.ELEMENT_NODE);
-          if (origIndex < origChildren.length) {
-            walk(origChildren[origIndex], measChild);
-            origIndex += 1;
-          }
+    if (measChild.nodeType === Node.ELEMENT_NODE) {
+      if (measChild.hasAttribute('data-pseudo')) {
+        // 物化的伪元素在原始 DOM 中不存在，origEl 传 null 以满足 _origEl 契约
+        // （_origEl 仅用于 contains()/matchesSelector()，伪元素不参与这两类判断）
+        traverseNode(null, measChild, ctx);
+      } else {
+        // 普通元素：从 origChildren 中找对应节点
+        advanceOrig(Node.ELEMENT_NODE);
+        if (origIndex < origChildren.length) {
+          traverseNode(origChildren[origIndex], measChild, ctx);
+          origIndex += 1;
         }
-      } else if (measChild.nodeType === Node.TEXT_NODE) {
-        if (origEl === null) {
-          // 伪元素上下文：无 origChildren，直接解析
-          // _origEl 传 null（伪元素文本不参与 contains/matchesSelector 判断）
-          pushTextNodes(measChild, null);
-        } else {
-          // 普通元素：从 origChildren 中找对应文本节点
-          advanceOrig(Node.TEXT_NODE);
-          if (origIndex < origChildren.length) {
-            pushTextNodes(measChild, origEl);
-            origIndex += 1;
-          }
+      }
+    } else if (measChild.nodeType === Node.TEXT_NODE) {
+      if (origEl === null) {
+        // 伪元素上下文：无 origChildren，直接解析
+        // _origEl 传 null（伪元素文本不参与 contains/matchesSelector 判断）
+        pushTextNodes(measChild, null);
+      } else {
+        // 普通元素：从 origChildren 中找对应文本节点
+        advanceOrig(Node.TEXT_NODE);
+        if (origIndex < origChildren.length) {
+          pushTextNodes(measChild, origEl);
+          origIndex += 1;
         }
       }
     }
   }
+}
 
-  walk(element, cloneRoot);
+/**
+ * 解析 DOM 树，返回扁平化节点列表（含坐标、样式、分页信息）。
+ *
+ * @param {Element} element   - 原始根元素
+ * @param {Element} cloneRoot - iframe 内的克隆根元素（用于测量）
+ * @returns {Array} 扁平化节点列表
+ */
+export function parseNodes(element, cloneRoot) {
+  const ctx = initTraversal(cloneRoot);
+  traverseNode(element, cloneRoot, ctx);
 
-  return nodes;
+  return ctx.nodes;
 }
