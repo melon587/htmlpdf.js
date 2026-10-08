@@ -43,11 +43,68 @@ function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
 }
 
 /**
- * 构建节点 → meta 的 WeakMap。
+ * 将单个 config 对应的所有表格节点注册到 nodeMetaMap。
+ * 遍历 nodes 找所有匹配 selector 的 tableNode，扫描其 header，
+ * 将 table 范围内全部节点映射到对应 meta。
  *
- * 在找到每个 tableNode 后，只做一次向后遍历，同时完成：
- *   1. 找 headerNode、headerChildren、firstDataTR
- *   2. 将 table 范围内所有节点映射到对应 meta（nodeMetaMap）
+ * @param {Array}   nodes       - 所有解析后的节点
+ * @param {object}  config      - 单条表格配置 { selector, repeatHeader }
+ * @param {WeakMap} nodeMetaMap - 待填充的节点 → meta 映射
+ * @returns {void}
+ */
+function registerConfigMeta(nodes, config, nodeMetaMap) {
+  const { selector, repeatHeader } = config;
+  let anyTableFound = false;
+
+  for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
+    const tableNode = nodes[tIdx];
+
+    if (matchesSelector(tableNode._origEl, selector)) {
+      anyTableFound = true;
+      const containerEl = tableNode._origEl;
+
+      const found = scanTableHeader(nodes, tIdx, containerEl, repeatHeader);
+      if (found) {
+        const meta = {
+          tableNode,
+          headerNode: found.headerNode,
+          headerChildren: found.headerChildren,
+          /**
+           * header 后的第一个数据 TR 节点。
+           * 用于 needsNewPage 中"表头 + 首行联体"判断：
+           * 若 headerHeight + firstDataTR 有效高度 > 当前页剩余，
+           * 则整个表格强推到下一页，避免孤立表头。
+           */
+          firstDataTR: found.firstDataTR,
+          headerRendered: false,
+          skipOnCurrentPage: false,
+        };
+
+        // 回填 nodeMetaMap：table 范围内所有节点 → meta
+        for (let i = tIdx + 1; i < nodes.length; i += 1) {
+          const n = nodes[i];
+          if (n._origEl && containerEl.contains(n._origEl)) {
+            nodeMetaMap.set(n, meta);
+          } else {
+            break;
+          }
+        }
+      } else {
+        console.warn(
+          `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
+        );
+      }
+    }
+  }
+
+  if (!anyTableFound) {
+    console.warn(`[repeat-header] Table container not found: ${selector}`);
+  }
+}
+
+/**
+ * 构建节点 → meta 的 WeakMap。
+ * 对每个含 repeatHeader 的 config 调用 registerConfigMeta 完成注册。
  *
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
@@ -57,55 +114,8 @@ function buildNodeMetaMap(nodes, tables) {
   const nodeMetaMap = new WeakMap();
 
   for (const config of tables) {
-    const { selector, repeatHeader } = config;
-
-    if (repeatHeader) {
-      let anyTableFound = false;
-
-      for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
-        const tableNode = nodes[tIdx];
-
-        if (matchesSelector(tableNode._origEl, selector)) {
-          anyTableFound = true;
-          const containerEl = tableNode._origEl;
-
-          const found = scanTableHeader(nodes, tIdx, containerEl, repeatHeader);
-          if (found) {
-            const meta = {
-              tableNode,
-              headerNode: found.headerNode,
-              headerChildren: found.headerChildren,
-              /**
-               * header 后的第一个数据 TR 节点。
-               * 用于 needsNewPage 中"表头 + 首行联体"判断：
-               * 若 headerHeight + firstDataTR 有效高度 > 当前页剩余，
-               * 则整个表格强推到下一页，避免孤立表头。
-               */
-              firstDataTR: found.firstDataTR,
-              headerRendered: false,
-              skipOnCurrentPage: false,
-            };
-
-            // 回填 nodeMetaMap：table 范围内所有节点 → meta
-            for (let i = tIdx + 1; i < nodes.length; i += 1) {
-              const n = nodes[i];
-              if (n._origEl && containerEl.contains(n._origEl)) {
-                nodeMetaMap.set(n, meta);
-              } else {
-                break;
-              }
-            }
-          } else {
-            console.warn(
-              `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
-            );
-          }
-        }
-      }
-
-      if (!anyTableFound) {
-        console.warn(`[repeat-header] Table container not found: ${selector}`);
-      }
+    if (config.repeatHeader) {
+      registerConfigMeta(nodes, config, nodeMetaMap);
     }
   }
 
