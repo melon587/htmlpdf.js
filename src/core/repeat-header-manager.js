@@ -128,13 +128,13 @@ export function createRepeatHeaderManager(nodes, tables = []) {
       getHeaderMetaForNode: (node) => nodeMetaMap.get(node) || null,
       /**
        * 更新 meta 对象上的指定字段
-       * @param {object} meta  - repeat-header meta 对象
+       * @param {object} e     - repeat-header meta 对象
        * @param {string} key   - 字段名
        * @param {*}      value - 新值
        * @returns {void}
        */
-      setMeta(meta, key, value) {
-        meta[key] = value;
+      setMeta(e, key, value) {
+        e[key] = value;
       },
     };
   }
