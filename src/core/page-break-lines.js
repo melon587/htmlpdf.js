@@ -2,7 +2,7 @@
  * @file page-break-lines.js
  * 跨页表格闭合线收集模块：在每页表格出口处绘制底部边框，避免内容被截断
  *
- * collectPageBreakLines({ nodes, allPlacements, ctx, pageBreakBorderMap })
+ * getPageBreakLines({ nodes, allPlacements, ctx, pageBreakBorderMap })
  *   ├─ 预处理（O(N)）：trNodesByTable（tableEl→trNodes）、placementsByTable（tableNode→placements）
  *   ├─ 遍历每个表格的每个 placement：
  *   │   ├─ 判断是否最后一页（表格底部在页内）→ 跳过
@@ -54,7 +54,7 @@ export function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
 }
 
 /**
- * 收集每页的 pageBreakBorder 出口闭合线
+ * 获取每页的 pageBreakBorder 出口闭合线
  *
  * 对每个 pageBreakBorderMap 中的表格：找其所有 placements，
  * 对非最后页找最后完整 TR 底部位置，记录出口线。
@@ -66,7 +66,7 @@ export function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
  * @param {WeakMap} options.pageBreakBorderMap - 表格节点 → 边框样式（由 main.js 构建）
  * @returns {Map<number, Array<{node, offsetYpx, exitAtPx}>>} 页码 → 出口线数组
  */
-export function collectPageBreakLines({
+export function getPageBreakLines({
   nodes,
   allPlacements,
   ctx,

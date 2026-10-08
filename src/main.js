@@ -12,7 +12,7 @@
  * ├─ 6. createRepeatHeaderManager() 建立 repeat-header 管理器
  * │   getPageBreakLinesMap()        建立 pageBreakBorder 映射
  * ├─ 7. streamPaginate()            流式分页，生成 allPlacements
- * ├─ 8. collectPageBreakLines()     收集跨页表格闭合线
+ * ├─ 8. getPageBreakLines()          获取跨页表格闭合线
  * ├─ 9. renderNode()                逐 placement 渲染节点
  * ├─ 10. drawSpillClosingLines()    逐页绘制出口闭合线
  * ├─ 11. renderHeaderFooter()       渲染页眉页脚
@@ -29,7 +29,7 @@ import {
   renderHeaderFooter,
   createRepeatHeaderManager,
   streamPaginate,
-  collectPageBreakLines,
+  getPageBreakLines,
   getPageBreakLinesMap,
 } from './core';
 import { renderNode, drawSpillClosingLines } from './render';
@@ -136,8 +136,8 @@ export async function htmlpdf(element, options = {}) {
 
   tick('paginate', 0.7);
 
-  // 收集 spill 闭合线（按页分组）
-  const spillClosingLinesByPage = collectPageBreakLines({
+  // 获取 spill 闭合线（按页分组）
+  const spillClosingLinesByPage = getPageBreakLines({
     nodes,
     allPlacements,
     ctx,
