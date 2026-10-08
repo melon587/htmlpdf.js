@@ -144,16 +144,23 @@ export function createRepeatHeaderManager(nodes, tables = []) {
 
 /**
  * 判断节点是否需要跳过（原始表头节点或其子节点）
+ *
+ * @param {object}      node       - 待检测的节点
+ * @param {object|null} headerMeta - repeat-header meta，无时传 null
+ * @returns {boolean} 应跳过返回 true，否则 false
  */
 export function shouldSkipOriginalHeader(node, headerMeta) {
-  if (!headerMeta) return false;
+  if (headerMeta) {
+    if (node._origEl === headerMeta.headerNode._origEl) return true;
 
-  if (node._origEl === headerMeta.headerNode._origEl) return true;
+    return (
+      node._origEl !== null &&
+      node._origEl !== undefined &&
+      headerMeta.headerNode._origEl?.contains(node._origEl) === true
+    );
+  }
 
-  return (
-    node._origEl != null &&
-    headerMeta.headerNode._origEl?.contains(node._origEl) === true
-  );
+  return false;
 }
 
 /**
