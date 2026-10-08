@@ -319,19 +319,28 @@ function resolveBorderStyle(style, borderOverrides) {
  * TR 内含 rowspan>1 的 TD/TH 时，取这些格子高度的最大值；
  * 非 TR 或伪元素时返回 0。
  * 高度来自 cellRectMap 缓存，无额外 layout 触发。
+ *
+ * @param {string}      tag        - 标签名
+ * @param {boolean}     isPseudo   - 是否为物化伪元素
+ * @param {Element}     measEl     - 测量树中的 TR 元素
+ * @param {Map}         cellRectMap - TD/TH → DOMRect 的缓存映射
+ * @returns {number} rowspan>1 子格的最大高度（px），非 TR 时为 0
  */
 function calcRowSpanChildMaxHeight(tag, isPseudo, measEl, cellRectMap) {
-  if (tag !== 'TR' || isPseudo) return 0;
+  if (tag === 'TR' && !isPseudo) {
+    let max = 0;
+    for (const c of measEl.children) {
+      const isSpanCell = CELL_TAGS.has(c.tagName) && (c.rowSpan || 1) > 1;
+      if (isSpanCell) {
+        const r = cellRectMap.get(c);
+        if (r && r.height > max) max = r.height;
+      }
+    }
 
-  let max = 0;
-  for (const c of measEl.children) {
-    if (!CELL_TAGS.has(c.tagName) || (c.rowSpan || 1) <= 1) continue;
-
-    const r = cellRectMap.get(c);
-    if (r && r.height > max) max = r.height;
+    return max;
   }
 
-  return max;
+  return 0;
 }
 
 /**

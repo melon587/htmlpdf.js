@@ -2,8 +2,8 @@
  * 逐页调用 header/footer render 回调
  */
 export function renderHeaderFooter(doc, { totalPages, ctx, header, footer }) {
-  const { margin, pageWidth, pageHeight } = ctx;
-  const info = { totalPages, pageWidth, pageHeight, margin };
+  const { marginMM, pageWidth, pageHeight } = ctx;
+  const info = { totalPages, pageWidth, pageHeight, margin: marginMM };
 
   for (let p = 1; p <= totalPages; p += 1) {
     doc.setPage(p);
