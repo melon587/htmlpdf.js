@@ -43,6 +43,28 @@ function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
 }
 
 /**
+ * 将单条表格 meta 回填到 table 范围内的所有节点
+ *
+ * @param {object}  opts             - 回填参数
+ * @param {Array}   opts.nodes       - 所有解析后的节点
+ * @param {number}  opts.startIdx    - 从 nodes[startIdx] 开始（tableNode 的下一个）
+ * @param {Element} opts.containerEl - table 的原始 DOM 元素（用于 contains 边界判断）
+ * @param {object}  opts.meta        - 要写入的 meta 对象
+ * @param {WeakMap} nodeMetaMap      - 目标映射
+ * @returns {void}
+ */
+function fillNodeMetaMap({ nodes, startIdx, containerEl, meta }, nodeMetaMap) {
+  for (let i = startIdx; i < nodes.length; i += 1) {
+    const n = nodes[i];
+    if (n._origEl && containerEl.contains(n._origEl)) {
+      nodeMetaMap.set(n, meta);
+    } else {
+      break;
+    }
+  }
+}
+
+/**
  * 将单个 config 对应的所有表格节点注册到 nodeMetaMap。
  * 遍历 nodes 找所有匹配 selector 的 tableNode，扫描其 header，
  * 将 table 范围内全部节点映射到对应 meta。
@@ -80,15 +102,10 @@ function registerConfigMeta(nodes, config, nodeMetaMap) {
           skipOnCurrentPage: false,
         };
 
-        // 回填 nodeMetaMap：table 范围内所有节点 → meta
-        for (let i = tIdx + 1; i < nodes.length; i += 1) {
-          const n = nodes[i];
-          if (n._origEl && containerEl.contains(n._origEl)) {
-            nodeMetaMap.set(n, meta);
-          } else {
-            break;
-          }
-        }
+        fillNodeMetaMap(
+          { nodes, startIdx: tIdx + 1, containerEl, meta },
+          nodeMetaMap,
+        );
       } else {
         console.warn(
           `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
