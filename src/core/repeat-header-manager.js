@@ -50,10 +50,10 @@ function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
  * @param {number}  opts.startIdx    - 从 nodes[startIdx] 开始（tableNode 的下一个）
  * @param {Element} opts.containerEl - table 的原始 DOM 元素（用于 contains 边界判断）
  * @param {object}  opts.meta        - 要写入的 meta 对象
- * @param {WeakMap} nodeMetaMap      - 目标映射
+ * @param {WeakMap} opts.nodeMetaMap - 目标映射
  * @returns {void}
  */
-function fillNodeMetaMap({ nodes, startIdx, containerEl, meta }, nodeMetaMap) {
+function fillNodeMetaMap({ nodes, startIdx, containerEl, meta, nodeMetaMap }) {
   for (let i = startIdx; i < nodes.length; i += 1) {
     const n = nodes[i];
     if (n._origEl && containerEl.contains(n._origEl)) {
@@ -102,10 +102,13 @@ function registerConfigMeta(nodes, config, nodeMetaMap) {
           skipOnCurrentPage: false,
         };
 
-        fillNodeMetaMap(
-          { nodes, startIdx: tIdx + 1, containerEl, meta },
+        fillNodeMetaMap({
+          nodes,
+          startIdx: tIdx + 1,
+          containerEl,
+          meta,
           nodeMetaMap,
-        );
+        });
       } else {
         console.warn(
           `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
@@ -122,35 +125,42 @@ function registerConfigMeta(nodes, config, nodeMetaMap) {
 /**
  * 构建节点 → meta 的 WeakMap。
  * 对每个含 repeatHeader 的 config 调用 registerConfigMeta 完成注册。
+ * 若 tables 中没有任何 repeatHeader config，返回 null。
  *
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
- * @returns {WeakMap} nodeMetaMap - 节点 → meta 映射
+ * @returns {WeakMap|null} nodeMetaMap，或 null（无任何 repeatHeader 配置）
  */
 function buildNodeMetaMap(nodes, tables) {
-  const nodeMetaMap = new WeakMap();
+  const hasRepeatHeader = tables.some((t) => t.repeatHeader);
 
-  for (const config of tables) {
-    if (config.repeatHeader) {
-      registerConfigMeta(nodes, config, nodeMetaMap);
+  if (hasRepeatHeader) {
+    const nodeMetaMap = new WeakMap();
+
+    for (const config of tables) {
+      if (config.repeatHeader) {
+        registerConfigMeta(nodes, config, nodeMetaMap);
+      }
     }
+
+    return nodeMetaMap;
   }
 
-  return nodeMetaMap;
+  return null;
 }
 
 /**
  * 创建 repeat-header 管理器
  * 若 tables 中没有任何 repeatHeader 配置，返回 null。
+ *
  * @param {Array} nodes
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
+ * @returns {{ getHeaderMetaForNode, setMeta } | null}
  */
 export function createRepeatHeaderManager(nodes, tables = []) {
-  const hasRepeatHeader = tables.some((t) => t.repeatHeader);
+  const nodeMetaMap = buildNodeMetaMap(nodes, tables);
 
-  if (hasRepeatHeader) {
-    const nodeMetaMap = buildNodeMetaMap(nodes, tables);
-
+  if (nodeMetaMap) {
     return {
       getHeaderMetaForNode: (node) => nodeMetaMap.get(node) || null,
       /**
@@ -182,7 +192,6 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
 
     return (
       node._origEl !== null &&
-      node._origEl !== undefined &&
       headerMeta.headerNode._origEl?.contains(node._origEl) === true
     );
   }
@@ -200,9 +209,10 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
  * 因为 pageRawTopPx 已被设为 pageContentTopPx（见 stream-pagination.js），
  * 所以祖先边框/背景从页顶开始覆盖，repeat-header 内容自然盖在其上。
  *
- * @param {Object} headerMeta
- * @param {number} currentPage
- * @param {number} accumulatedYpx - 新页全局起点（含表头区域，px）
+ * @param {object} headerMeta      - repeat-header meta（含 headerNode、headerChildren）
+ * @param {number} currentPage     - 当前页码
+ * @param {number} accumulatedYpx  - 新页全局起点（含表头区域，px）
+ * @returns {{ placements: Array, headerHeightPx: number }}
  */
 export function generateRepeatHeaderPlacements(
   headerMeta,
@@ -230,7 +240,7 @@ export function generateRepeatHeaderPlacements(
     dfsIndex: -(childCount + 1),
   });
 
-  for (let idx = 0; idx < headerMeta.headerChildren.length; idx += 1) {
+  for (let idx = 0; idx < childCount; idx += 1) {
     const child = headerMeta.headerChildren[idx];
     const offsetInHeader = child.y - headerMeta.headerNode.y;
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };
