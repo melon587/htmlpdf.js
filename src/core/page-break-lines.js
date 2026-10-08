@@ -29,9 +29,9 @@ function addLine(linesByPage, page, entry) {
 /**
  * 找当前页内最后一个完整放入的 TR 底部位置
  * 完整放入条件：trTop >= pageTopGlobal && trTop < pageBottomGlobal && trBottom <= pageBottomGlobal
- * @param {Array<Object>} trNodes
- * @param {number} pageTopGlobal
- * @param {number} pageBottomGlobal
+ * @param {Array<Object>} trNodes        - 表格内所有 TR 节点（含 y、height）
+ * @param {number}        pageTopGlobal  - 当前页内容区顶部全局 px
+ * @param {number}        pageBottomGlobal - 当前页内容区底部全局 px
  * @returns {number|null} 最后一个完整 TR 的底部位置（px），找不到时返回 null
  */
 export function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
@@ -45,8 +45,8 @@ export function findLastTrBottomPx(trNodes, pageTopGlobal, pageBottomGlobal) {
       trTop < pageBottomGlobal &&
       trBottom <= pageBottomGlobal;
 
-    if (fitsInPage && (lastTrBottomPx === null || trBottom > lastTrBottomPx)) {
-      lastTrBottomPx = trBottom;
+    if (fitsInPage) {
+      lastTrBottomPx = Math.max(lastTrBottomPx ?? -Infinity, trBottom);
     }
   }
 
@@ -120,6 +120,7 @@ export function collectPageBreakLines({
 
   for (const [tableNode, placements] of placementsByTable) {
     const trNodes = trNodesByTable.get(tableNode._origEl) || [];
+    const nodeBottomPx = tableNode.y + tableNode.height;
 
     for (const placement of placements) {
       const { page: pageNum, offsetYpx } = placement;
@@ -132,7 +133,6 @@ export function collectPageBreakLines({
         placement.pageActualBottomPx || offsetYpx + contentHeightPx;
 
       // 最后一页：表格底部在当前页内 → 不需要出口线
-      const nodeBottomPx = tableNode.y + tableNode.height;
       const tableExceedsPage = nodeBottomPx > pageBottomGlobal;
 
       if (tableExceedsPage) {
@@ -155,23 +155,23 @@ export function collectPageBreakLines({
 
 /**
  * 构建 pageBreakBorder 映射（表格容器 → 边框样式）
- * @param {Array} nodes
- * @param {Array} tables - [{ selector, pageBreakBorder }]
- * @returns {WeakMap<node, borderStyle>}
+ * @param {Array} nodes  - 所有解析后的节点
+ * @param {Array} tables - 表格配置数组，每项含 { selector, pageBreakBorder }
+ * @returns {WeakMap<object, object>} 节点 → 边框样式的映射
  */
 export function getPageBreakLinesMap(nodes, tables) {
   const borderMap = new WeakMap();
 
-  tables
-    .filter((t) => t.pageBreakBorder)
-    .forEach((tableConf) => {
+  for (const tableConf of tables) {
+    if (tableConf.pageBreakBorder) {
       // 找所有匹配的容器节点（同一 selector 可能匹配多个表格实例）
-      nodes
-        .filter((n) => matchesSelector(n._origEl, tableConf.selector))
-        .forEach((containerNode) => {
-          borderMap.set(containerNode, tableConf.pageBreakBorder);
-        });
-    });
+      for (const node of nodes) {
+        if (matchesSelector(node._origEl, tableConf.selector)) {
+          borderMap.set(node, tableConf.pageBreakBorder);
+        }
+      }
+    }
+  }
 
   return borderMap;
 }
