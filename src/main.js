@@ -5,7 +5,7 @@
  * htmlpdf(element, options)
  * ├─ 1. new Context()               初始化 jsPDF、计算页面尺寸
  * ├─ 2. cloneDocument()            克隆 DOM 到 iframe，注入字体
- * ├─ 3. collectNodes()              DOM → 节点树（带坐标、样式）
+ * ├─ 3. parseNodes()                DOM → 节点树（带坐标、样式）
  * │   └─ preloadImages()            预加载图片（iframe 销毁前）
  * ├─ 4. destroyDocument()           释放 iframe
  * ├─ 5. injectFontsToJsPDF()         注册自定义字体
@@ -22,7 +22,7 @@
 import {
   Context,
   cloneDocument,
-  collectNodes,
+  parseNodes,
   preloadImages,
   destroyDocument,
   injectFontsToJsPDF,
@@ -110,7 +110,7 @@ export async function htmlpdf(element, options = {}) {
 
   let nodes;
   try {
-    nodes = collectNodes(element, cloneRoot);
+    nodes = parseNodes(element, cloneRoot);
     await preloadImages(nodes); // 在 iframe 销毁前预加载图片
   } finally {
     destroyDocument(iframe);
@@ -166,17 +166,17 @@ export async function htmlpdf(element, options = {}) {
   // 逐页绘制出口闭合线（在所有节点渲染完后画，避免被覆盖）
   for (let page = 1; page <= totalPages; page += 1) {
     const spillLines = spillClosingLinesByPage.get(page);
-    if (!spillLines || spillLines.length === 0) continue;
-
-    doc.setPage(page);
-    for (const { node, offsetYpx, exitAtPx } of spillLines) {
-      const clipBottomMM = toMM(exitAtPx - offsetYpx);
-      drawSpillClosingLines({
-        node,
-        ctx,
-        clipBottom: clipBottomMM,
-        pageBreakBorder: pageBreakBorderMap.get(node),
-      });
+    if (spillLines && spillLines.length > 0) {
+      doc.setPage(page);
+      for (const { node, offsetYpx, exitAtPx } of spillLines) {
+        const clipBottomMM = toMM(exitAtPx - offsetYpx);
+        drawSpillClosingLines({
+          node,
+          ctx,
+          clipBottom: clipBottomMM,
+          pageBreakBorder: pageBreakBorderMap.get(node),
+        });
+      }
     }
   }
 
