@@ -9,10 +9,11 @@ import { matchesSelector } from '../utils';
  * 扫描单个 table 容器，找到 headerNode、其子节点，以及 header 后的第一个数据 TR。
  * 返回 { headerNode, headerChildren, firstDataTR } 或 null（未找到 header）。
  *
- * @param {Array}  nodes
- * @param {number} tIdx         - tableNode 在 nodes 中的索引
- * @param {Element} containerEl - tableNode._origEl
- * @param {string} repeatHeader - header 选择器
+ * @param {Array}   nodes         - 所有解析后的节点
+ * @param {number}  tIdx          - tableNode 在 nodes 中的索引
+ * @param {Element} containerEl   - tableNode._origEl
+ * @param {string}  repeatHeader  - header 选择器
+ * @returns {{ headerNode, headerChildren, firstDataTR } | null}
  */
 function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
   let headerNode = null;
@@ -21,22 +22,19 @@ function scanTableHeader(nodes, tIdx, containerEl, repeatHeader) {
 
   for (let i = tIdx + 1; i < nodes.length; i += 1) {
     const n = nodes[i];
-    if (!n._origEl || !containerEl.contains(n._origEl)) break;
-
-    if (!headerNode) {
-      if (matchesSelector(n._origEl, repeatHeader)) headerNode = n;
-
-      continue;
-    }
-
-    if (headerNode._origEl.contains(n._origEl)) {
-      headerChildren.push(n);
-      continue;
-    }
-
-    // 在 header 外、table 内：找第一个 TR 作为 firstDataTR，找到即可退出
-    if (!firstDataTR && n.tag === 'TR') {
-      firstDataTR = n;
+    if (n._origEl && containerEl.contains(n._origEl)) {
+      if (headerNode === null) {
+        if (matchesSelector(n._origEl, repeatHeader)) {
+          headerNode = n;
+        }
+      } else if (headerNode._origEl.contains(n._origEl)) {
+        headerChildren.push(n);
+      } else if (firstDataTR === null && n.tag === 'TR') {
+        // 在 header 外、table 内：找第一个 TR 作为 firstDataTR，找到即可退出
+        firstDataTR = n;
+        break;
+      }
+    } else {
       break;
     }
   }
@@ -61,52 +59,53 @@ function buildNodeMetaMap(nodes, tables) {
   for (const config of tables) {
     const { selector, repeatHeader } = config;
 
-    if (!repeatHeader) continue;
+    if (repeatHeader) {
+      let anyTableFound = false;
 
-    let anyTableFound = false;
+      for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
+        const tableNode = nodes[tIdx];
 
-    for (let tIdx = 0; tIdx < nodes.length; tIdx += 1) {
-      const tableNode = nodes[tIdx];
-      if (!matchesSelector(tableNode._origEl, selector)) continue;
+        if (matchesSelector(tableNode._origEl, selector)) {
+          anyTableFound = true;
+          const containerEl = tableNode._origEl;
 
-      anyTableFound = true;
-      const containerEl = tableNode._origEl;
-      if (!containerEl) continue;
+          const found = scanTableHeader(nodes, tIdx, containerEl, repeatHeader);
+          if (found) {
+            const meta = {
+              tableNode,
+              headerNode: found.headerNode,
+              headerChildren: found.headerChildren,
+              /**
+               * header 后的第一个数据 TR 节点。
+               * 用于 needsNewPage 中"表头 + 首行联体"判断：
+               * 若 headerHeight + firstDataTR 有效高度 > 当前页剩余，
+               * 则整个表格强推到下一页，避免孤立表头。
+               */
+              firstDataTR: found.firstDataTR,
+              headerRendered: false,
+              skipOnCurrentPage: false,
+            };
 
-      const found = scanTableHeader(nodes, tIdx, containerEl, repeatHeader);
-      if (!found) {
-        console.warn(
-          `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
-        );
-        continue;
+            // 回填 nodeMetaMap：table 范围内所有节点 → meta
+            for (let i = tIdx + 1; i < nodes.length; i += 1) {
+              const n = nodes[i];
+              if (n._origEl && containerEl.contains(n._origEl)) {
+                nodeMetaMap.set(n, meta);
+              } else {
+                break;
+              }
+            }
+          } else {
+            console.warn(
+              `[repeat-header] Header not found: ${repeatHeader} in ${selector}`,
+            );
+          }
+        }
       }
 
-      const meta = {
-        tableNode,
-        headerNode: found.headerNode,
-        headerChildren: found.headerChildren,
-        /**
-         * header 后的第一个数据 TR 节点。
-         * 用于 needsNewPage 中"表头 + 首行联体"判断：
-         * 若 headerHeight + firstDataTR 有效高度 > 当前页剩余，
-         * 则整个表格强推到下一页，避免孤立表头。
-         */
-        firstDataTR: found.firstDataTR,
-        headerRendered: false,
-        skipOnCurrentPage: false,
-      };
-
-      // 回填 nodeMetaMap：table 范围内所有节点 → meta
-      for (let i = tIdx + 1; i < nodes.length; i += 1) {
-        const n = nodes[i];
-        if (!n._origEl || !containerEl.contains(n._origEl)) break;
-
-        nodeMetaMap.set(n, meta);
+      if (!anyTableFound) {
+        console.warn(`[repeat-header] Table container not found: ${selector}`);
       }
-    }
-
-    if (!anyTableFound) {
-      console.warn(`[repeat-header] Table container not found: ${selector}`);
     }
   }
 
@@ -127,9 +126,15 @@ export function createRepeatHeaderManager(nodes, tables = []) {
 
     return {
       getHeaderMetaForNode: (node) => nodeMetaMap.get(node) || null,
-      /** 更新 meta 上的任意字段（key/value 对） */
-      setMeta(e, key, value) {
-        e[key] = value;
+      /**
+       * 更新 meta 对象上的指定字段
+       * @param {object} meta  - repeat-header meta 对象
+       * @param {string} key   - 字段名
+       * @param {*}      value - 新值
+       * @returns {void}
+       */
+      setMeta(meta, key, value) {
+        meta[key] = value;
       },
     };
   }
@@ -145,8 +150,9 @@ export function shouldSkipOriginalHeader(node, headerMeta) {
 
   if (node._origEl === headerMeta.headerNode._origEl) return true;
 
-  return !!(
-    node._origEl && headerMeta.headerNode._origEl?.contains(node._origEl)
+  return (
+    node._origEl != null &&
+    headerMeta.headerNode._origEl?.contains(node._origEl) === true
   );
 }
 
@@ -190,7 +196,8 @@ export function generateRepeatHeaderPlacements(
     dfsIndex: -(childCount + 1),
   });
 
-  headerMeta.headerChildren.forEach((child, idx) => {
+  for (let idx = 0; idx < headerMeta.headerChildren.length; idx += 1) {
+    const child = headerMeta.headerChildren[idx];
     const offsetInHeader = child.y - headerMeta.headerNode.y;
     const childAtTop = { ...child, y: accumulatedYpx + offsetInHeader };
 
@@ -202,7 +209,7 @@ export function generateRepeatHeaderPlacements(
       isLastSpill: true,
       dfsIndex: -(childCount - idx),
     });
-  });
+  }
 
   return { placements, headerHeightPx };
 }
