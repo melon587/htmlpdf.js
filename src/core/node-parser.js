@@ -595,8 +595,11 @@ function processMultilineText({
   for (const group of lineGroups) {
     if (group.chars.length === 0) continue;
 
-    // 每行独立做 white-space 规范化，与浏览器 white-space:normal 行为一致
-    const lineText = group.chars.join('').replace(/\s+/g, ' ').trim();
+    // 每行独立做 white-space 规范化（不含 \u00a0），与浏览器 white-space:normal 行为一致
+    const lineText = group.chars
+      .join('')
+      .replace(/[ \t\r\n\f]+/g, ' ')
+      .trim();
     if (!lineText) continue;
 
     nodes.push({
@@ -645,8 +648,9 @@ function parseTextNode({
   if (raw && raw.trim()) {
     const style = win.getComputedStyle(measParent);
 
-    // 规范化文本：折叠 HTML 源码里的连续空白，与浏览器 white-space:normal 行为一致
-    const normalizedText = raw.replace(/\s+/g, ' ').trim();
+    // 规范化文本：折叠 HTML 源码里的连续普通空白（不含 \u00a0），与浏览器 white-space:normal 行为一致
+    // \u00a0（&nbsp;）是不可折叠空格，浏览器不会折叠，须单独保留
+    const normalizedText = raw.replace(/[ \t\r\n\f]+/g, ' ').trim();
 
     // 读取 pdf-font 属性（已在 document-cloner.js 的 enhanceCloneRoot 中传播）
     const pdfFont = measParent.getAttribute('pdf-font');
