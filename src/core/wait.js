@@ -24,20 +24,63 @@ export function waitForLayout() {
  * @returns {Promise<void>}
  */
 export async function waitForImages(doc) {
-  const imgs = Array.from(doc.images).filter((img) => !img.complete);
-
   await Promise.all(
-    imgs.map(
+    Array.from(doc.images).map(
       (img) =>
         new Promise((resolve) => {
+          if (img.complete) {
+            resolve();
+
+            return;
+          }
+
           img.addEventListener('load', resolve, { once: true });
           img.addEventListener('error', resolve, { once: true });
-          // 监听器挂载后再次检查：图片可能在 filter 和 addEventListener
-          // 之间已完成加载（TOCTOU 竞态），此时事件不会再触发。
-          if (img.complete) resolve();
         }),
     ),
   );
+}
+
+/**
+ * 等待单个样式表加载完成
+ * @param {HTMLLinkElement} link
+ * @param {number} timeout - 超时时间（毫秒）
+ * @returns {Promise<void>}
+ */
+function waitForSingleStyleSheet(link, timeout) {
+  return new Promise((resolve) => {
+    // link.sheet 存在即表示已加载（同域或跨域 CSS 均适用）
+    if (link.sheet) {
+      resolve();
+
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      console.warn(
+        `[htmlpdf] Stylesheet load timeout (${timeout}ms): ${link.href}`,
+      );
+      resolve();
+    }, timeout);
+
+    link.addEventListener(
+      'load',
+      () => {
+        clearTimeout(timeoutId);
+        resolve();
+      },
+      { once: true },
+    );
+    link.addEventListener(
+      'error',
+      () => {
+        clearTimeout(timeoutId);
+        console.warn(`[htmlpdf] Stylesheet load error: ${link.href}`);
+        resolve();
+      },
+      { once: true },
+    );
+  });
 }
 
 /**
@@ -55,63 +98,4 @@ export async function waitForStyleSheets(doc, timeout = 10000) {
   await Promise.all(
     linkTags.map((link) => waitForSingleStyleSheet(link, timeout)),
   );
-}
-
-/**
- * 等待单个样式表加载完成
- * @param {HTMLLinkElement} link
- * @param {number} timeout - 超时时间（毫秒）
- * @returns {Promise<void>}
- */
-function waitForSingleStyleSheet(link, timeout) {
-  return new Promise((resolve) => {
-    let timeoutId = null;
-
-    const cleanup = () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-
-    // link.sheet 存在即表示已加载（跨域 CSS 无法访问 cssRules 但 sheet 存在）
-    const isLoaded = () => {
-      if (!link.sheet) return false;
-
-      try {
-        return !!link.sheet.cssRules;
-      } catch (e) {
-        return true; // 跨域 CSS：CORS 限制导致 cssRules 不可访问，但已加载
-      }
-    };
-
-    if (isLoaded()) {
-      resolve();
-
-      return;
-    }
-
-    timeoutId = setTimeout(() => {
-      cleanup();
-      console.warn(
-        `[htmlpdf] Stylesheet load timeout (${timeout}ms): ${link.href}`,
-      );
-      resolve();
-    }, timeout);
-
-    link.addEventListener(
-      'load',
-      () => {
-        cleanup();
-        resolve();
-      },
-      { once: true },
-    );
-    link.addEventListener(
-      'error',
-      () => {
-        cleanup();
-        console.warn(`[htmlpdf] Stylesheet load error: ${link.href}`);
-        resolve();
-      },
-      { once: true },
-    );
-  });
 }
