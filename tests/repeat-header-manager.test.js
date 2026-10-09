@@ -1,23 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
-  createRepeatHeaderManager,
+  initRepeatHeader,
   shouldSkipOriginalHeader,
   generateRepeatHeaderPlacements,
-} from '../src/core/repeat-header-manager.js';
+} from '../src/core/repeat-header.js';
 
-// ── createRepeatHeaderManager ───────────────────────────────────────────────
+// ── initRepeatHeader ───────────────────────────────────────────────────────────
 
-describe('createRepeatHeaderManager', () => {
+describe('initRepeatHeader', () => {
   it('无 tables 配置：返回 null', () => {
     const nodes = [];
     const tables = [];
-    expect(createRepeatHeaderManager(nodes, tables)).toBeNull();
+    expect(initRepeatHeader(nodes, tables)).toBeNull();
   });
 
   it('tables 无 repeatHeader 配置：返回 null', () => {
     const nodes = [];
     const tables = [{ selector: '#table', pageBreakBorder: '1px solid #ccc' }];
-    expect(createRepeatHeaderManager(nodes, tables)).toBeNull();
+    expect(initRepeatHeader(nodes, tables)).toBeNull();
   });
 
   it('有 repeatHeader 配置：返回管理器', () => {
@@ -33,7 +33,7 @@ describe('createRepeatHeaderManager', () => {
 
     const tables = [{ selector: '#my-table', repeatHeader: '#header' }];
 
-    const manager = createRepeatHeaderManager(nodes, tables);
+    const manager = initRepeatHeader(nodes, tables);
 
     expect(manager).not.toBeNull();
     expect(manager.getHeaderMetaForNode).toBeDefined();
@@ -46,7 +46,7 @@ describe('createRepeatHeaderManager', () => {
     const nodes = [];
     const tables = [{ selector: '#non-existent', repeatHeader: '#header' }];
 
-    const manager = createRepeatHeaderManager(nodes, tables);
+    const manager = initRepeatHeader(nodes, tables);
 
     expect(manager).not.toBeNull();
     // 无匹配容器，任意节点查询均返回 null
@@ -59,7 +59,7 @@ describe('createRepeatHeaderManager', () => {
     const nodes = [{ _origEl: tableEl, y: 0, height: 500 }, dataNode];
     const tables = [{ selector: '#table', repeatHeader: '#non-existent' }];
 
-    const manager = createRepeatHeaderManager(nodes, tables);
+    const manager = initRepeatHeader(nodes, tables);
 
     expect(manager).not.toBeNull();
     // 未找到表头，节点不应被映射到任何 meta
@@ -97,7 +97,7 @@ describe('createRepeatHeaderManager', () => {
       { selector: '#table2', repeatHeader: '#header2' },
     ];
 
-    const manager = createRepeatHeaderManager(nodes, tables);
+    const manager = initRepeatHeader(nodes, tables);
 
     // 两个表格各自的表头节点都应能查到各自的 meta
     const meta1 = manager.getHeaderMetaForNode(header1Node);

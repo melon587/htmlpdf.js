@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   findLastTrBottomPx,
-  collectPageBreakLines,
+  getPageBreakLines,
 } from '../src/core/page-break-lines.js';
 
 // ── DOM mock helpers ─────────────────────────────────────────────────────────
@@ -120,12 +120,12 @@ describe('findLastTrBottomPx', () => {
 
 // ── collectPageBreakLines ────────────────────────────────────────────────────
 
-describe('collectPageBreakLines', () => {
+describe('getPageBreakLines', () => {
   it('非最后页有出口线，最后页无出口线', () => {
     const s = makeScenario();
     const allPlacements = [s.placement1, s.placement2];
 
-    const result = collectPageBreakLines({
+    const result = getPageBreakLines({
       nodes: s.nodes,
       allPlacements,
       ctx: s.ctx,
@@ -143,7 +143,7 @@ describe('collectPageBreakLines', () => {
   it('出口线的 exitAtPx 等于最后一个完整 TR 的底部', () => {
     const s = makeScenario();
 
-    const result = collectPageBreakLines({
+    const result = getPageBreakLines({
       nodes: s.nodes,
       allPlacements: [s.placement1],
       ctx: s.ctx,
@@ -157,7 +157,7 @@ describe('collectPageBreakLines', () => {
   it('出口线携带正确的 node 和 offsetYpx', () => {
     const s = makeScenario();
 
-    const result = collectPageBreakLines({
+    const result = getPageBreakLines({
       nodes: s.nodes,
       allPlacements: [s.placement1],
       ctx: s.ctx,
@@ -172,7 +172,7 @@ describe('collectPageBreakLines', () => {
   it('无 pageBreakBorderMap 条目时返回空 Map', () => {
     const s = makeScenario();
 
-    const result = collectPageBreakLines({
+    const result = getPageBreakLines({
       nodes: s.nodes,
       allPlacements: [s.placement1],
       ctx: s.ctx,
@@ -205,7 +205,7 @@ describe('collectPageBreakLines', () => {
       pageActualBottomPx: 1000,
     };
 
-    const result = collectPageBreakLines({
+    const result = getPageBreakLines({
       nodes: [tableNode, bigTrNode],
       allPlacements: [placement],
       ctx: { contentHeightPx: 1000 },
@@ -262,7 +262,7 @@ describe('collectPageBreakLines', () => {
       },
     ];
 
-    const result = collectPageBreakLines({
+    const result = getPageBreakLines({
       nodes: [tableNodeA, trNodeA, tableNodeB, trNodeB],
       allPlacements: placements,
       ctx: { contentHeightPx: 1000 },

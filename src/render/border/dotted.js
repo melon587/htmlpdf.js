@@ -20,6 +20,17 @@ const PI = Math.PI;
 
 // ─── 辅助：圆点序列（直角用）─────────────────────────────────────────────────
 
+/**
+ * 沿水平方向铺放圆点序列。
+ * @param {object} params
+ * @param {object} params.doc    - jsPDF 实例
+ * @param {number} params.x0     - 起始 x（mm）
+ * @param {number} params.x1     - 结束 x（mm）
+ * @param {number} params.yMid   - 圆点中心线 y（mm）
+ * @param {number} params.r      - 圆点半径（mm）
+ * @param {number} params.gapLen - 圆点间距（mm）
+ * @returns {void}
+ */
 function dotLine({ doc, x0, x1, yMid, r, gapLen }) {
   const step = 2 * r + gapLen;
   let cx = x0 + r;
@@ -30,6 +41,17 @@ function dotLine({ doc, x0, x1, yMid, r, gapLen }) {
   }
 }
 
+/**
+ * 沿垂直方向铺放圆点序列。
+ * @param {object} params
+ * @param {object} params.doc    - jsPDF 实例
+ * @param {number} params.xMid   - 圆点中心线 x（mm）
+ * @param {number} params.y0     - 起始 y（mm）
+ * @param {number} params.y1     - 结束 y（mm）
+ * @param {number} params.r      - 圆点半径（mm）
+ * @param {number} params.gapLen - 圆点间距（mm）
+ * @returns {void}
+ */
 function dotLineV({ doc, xMid, y0, y1, r, gapLen }) {
   const step = 2 * r + gapLen;
   let cy = y0 + r;
@@ -42,7 +64,14 @@ function dotLineV({ doc, xMid, y0, y1, r, gapLen }) {
 
 // ─── 辅助：圆角用 ─────────────────────────────────────────────────────────────
 
-// 用贝塞尔画单个圆点（fill）
+/**
+ * 用贝塞尔曲线绘制并填充单个圆点。
+ * @param {object} doc - jsPDF 实例
+ * @param {number} cx  - 圆心 x（mm）
+ * @param {number} cy  - 圆心 y（mm）
+ * @param {number} r   - 半径（mm）
+ * @returns {void}
+ */
 function fillDot(doc, cx, cy, r) {
   if (r <= 0) return;
 

@@ -26,7 +26,7 @@ export function getCombinedFontStyle(fontStyle, fontWeight) {
  * @returns {string[]}
  */
 export function parsePdfFontNames(pdfFont) {
-  if (!pdfFont) return [];
+  if (pdfFont === null || pdfFont === undefined || pdfFont === '') return [];
 
   // 已经是数组（Vue :pdf-font 动态绑定传入）
   if (Array.isArray(pdfFont)) {
@@ -79,10 +79,9 @@ export function buildEffectiveFontConfig(node, sortedFontConfig) {
       console.warn(
         `[htmlpdf] pdf-font: "${name}" not found in config, skipping`,
       );
-      continue;
+    } else {
+      for (const c of matched) resolvedConfigs.push(c);
     }
-
-    for (const c of matched) resolvedConfigs.push(c);
   }
 
   if (resolvedConfigs.length === 0) return sortedFontConfig;
@@ -156,7 +155,8 @@ export function findFontForChar(code, sortedFontConfig) {
 export function isSameFont(a, b) {
   if (a === b) return true;
 
-  if (!a || !b) return false;
+  if (a === null || a === undefined || b === null || b === undefined)
+    return false;
 
   return (
     a.fontFamily === b.fontFamily &&
@@ -203,6 +203,10 @@ export function segmentTextByFont(text, sortedFontConfig) {
 
 /**
  * 设置字体，失败则回退到 helvetica
+ * @param {object} ctx         - 渲染上下文，含 doc
+ * @param {string} fontFamily  - 字体族名称
+ * @param {string} fontStyle   - jsPDF 字体样式（'normal'|'bold'|'italic'|'bolditalic'）
+ * @returns {void}
  */
 export function setFont(ctx, fontFamily, fontStyle) {
   const { doc } = ctx;
@@ -419,37 +423,48 @@ function drawTextDecoration({
   totalWidth,
   fontSize,
 }) {
-  if (!decoration || decoration === 'none') return;
+  const hasDecoration =
+    decoration !== null &&
+    decoration !== undefined &&
+    decoration !== '' &&
+    decoration !== 'none';
 
-  const hasUnderline = decoration.includes('underline');
-  const hasLineThrough = decoration.includes('line-through');
-  if (!hasUnderline && !hasLineThrough) return;
+  if (hasDecoration) {
+    const hasUnderline = decoration.includes('underline');
+    const hasLineThrough = decoration.includes('line-through');
 
-  const rgb = parseColor(color);
-  if (rgb) doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
-  else doc.setDrawColor(0, 0, 0);
+    if (hasUnderline || hasLineThrough) {
+      const rgb = parseColor(color);
+      if (rgb) doc.setDrawColor(rgb[0], rgb[1], rgb[2]);
+      else doc.setDrawColor(0, 0, 0);
 
-  // 线宽约为字号的 5%（pt 转 mm：1pt ≈ 0.353mm）
-  const lineWidthMM = fontSize * 0.05 * 0.353;
-  doc.setLineWidth(lineWidthMM);
+      // 线宽约为字号的 5%（pt 转 mm：1pt ≈ 0.353mm）
+      const lineWidthMM = fontSize * 0.05 * 0.353;
+      doc.setLineWidth(lineWidthMM);
 
-  // 字号 mm（1px ≈ 0.264mm，用于偏移计算）
-  const fontSizeMM = fontSize * 0.264;
+      // 字号 mm（1px ≈ 0.264mm，用于偏移计算）
+      const fontSizeMM = fontSize * 0.264;
 
-  if (hasUnderline) {
-    // 下划线：基线以下约 10% 字号
-    const uy = y + fontSizeMM * 0.4;
-    doc.line(x, uy, x + totalWidth, uy);
-  }
+      if (hasUnderline) {
+        // 下划线：基线以下约 10% 字号
+        const uy = y + fontSizeMM * 0.4;
+        doc.line(x, uy, x + totalWidth, uy);
+      }
 
-  if (hasLineThrough) {
-    // 删除线：中线（y 已是 middle baseline）
-    doc.line(x, y, x + totalWidth, y);
+      if (hasLineThrough) {
+        // 删除线：中线（y 已是 middle baseline）
+        doc.line(x, y, x + totalWidth, y);
+      }
+    }
   }
 }
 
 /**
  * 计算文本左边缘 x（mm），供装饰线使用（统一为左边缘）
+ * @param {number} x          - 文本锚点 x（mm）
+ * @param {number} totalWidth - 文本总宽度（mm）
+ * @param {string} textAlign  - 'left' | 'right' | 'center'
+ * @returns {number} 文本左边缘 x（mm）
  */
 function resolveDecorationX(x, totalWidth, textAlign) {
   if (textAlign === 'right') return x - totalWidth;
@@ -472,7 +487,7 @@ function resolveDecorationX(x, totalWidth, textAlign) {
  * @param {Array}  sortedFontConfig - 已排序字体配置
  */
 export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
-  if (!node.text) return;
+  if (node.text === null || node.text === undefined || node.text === '') return;
 
   const { doc, toMM, toPt } = ctx;
   if (toMM(node.y) < clipTop) return;

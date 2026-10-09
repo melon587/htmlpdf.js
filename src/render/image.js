@@ -15,11 +15,11 @@ import { canvasToDataUrl, parsePx } from '../utils';
 function drawImage({ node, ctx, offsetYpx = 0 }) {
   const { doc, contentHeightPx, toPdfX, toPdfY, toMM } = ctx;
   const srcCanvas = node._srcCanvas;
-  if (!srcCanvas) return;
+  if (srcCanvas === null || srcCanvas === undefined) return;
 
   const natW = node.naturalWidth;
   const natH = node.naturalHeight;
-  if (!natW || !natH) return;
+  if (natW <= 0 || natH <= 0) return;
 
   // border 宽度（px），图片渲染区域向内缩进
   const { style } = node;

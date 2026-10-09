@@ -25,6 +25,7 @@ import { drawText } from './text';
  * @param {boolean} params.isLastSpill
  * @param {number}  params.clipTop    - 当前页内容可用起点（mm），repeat-header 底部
  * @param {number}  params.clipBottom - 当前页内容可用终点（mm）
+ * @returns {void}
  */
 function renderBackgroundAndBorder({
   node,

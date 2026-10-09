@@ -16,6 +16,18 @@ import {
 
 // ─── 直角辅助：矩形 dash 序列 ────────────────────────────────────────────────
 
+/**
+ * 沿水平方向绘制矩形 dash 序列。
+ * @param {object} params
+ * @param {object} params.doc     - jsPDF 实例
+ * @param {number} params.x0      - 起始 x（mm）
+ * @param {number} params.x1      - 结束 x（mm）
+ * @param {number} params.yMid    - dash 中心线 y（mm）
+ * @param {number} params.bw      - border 宽度（mm）
+ * @param {number} params.dashLen - 单个 dash 长度（mm）
+ * @param {number} params.gapLen  - dash 间隔长度（mm）
+ * @returns {void}
+ */
 function dashLine({ doc, x0, x1, yMid, bw, dashLen, gapLen }) {
   const step = dashLen + gapLen;
   let cx = x0;
@@ -26,6 +38,18 @@ function dashLine({ doc, x0, x1, yMid, bw, dashLen, gapLen }) {
   }
 }
 
+/**
+ * 沿垂直方向绘制矩形 dash 序列。
+ * @param {object} params
+ * @param {object} params.doc     - jsPDF 实例
+ * @param {number} params.xMid    - dash 中心线 x（mm）
+ * @param {number} params.y0      - 起始 y（mm）
+ * @param {number} params.y1      - 结束 y（mm）
+ * @param {number} params.bw      - border 宽度（mm）
+ * @param {number} params.dashLen - 单个 dash 长度（mm）
+ * @param {number} params.gapLen  - dash 间隔长度（mm）
+ * @returns {void}
+ */
 function dashLineV({ doc, xMid, y0, y1, bw, dashLen, gapLen }) {
   const step = dashLen + gapLen;
   let cy = y0;
@@ -41,6 +65,16 @@ function dashLineV({ doc, xMid, y0, y1, bw, dashLen, gapLen }) {
 /**
  * 填充一个弧段 dash 块。
  * 外弧：appendArcSegment（贝塞尔），内边：二次贝塞尔过两端精确点。
+ * @param {object} doc              - jsPDF 实例
+ * @param {object} params
+ * @param {number} params.cx        - 圆心 x（mm）
+ * @param {number} params.cy        - 圆心 y（mm）
+ * @param {number} params.R         - 外弧半径（mm）
+ * @param {number} params.innerR0   - 起始端内半径（mm）
+ * @param {number} params.innerR1   - 终止端内半径（mm）
+ * @param {number} params.t0        - 起始角度（弧度）
+ * @param {number} params.t1        - 终止角度（弧度）
+ * @returns {void}
  */
 function fillArcDash(doc, { cx, cy, R, innerR0, innerR1, t0, t1 }) {
   if (t1 <= t0) return;

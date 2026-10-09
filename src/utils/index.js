@@ -3,6 +3,8 @@ const AUTO_AVOID_TAGS = new Set(['TR', 'SVG', 'VIDEO']);
 
 /**
  * 判断一个元素是否可见
+ * @param {CSSStyleDeclaration} style - 元素计算样式
+ * @returns {boolean} 可见返回 true
  */
 export function isVisible(style) {
   return (
@@ -36,7 +38,9 @@ export function matchesSelector(el, selector) {
 }
 
 /**
- * 转换px
+ * 将 CSS px 字符串解析为数字
+ * @param {string|number} val - CSS 属性值，如 '16px'
+ * @returns {number} 数值，解析失败返回 0
  */
 export function parsePx(val) {
   return parseFloat(val) || 0;
@@ -95,6 +99,8 @@ export function parseColor(colorStr) {
 
 /**
  * 获取元素的 page-break 属性值
+ * @param {Element} el - DOM 元素
+ * @returns {'before'|'avoid'|string|null} page-break 值，无则返回 null
  */
 export function getPageBreak(el) {
   const v = el.getAttribute('page-break');
@@ -183,7 +189,13 @@ export function buildFontFaceRule(config, fontBase64) {
 export function canvasHasAlpha(canvasEl) {
   try {
     const ctx2d = canvasEl.getContext('2d');
-    if (!ctx2d || canvasEl.width === 0 || canvasEl.height === 0) return false;
+    if (
+      ctx2d === null ||
+      ctx2d === undefined ||
+      canvasEl.width === 0 ||
+      canvasEl.height === 0
+    )
+      return false;
 
     const pixels = ctx2d.getImageData(
       0,
@@ -219,7 +231,14 @@ export function canvasHasAlpha(canvasEl) {
  * @returns {string} 解码后的文本内容，不支持的语法返回空字符串
  */
 export function decodeCSSContent(content) {
-  if (!content || content === 'none' || content === 'normal') {
+  const isEmpty =
+    content === null ||
+    content === undefined ||
+    content === '' ||
+    content === 'none' ||
+    content === 'normal';
+
+  if (isEmpty) {
     return '';
   }
 
@@ -459,7 +478,13 @@ export function getOutputType(output) {
  * @returns {string|null}
  */
 export function parseBgImageUrl(bgImage) {
-  if (!bgImage || bgImage === 'none') return null;
+  if (
+    bgImage === null ||
+    bgImage === undefined ||
+    bgImage === '' ||
+    bgImage === 'none'
+  )
+    return null;
 
   const m = bgImage.match(/url\(["']?([^"')]+)["']?\)/);
 

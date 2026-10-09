@@ -16,6 +16,16 @@ import { drawDottedBorder } from './dotted';
 
 // ─── 跨页 clip ────────────────────────────────────────────────────────────────
 
+/**
+ * 设置跨页裁剪区域，返回恢复函数。
+ * @param {object} params
+ * @param {object} params.doc         - jsPDF 实例
+ * @param {number} params.x           - 节点左边 x（mm）
+ * @param {number} params.w           - 节点宽度（mm）
+ * @param {number} params.clipTopMm   - 裁剪区顶部 y（mm，PDF 坐标）
+ * @param {number} params.clipBottomMm - 裁剪区底部 y（mm，PDF 坐标）
+ * @returns {Function} 恢复 graphics state 的函数
+ */
 function applyPageClip({ doc, x, w, clipTopMm, clipBottomMm }) {
   doc.saveGraphicsState();
   const clipH = clipBottomMm - clipTopMm;
@@ -114,6 +124,13 @@ function drawOneSide({
 
 /**
  * 绘制边框（fill 梯形模型，跨页裁剪，支持 border-radius）
+ * @param {object} params
+ * @param {object} params.node          - 节点对象，含 x/y/width/height/style/collapseCell
+ * @param {object} params.ctx           - 渲染上下文，含 doc/toMM/toPdfX/toPdfYmm
+ * @param {number} [params.clipTop=0]   - 页内可见区顶部（px）
+ * @param {number} params.clipBottom    - 页内可见区底部（px）
+ * @param {boolean} [params.isLastSpill=true] - 是否为最后一个跨页片段
+ * @returns {void}
  */
 function drawBorder({
   node,
@@ -171,11 +188,9 @@ function drawBorder({
     ? { tl: 0, tr: 0, br: 0, bl: 0 }
     : parseRadius({ style, toMM, w, h: fullH });
 
-  let restoreClip = null;
-
-  if (!isSinglePage) {
-    restoreClip = applyPageClip({ doc, x, w, clipTopMm, clipBottomMm });
-  }
+  const restoreClip = isSinglePage
+    ? null
+    : applyPageClip({ doc, x, w, clipTopMm, clipBottomMm });
 
   for (const dir of ['top', 'right', 'bottom', 'left']) {
     const { bwPx, colorStr, bStyle } = sides[dir];
@@ -205,8 +220,14 @@ function drawBorder({
 
 // ─── 跨页闭合线 ───────────────────────────────────────────────────────────────
 
+/**
+ * 解析 border 简写字符串，提取宽度和颜色。
+ * @param {string} borderStr - border 属性字符串，如 "1px solid rgba(0,0,0,1)"
+ * @returns {{ bw: number, color: number[] } | null} 宽度（mm）+ RGB 三元数组，解析失败返回 null
+ */
 function parseBorderString(borderStr) {
-  if (!borderStr) return null;
+  if (borderStr === null || borderStr === undefined || borderStr === '')
+    return null;
 
   const widthMatch = borderStr.match(/(\d+(?:\.\d+)?)\s*px/);
   if (!widthMatch) return null;
@@ -226,18 +247,25 @@ function parseBorderString(borderStr) {
 
 /**
  * 在表格跨页截断处画出口闭合线。
+ * @param {object} params
+ * @param {object} params.node            - 节点对象，含 x/width
+ * @param {object} params.ctx             - 渲染上下文，含 doc/toMM/toPdfX/toPdfYmm
+ * @param {number} params.clipBottom      - 截断处底边（px）
+ * @param {string} params.pageBreakBorder - border 简写字符串
+ * @returns {void}
  */
 function drawSpillClosingLines({ node, ctx, clipBottom, pageBreakBorder }) {
   const { doc, toMM, toPdfX, toPdfYmm } = ctx;
   const fb = parseBorderString(pageBreakBorder);
-  if (!fb) return;
 
-  const x = toPdfX(node.x);
-  const w = toMM(node.width);
-  const bw = toMM(fb.bw);
+  if (fb) {
+    const x = toPdfX(node.x);
+    const w = toMM(node.width);
+    const bw = toMM(fb.bw);
 
-  doc.setFillColor(fb.color[0], fb.color[1], fb.color[2]);
-  doc.rect(x, toPdfYmm(clipBottom) - bw / 2, w, bw, 'F');
+    doc.setFillColor(fb.color[0], fb.color[1], fb.color[2]);
+    doc.rect(x, toPdfYmm(clipBottom) - bw / 2, w, bw, 'F');
+  }
 }
 
 export { drawBorder, drawSpillClosingLines };
