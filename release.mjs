@@ -109,6 +109,8 @@ run(`git push origin v${newVersion}`);
 
 // 6. publish
 step('Publishing to npm...');
-run('npm publish --access public --ignore-scripts');
+run(
+  'npm publish --access public --ignore-scripts --registry https://registry.npmjs.org',
+);
 
 console.log(green(`\n🎉 Released v${newVersion} successfully!`));
