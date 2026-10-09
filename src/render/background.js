@@ -17,11 +17,42 @@ import {
   addLastPagePath,
 } from './radius';
 
+/**
+ * 渐变类型匹配表，按优先级排列（repeating 变体必须在非 repeating 之前）。
+ * test 为 null 表示兜底（linear-gradient）。
+ */
+const GRADIENT_PARSERS = [
+  {
+    test: 'repeating-linear-gradient',
+    parse: parseRepeatingLinearGradient,
+    renderSlice: renderGradientSlice,
+  },
+  {
+    test: 'repeating-radial-gradient',
+    parse: parseRepeatingRadialGradient,
+    renderSlice: renderRadialGradientSlice,
+  },
+  {
+    test: 'radial-gradient',
+    parse: parseRadialGradient,
+    renderSlice: renderRadialGradientSlice,
+  },
+  { test: null, parse: parseLinearGradient, renderSlice: renderGradientSlice },
+];
+
 // ─── 背景图尺寸/位置计算 ─────────────────────────────────────────────────────
 
 /**
  * 根据 backgroundSize / 元素尺寸 / 图片原始尺寸，计算实际渲染的 imgW/imgH（mm）
  * 支持 cover / contain / auto / 固定值
+ *
+ * @param {object} params
+ * @param {string} params.bgSize - CSS backgroundSize 值
+ * @param {number} params.elW   - 元素宽度（mm）
+ * @param {number} params.elH   - 元素高度（mm）
+ * @param {number} params.natW  - 图片原始宽度（mm）
+ * @param {number} params.natH  - 图片原始高度（mm）
+ * @returns {{ imgW: number, imgH: number }} 实际渲染尺寸（mm）
  */
 function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
   const parts = (bgSize || 'auto').trim().split(/\s+/);
@@ -53,6 +84,14 @@ function calcBgImageSize({ bgSize, elW, elH, natW, natH }) {
 
 /**
  * 根据 backgroundPosition 计算图片左上角偏移（单位 mm）
+ *
+ * @param {object} params
+ * @param {string} params.bgPos - CSS backgroundPosition 值
+ * @param {number} params.elW   - 元素宽度（mm）
+ * @param {number} params.elH   - 元素高度（mm）
+ * @param {number} params.imgW  - 图片渲染宽度（mm）
+ * @param {number} params.imgH  - 图片渲染高度（mm）
+ * @returns {{ offX: number, offY: number }} 图片左上角相对元素左上角的偏移（mm）
  */
 function calcBgImagePos({ bgPos, elW, elH, imgW, imgH }) {
   const parts = (bgPos || '50% 50%').trim().split(/\s+/);
@@ -107,21 +146,12 @@ function applyRadiusClip({
  * @returns {{ gradient: object|null, renderSlice: Function }}
  */
 function resolveGradient(bgImage) {
-  const isRepLin = bgImage?.includes('repeating-linear-gradient');
-  const isRepRad = bgImage?.includes('repeating-radial-gradient');
-  const isRadial =
-    !isRepLin && (isRepRad || bgImage?.includes('radial-gradient'));
+  const entry = GRADIENT_PARSERS.find(
+    ({ test }) => !test || bgImage?.includes(test),
+  );
+  const gradient = entry.parse(bgImage);
 
-  let gradient = null;
-  if (isRepLin) gradient = parseRepeatingLinearGradient(bgImage);
-  else if (isRepRad) gradient = parseRepeatingRadialGradient(bgImage);
-  else if (isRadial) gradient = parseRadialGradient(bgImage);
-  else gradient = parseLinearGradient(bgImage);
-
-  const renderSlice =
-    isRadial || isRepRad ? renderRadialGradientSlice : renderGradientSlice;
-
-  return { gradient, renderSlice };
+  return { gradient, renderSlice: entry.renderSlice };
 }
 
 // ─── 多层背景解析 ─────────────────────────────────────────────────────────────
@@ -135,13 +165,15 @@ function resolveGradient(bgImage) {
  * @returns {Array<{gradient: object, renderSlice: Function}>}
  */
 function resolveBgLayers(bgImage) {
-  if (!bgImage || bgImage === 'none') return [];
+  if (bgImage && bgImage !== 'none') {
+    return splitTopLevelCommas(bgImage)
+      .map((part) => part.trim())
+      .filter((part) => part && part !== 'none')
+      .map((part) => resolveGradient(part))
+      .filter(({ gradient }) => gradient !== null);
+  }
 
-  return splitTopLevelCommas(bgImage)
-    .map((part) => part.trim())
-    .filter((part) => part && part !== 'none')
-    .map((part) => resolveGradient(part))
-    .filter(({ gradient }) => gradient !== null);
+  return [];
 }
 
 // ─── 主函数 ───────────────────────────────────────────────────────────────────
@@ -221,7 +253,7 @@ export function drawBackground({
   }
 
   // 2. 渐变背景层（支持多层，从底层到顶层渲染）
-  const bgLayers = resolveBgLayers(style?.backgroundImage);
+  const bgLayers = resolveBgLayers(style.backgroundImage);
 
   if (bgLayers.length > 0) {
     const natW = Math.round(node.width);
@@ -257,23 +289,21 @@ export function drawBackground({
 
   // 3. 再画背景图（叠加在背景色/渐变上）
   if (node.bgSrc) {
-    const elW = toMM(node.width);
-    const elH = toMM(node.height);
     const natW = node.bgNaturalWidth;
     const natH = node.bgNaturalHeight;
 
     if (natW > 0 && natH > 0) {
       const { imgW, imgH } = calcBgImageSize({
         bgSize: style.backgroundSize,
-        elW,
-        elH,
+        elW: w,
+        elH: fullH,
         natW,
         natH,
       });
       const { offX, offY } = calcBgImagePos({
         bgPos: style.backgroundPosition,
-        elW,
-        elH,
+        elW: w,
+        elH: fullH,
         imgW,
         imgH,
       });
@@ -344,14 +374,14 @@ function applyOneAncestorClip({
   const ah = toMM(visBottom - visTop);
 
   // 圆角
-  const fakeStyle = {
+  const radiusStyle = {
     borderTopLeftRadius: ancestor.borderTopLeftRadius,
     borderTopRightRadius: ancestor.borderTopRightRadius,
     borderBottomRightRadius: ancestor.borderBottomRightRadius,
     borderBottomLeftRadius: ancestor.borderBottomLeftRadius,
   };
   const fullH = toMM(pbH);
-  const radius = parseRadius({ style: fakeStyle, toMM, w: aw, h: fullH });
+  const radius = parseRadius({ style: radiusStyle, toMM, w: aw, h: fullH });
   const useRadius = hasRadius(radius);
   const isFirstPage = relTop >= 0;
   const isLastPage = relBottom <= pageHeightPx;
@@ -385,7 +415,7 @@ export function pushAncestorClips({
   offsetYpx,
   pageHeightPx,
 }) {
-  if (!ancestors || ancestors.length === 0) return 0;
+  if (ancestors.length === 0) return 0;
 
   let count = 0;
   for (const ancestor of ancestors) {
@@ -399,10 +429,10 @@ export function pushAncestorClips({
       offsetYpx,
       pageHeightPx,
     });
-    if (!visible) {
-      doc.restoreGraphicsState();
-    } else {
+    if (visible) {
       count += 1;
+    } else {
+      doc.restoreGraphicsState();
     }
   }
 
