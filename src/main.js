@@ -9,7 +9,7 @@
  * │   └─ preloadImages()            预加载图片（iframe 销毁前）
  * ├─ 4. destroyDocument()           释放 iframe
  * ├─ 5. injectFontsToJsPDF()         注册自定义字体
- * ├─ 6. createRepeatHeaderManager() 建立 repeat-header 管理器
+ * ├─ 6. initRepeatHeader()           建立 repeat-header 上下文
  * │   getPageBreakLinesMap()        建立 pageBreakBorder 映射
  * ├─ 7. streamPaginate()            流式分页，生成 allPlacements
  * ├─ 8. getPageBreakLines()          获取跨页表格闭合线
@@ -27,7 +27,7 @@ import {
   destroyDocument,
   injectFontsToJsPDF,
   renderHeaderFooter,
-  createRepeatHeaderManager,
+  initRepeatHeader,
   streamPaginate,
   getPageBreakLines,
   getPageBreakLinesMap,
@@ -122,8 +122,8 @@ export async function htmlpdf(element, options = {}) {
   tick('fonts', 0.5);
 
   // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────
-  // 创建 repeat-header 管理器（无 repeatHeader 配置时返回 null）
-  const repeatHeaderManager = createRepeatHeaderManager(nodes, tables);
+  // 初始化 repeat-header 上下文（无 repeatHeader 配置时返回 null）
+  const repeatHeader = initRepeatHeader(nodes, tables);
   // 构建 pageBreakLines 映射（WeakMap，不污染 node）
   const pageBreakBorderMap = getPageBreakLinesMap(nodes, tables);
 
@@ -131,7 +131,7 @@ export async function htmlpdf(element, options = {}) {
   const { totalPages, allPlacements } = streamPaginate({
     nodes,
     ctx,
-    repeatHeaderManager,
+    repeatHeader,
   });
 
   tick('paginate', 0.7);

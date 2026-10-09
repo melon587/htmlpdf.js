@@ -157,7 +157,7 @@ function buildNodeMetaMap(nodes, tables) {
  * @param {Array} tables - [{ selector, repeatHeader, pageBreakBorder }]
  * @returns {{ getHeaderMetaForNode, setMeta } | null}
  */
-export function createRepeatHeaderManager(nodes, tables = []) {
+export function initRepeatHeader(nodes, tables = []) {
   const nodeMetaMap = buildNodeMetaMap(nodes, tables);
 
   if (nodeMetaMap) {

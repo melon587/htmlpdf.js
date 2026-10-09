@@ -5,5 +5,5 @@ export * from './image-loader';
 export * from './node-parser';
 export * from './page';
 export * from './stream-pagination';
-export * from './repeat-header-manager';
+export * from './repeat-header';
 export * from './page-break-lines';

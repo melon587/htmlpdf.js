@@ -5,7 +5,7 @@
  *   第二遍 assignPlacements()     —— 按 node.y 坐标查页码，生成 normal/repeat-header placements
  *   第三步 expandSpillPlacements() —— 为跨页节点在后续页生成 spill placement
  *
- * streamPaginate({ nodes, ctx, repeatHeaderManager })
+ * streamPaginate({ nodes, ctx, repeatHeader })
  * ├─ buildPageBoundaries()        第一遍：needsNewPage / calcNextPageStart / pageStartOffsets
  * ├─ assignPlacements()           第二遍：node.y → page，normal + repeat-header placements
  * ├─ expandSpillPlacements()      跨页展开，生成 spill placements
@@ -21,7 +21,7 @@
 import {
   shouldSkipOriginalHeader,
   generateRepeatHeaderPlacements,
-} from './repeat-header-manager';
+} from './repeat-header';
 
 /**
  * placement 同页渲染顺序权重
@@ -281,7 +281,7 @@ export function expandSpillPlacements(
  *
  * @param {Array}  nodes
  * @param {number} contentHeightPx
- * @param {Object|null} repeatHeaderManager
+ * @param {Object|null} repeatHeader
  * @returns {Map} pageStartOffsets: pageNum → {
  *   pageContentTopPx,    内容区全局起点（已减去表头高度）
  *   pageActualBottomPx,  本页实际底部（text/avoid 换页时 < 理论值）
@@ -289,7 +289,7 @@ export function expandSpillPlacements(
  *   accumulatedYpx,      该页原始全局起点（含表头区域）
  * }
  */
-function buildPageBoundaries(nodes, contentHeightPx, repeatHeaderManager) {
+function buildPageBoundaries(nodes, contentHeightPx, repeatHeader) {
   let currentPage = 1;
   let accumulatedYpx = 0;
   let currentPageContentOffsetPx = 0;
@@ -303,12 +303,12 @@ function buildPageBoundaries(nodes, contentHeightPx, repeatHeaderManager) {
   });
 
   // repeat-header：第一遍只需记录"该表头是否已经出现过"，
-  // 用本地 Set 跟踪，不依赖 repeatHeaderManager 的 setMeta 状态。
+  // 用本地 Set 跟踪，不依赖 repeatHeader 的 setMeta 状态。
   const headerRenderedSet = new Set();
 
   for (let i = 0; i < nodes.length; i += 1) {
     const node = nodes[i];
-    const headerMeta = repeatHeaderManager?.getHeaderMetaForNode(node);
+    const headerMeta = repeatHeader?.getHeaderMetaForNode(node);
 
     const currentPageBottom =
       accumulatedYpx + contentHeightPx - currentPageContentOffsetPx;
@@ -410,13 +410,13 @@ function findPageForY(y, pageStartOffsets) {
 export function buildRepeatHeaderPageSet(
   nodes,
   pageStartOffsets,
-  repeatHeaderManager,
+  repeatHeader,
   nodePlacements,
 ) {
   /** @type {Map<number, Set<Element>>} */
   const repeatHeaderPageMap = new Map();
 
-  if (!repeatHeaderManager) return repeatHeaderPageMap;
+  if (!repeatHeader) return repeatHeaderPageMap;
 
   // 一次遍历：建立 origEl → meta、origEl → firstPage、origEl → 数据行所在页集合
   const headerMetaByEl = new Map();
@@ -425,7 +425,7 @@ export function buildRepeatHeaderPageSet(
   const headerDataPages = new Map();
 
   for (const node of nodes) {
-    const headerMeta = repeatHeaderManager.getHeaderMetaForNode(node);
+    const headerMeta = repeatHeader.getHeaderMetaForNode(node);
     if (!headerMeta) continue;
 
     const el = headerMeta.headerNode._origEl;
@@ -481,22 +481,22 @@ export function buildRepeatHeaderPageSet(
  *
  * @param {Array}       nodes
  * @param {Map}         pageStartOffsets
- * @param {Object|null} repeatHeaderManager
+ * @param {Object|null} repeatHeader
  * @returns {Array} nodePlacements
  */
-function assignPlacements(nodes, pageStartOffsets, repeatHeaderManager) {
+function assignPlacements(nodes, pageStartOffsets, repeatHeader) {
   const nodePlacements = [];
 
   const repeatHeaderPageMap = buildRepeatHeaderPageSet(
     nodes,
     pageStartOffsets,
-    repeatHeaderManager,
+    repeatHeader,
     nodePlacements,
   );
 
   for (let i = 0; i < nodes.length; i += 1) {
     const node = nodes[i];
-    const headerMeta = repeatHeaderManager?.getHeaderMetaForNode(node);
+    const headerMeta = repeatHeader?.getHeaderMetaForNode(node);
 
     const page = findPageForY(node.y, pageStartOffsets);
     const pageInfo = pageStartOffsets.get(page);
@@ -533,17 +533,17 @@ function assignPlacements(nodes, pageStartOffsets, repeatHeaderManager) {
  * @param {Object} params
  * @param {Array}  params.nodes               - 节点数组（由 collectNodes 生成）
  * @param {Object} params.ctx                 - 渲染上下文（scale、doc、contentHeight 等）
- * @param {Object} params.repeatHeaderManager - repeat-header 管理器实例（无配置时为 null）
+ * @param {Object} params.repeatHeader - repeat-header 管理器实例（无配置时为 null）
  * @returns {{ totalPages: number, allPlacements: Array }}
  */
-export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
+export function streamPaginate({ nodes, ctx, repeatHeader = null }) {
   const { contentHeightPx } = ctx;
 
   // 第一遍：建立页边界
   const pageStartOffsets = buildPageBoundaries(
     nodes,
     contentHeightPx,
-    repeatHeaderManager,
+    repeatHeader,
   );
 
   const totalPagesCount = pageStartOffsets.size;
@@ -552,7 +552,7 @@ export function streamPaginate({ nodes, ctx, repeatHeaderManager = null }) {
   const nodePlacements = assignPlacements(
     nodes,
     pageStartOffsets,
-    repeatHeaderManager,
+    repeatHeader,
   );
 
   // 回填 normal placements 的 pageActualBottomPx
