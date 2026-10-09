@@ -50,13 +50,19 @@ function parseColorStop(token) {
   }
 
   const color = colorStr.trim() || null;
-  if (!color) return null;
 
-  return { color, pos, posPx };
+  if (color) {
+    return { color, pos, posPx };
+  }
+
+  return null;
 }
 
 /**
  * 按顶层逗号拆分字符串（忽略括号内的逗号，如 rgba(0,0,0,0) 里的逗号）
+ *
+ * @param {string} str - 待拆分的字符串
+ * @returns {string[]} 拆分后的片段数组
  */
 function splitTopLevelCommas(str) {
   const parts = [];
@@ -84,26 +90,17 @@ function splitTopLevelCommas(str) {
  * - 首个无 pos（且无 posPx）→ 0
  * - 末个无 pos（且无 posPx）→ 1
  * - 中间无 pos → 在前后已知 pos 之间均匀插值
+ *
+ * @param {Array<{color: string, pos: number|null, posPx: number|null}>} stops
+ * @returns {Array<{color: string, pos: number, posPx: number|null}>}
  */
 function fillStopPositions(stops) {
   const result = stops.map((s) => ({ ...s }));
   const n = result.length;
 
-  // 找到第一个和最后一个 pct 色标（posPx 为 null 的），从两端线性扫描
-  let firstPct = null;
-  for (let i = 0; i < n; i += 1) {
-    if (result[i].posPx === null) {
-      firstPct = result[i];
-      break;
-    }
-  }
-  let lastPct = null;
-  for (let i = n - 1; i >= 0; i -= 1) {
-    if (result[i].posPx === null) {
-      lastPct = result[i];
-      break;
-    }
-  }
+  // 找到第一个和最后一个 pct 色标（posPx 为 null 的），用于两端默认值
+  const firstPct = result.find((s) => s.posPx === null) ?? null;
+  const lastPct = [...result].reverse().find((s) => s.posPx === null) ?? null;
 
   if (firstPct && firstPct.pos === null) firstPct.pos = 0;
 
@@ -138,8 +135,14 @@ function fillStopPositions(stops) {
   return result;
 }
 
+/**
+ * 解析 linear-gradient() 括号内的内容，返回渐变对象
+ *
+ * @param {string|null} inner - linear-gradient() 括号内的字符串
+ * @returns {{ angle: number, stops: Array } | null}
+ */
 function parseLinearGradientInner(inner) {
-  if (!inner) return null;
+  if (inner === null || inner === undefined || inner === '') return null;
 
   const parts = splitTopLevelCommas(inner);
   if (parts.length < 2) return null;
@@ -177,21 +180,16 @@ function parseLinearGradientInner(inner) {
  * @returns {{ angle: number, stops: Array<{color:string, pos:number}> } | null}
  */
 function parseLinearGradient(str) {
-  if (!str || !str.includes('linear-gradient')) return null;
+  if (str && str.includes('linear-gradient')) {
+    // trim 消除末尾空白，避免正则 $ 锚点匹配失败
+    const s = str.trim();
 
-  // trim 消除末尾空白，避免正则 $ 锚点匹配失败
-  const s = str.trim();
-
-  const fnMatch = s.match(
-    /linear-gradient\s*\((.+)\)\s*(?:,\s*linear-gradient|$)/s,
-  );
-  if (!fnMatch) {
     return parseLinearGradientInner(
-      s.match(/linear-gradient\s*\((.+)\)$/s)?.[1],
+      s.match(/linear-gradient\s*\((.+)\)$/s)?.[1] ?? null,
     );
   }
 
-  return parseLinearGradientInner(fnMatch[1]);
+  return null;
 }
 
 // ─── 渐变绘制到 Canvas ────────────────────────────────────────────────────────
@@ -200,6 +198,11 @@ function parseLinearGradient(str) {
  * 将 CSS gradient 角度（0deg=to top，顺时针）转为 Canvas createLinearGradient 的两端点坐标
  *
  * 渐变线长度公式（CSS 规范）：|W·sin(a)| + |H·cos(a)|
+ *
+ * @param {number} w        - 元素宽度（px）
+ * @param {number} h        - 元素高度（px）
+ * @param {number} angleDeg - CSS gradient 角度（deg）
+ * @returns {{ x0: number, y0: number, x1: number, y1: number, len: number }}
  */
 function gradientEndPoints(w, h, angleDeg) {
   const a = (angleDeg * Math.PI) / 180;
@@ -281,50 +284,59 @@ function renderGradientSlice({ gradient, natW, natH, srcY, srcH }) {
  *   cx/cy 为 0~1 的比例值，stops 同 linear-gradient
  */
 function parseRadialGradient(str) {
-  if (!str || !str.includes('radial-gradient')) return null;
+  if (str && str.includes('radial-gradient')) {
+    const fnMatch = str.trim().match(/radial-gradient\s*\((.+)\)$/s);
 
-  const fnMatch = str.trim().match(/radial-gradient\s*\((.+)\)$/s);
-  if (!fnMatch) return null;
+    if (fnMatch) {
+      const inner = fnMatch[1];
+      const parts = splitTopLevelCommas(inner);
+      if (parts.length < 2) return null;
 
-  const inner = fnMatch[1];
-  const parts = splitTopLevelCommas(inner);
-  if (parts.length < 2) return null;
+      let cx = 0.5;
+      let cy = 0.5;
+      let shape = 'ellipse'; // 默认 ellipse
+      let stopStart = 0;
 
-  let cx = 0.5;
-  let cy = 0.5;
-  let shape = 'ellipse'; // 默认 ellipse
-  let stopStart = 0;
+      // 第一个 token 可能是 shape/size/position 描述，或直接是色标颜色
+      const first = parts[0].trim().toLowerCase();
+      const hasDescriptor =
+        /^(circle|ellipse|closest|farthest|contain|cover|at\s)/i.test(first) ||
+        /\bat\b/.test(first);
 
-  // 第一个 token 可能是 shape/size/position 描述，或直接是色标颜色
-  const first = parts[0].trim().toLowerCase();
-  const hasDescriptor =
-    /^(circle|ellipse|closest|farthest|contain|cover|at\s)/i.test(first) ||
-    /\bat\b/.test(first);
+      if (hasDescriptor) {
+        stopStart = 1;
+        if (/\bcircle\b/.test(first)) shape = 'circle';
 
-  if (hasDescriptor) {
-    stopStart = 1;
-    if (/\bcircle\b/.test(first)) shape = 'circle';
+        // 提取 "at <x> <y>"
+        const atMatch = first.match(/at\s+([\w.%]+)(?:\s+([\w.%]+))?/);
 
-    // 提取 "at <x> <y>"
-    const atMatch = first.match(/at\s+([\w.%]+)(?:\s+([\w.%]+))?/);
+        if (atMatch) {
+          cx = parsePosToken(atMatch[1]);
+          cy = parsePosToken(atMatch[2] ?? atMatch[1]);
+        }
+      }
 
-    if (atMatch) {
-      cx = parsePosToken(atMatch[1]);
-      cy = parsePosToken(atMatch[2] ?? atMatch[1]);
+      const rawStops = parts
+        .slice(stopStart)
+        .map(parseColorStop)
+        .filter(Boolean);
+      if (rawStops.length < 2) return null;
+
+      return { cx, cy, shape, stops: fillStopPositions(rawStops) };
     }
   }
 
-  const rawStops = parts.slice(stopStart).map(parseColorStop).filter(Boolean);
-  if (rawStops.length < 2) return null;
-
-  return { cx, cy, shape, stops: fillStopPositions(rawStops) };
+  return null;
 }
 
 /**
  * 将位置关键字 / 百分比 / px 转换为 0~1 比例
+ *
+ * @param {string|null|undefined} tok - 位置 token（如 "50%"、"left"、"center"）
+ * @returns {number} 0~1 的比例值
  */
 function parsePosToken(tok) {
-  if (!tok) return 0.5;
+  if (tok === null || tok === undefined || tok === '') return 0.5;
 
   const t = tok.trim().toLowerCase();
 
@@ -369,7 +381,8 @@ function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
 
   // circle: scaleY=1（正圆，无缩放）
   // ellipse: scaleY = natW/natH（在 Y 轴归一化坐标系里画圆，还原为椭圆）
-  const scaleY = shape === 'circle' ? 1 : natH > 0 ? natW / natH : 1;
+  const aspectRatio = natH > 0 ? natW / natH : 1;
+  const scaleY = shape === 'circle' ? 1 : aspectRatio;
   ctx2d.scale(1, 1 / scaleY);
 
   // 归一化坐标（Y 轴已缩放）
@@ -441,7 +454,7 @@ function expandRepeatingStops(stops, gradientLength) {
   const tileSize = normalized[normalized.length - 1].pos;
 
   // tileSize <= 0 或 >= 1 则无需重复
-  if (!tileSize || tileSize >= 1) return normalized;
+  if (tileSize <= 0 || tileSize >= 1) return normalized;
 
   const result = [];
   let offset = 0;
@@ -465,13 +478,19 @@ function expandRepeatingStops(stops, gradientLength) {
  * 返回带 repeating:true 标记的对象；色标展开推迟到渲染层（需要渐变线长度）
  */
 function parseRepeatingLinearGradient(str) {
-  if (!str || !str.includes('repeating-linear-gradient')) return null;
+  if (str && str.includes('repeating-linear-gradient')) {
+    const replaced = str.replace(
+      /repeating-linear-gradient/g,
+      'linear-gradient',
+    );
+    const parsed = parseLinearGradient(replaced);
 
-  const replaced = str.replace(/repeating-linear-gradient/g, 'linear-gradient');
-  const parsed = parseLinearGradient(replaced);
-  if (!parsed) return null;
+    if (parsed) {
+      return { ...parsed, repeating: true };
+    }
+  }
 
-  return { ...parsed, repeating: true };
+  return null;
 }
 
 /**
@@ -479,13 +498,19 @@ function parseRepeatingLinearGradient(str) {
  * 返回带 repeating:true 标记的对象；色标展开推迟到渲染层（需要半径长度）
  */
 function parseRepeatingRadialGradient(str) {
-  if (!str || !str.includes('repeating-radial-gradient')) return null;
+  if (str && str.includes('repeating-radial-gradient')) {
+    const replaced = str.replace(
+      /repeating-radial-gradient/g,
+      'radial-gradient',
+    );
+    const parsed = parseRadialGradient(replaced);
 
-  const replaced = str.replace(/repeating-radial-gradient/g, 'radial-gradient');
-  const parsed = parseRadialGradient(replaced);
-  if (!parsed) return null;
+    if (parsed) {
+      return { ...parsed, repeating: true };
+    }
+  }
 
-  return { ...parsed, repeating: true };
+  return null;
 }
 
 export {
