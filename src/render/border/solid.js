@@ -12,6 +12,19 @@ const PI = Math.PI;
 
 // ─── 梯形路径构建 ────────────────────────────────────────────────────────────
 
+/**
+ * 绘制顶边梯形路径（close，不 fill）。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc - jsPDF 实例
+ * @param {number} p.x   - 边框盒左上角 x（pt）
+ * @param {number} p.y   - 边框盒左上角 y（pt）
+ * @param {number} p.w   - 边框盒宽度（pt）
+ * @param {number} p.bt  - 顶边宽（pt）
+ * @param {number} p.bl  - 左边宽（pt）
+ * @param {number} p.br  - 右边宽（pt）
+ * @param {Object} p.r   - 圆角半径 { tl, tr, br, bl }（pt）
+ */
 function buildTopBorderPath({ doc, x, y, w, bt, bl, br, r }) {
   const { tl, tr } = r;
 
@@ -66,6 +79,20 @@ function buildTopBorderPath({ doc, x, y, w, bt, bl, br, r }) {
   doc.close();
 }
 
+/**
+ * 绘制底边梯形路径（close，不 fill）。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc - jsPDF 实例
+ * @param {number} p.x   - 边框盒左上角 x（pt）
+ * @param {number} p.y   - 边框盒左上角 y（pt）
+ * @param {number} p.w   - 边框盒宽度（pt）
+ * @param {number} p.h   - 边框盒高度（pt）
+ * @param {number} p.bb  - 底边宽（pt）
+ * @param {number} p.bl  - 左边宽（pt）
+ * @param {number} p.br  - 右边宽（pt）
+ * @param {Object} p.r   - 圆角半径 { tl, tr, br, bl }（pt）
+ */
 function buildBottomBorderPath({ doc, x, y, w, h, bb, bl, br, r }) {
   const { br: rbr, bl: rbl } = r;
 
@@ -121,6 +148,19 @@ function buildBottomBorderPath({ doc, x, y, w, h, bb, bl, br, r }) {
   doc.close();
 }
 
+/**
+ * 绘制左边梯形路径（close，不 fill）。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc - jsPDF 实例
+ * @param {number} p.x   - 边框盒左上角 x（pt）
+ * @param {number} p.y   - 边框盒左上角 y（pt）
+ * @param {number} p.h   - 边框盒高度（pt）
+ * @param {number} p.bt  - 顶边宽（pt）
+ * @param {number} p.bb  - 底边宽（pt）
+ * @param {number} p.bl  - 左边宽（pt）
+ * @param {Object} p.r   - 圆角半径 { tl, tr, br, bl }（pt）
+ */
 function buildLeftBorderPath({ doc, x, y, h, bt, bb, bl, r }) {
   const { tl, bl: rbl } = r;
 
@@ -170,6 +210,20 @@ function buildLeftBorderPath({ doc, x, y, h, bt, bb, bl, r }) {
   doc.close();
 }
 
+/**
+ * 绘制右边梯形路径（close，不 fill）。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc  - jsPDF 实例
+ * @param {number} p.x    - 边框盒左上角 x（pt）
+ * @param {number} p.y    - 边框盒左上角 y（pt）
+ * @param {number} p.w    - 边框盒宽度（pt）
+ * @param {number} p.h    - 边框盒高度（pt）
+ * @param {number} p.bt   - 顶边宽（pt）
+ * @param {number} p.bb   - 底边宽（pt）
+ * @param {number} p.brW  - 右边宽（pt，命名避免与圆角 br 冲突）
+ * @param {Object} p.r    - 圆角半径 { tl, tr, br, bl }（pt）
+ */
 function buildRightBorderPath({ doc, x, y, w, h, bt, bb, brW, r }) {
   const { tr, br: rbr } = r;
 
@@ -235,6 +289,20 @@ function buildRightBorderPath({ doc, x, y, w, h, bt, bb, brW, r }) {
 /**
  * 构建指定方向的梯形路径（close，不 fill）。
  * 用于 dashed/dotted 的 clip 区域，也供 solid/double 内部使用。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc - jsPDF 实例
+ * @param {number} p.x   - 边框盒左上角 x（pt）
+ * @param {number} p.y   - 边框盒左上角 y（pt）
+ * @param {number} p.w   - 边框盒宽度（pt）
+ * @param {number} p.h   - 边框盒高度（pt）
+ * @param {string} p.dir - 方向：'top' | 'bottom' | 'left' | 'right'
+ * @param {number} p.bw  - 当前边宽（pt）
+ * @param {number} p.bt  - 顶边宽（pt）
+ * @param {number} p.bb  - 底边宽（pt）
+ * @param {number} p.bl  - 左边宽（pt）
+ * @param {number} p.br  - 右边宽（pt）
+ * @param {Object} p.r   - 圆角半径 { tl, tr, br, bl }（pt）
  */
 function buildSidePath({ doc, x, y, w, h, dir, bw, bt, bb, bl, br, r }) {
   if (dir === 'top') {
@@ -250,6 +318,26 @@ function buildSidePath({ doc, x, y, w, h, dir, bw, bt, bb, bl, br, r }) {
 
 // ─── 单层 fill（offset 用于 double 的外/内线） ───────────────────────────────
 
+/**
+ * 填充单边的一层梯形（供 solid/double 使用）。
+ * offset > 0 时盒子内缩，用于 double 的内线。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc    - jsPDF 实例
+ * @param {number} p.x      - 边框盒左上角 x（pt）
+ * @param {number} p.y      - 边框盒左上角 y（pt）
+ * @param {number} p.w      - 边框盒宽度（pt）
+ * @param {number} p.h      - 边框盒高度（pt）
+ * @param {Object} p.r      - 圆角半径 { tl, tr, br, bl }（pt）
+ * @param {string} p.dir    - 方向：'top' | 'bottom' | 'left' | 'right'
+ * @param {number} p.bw     - 当前边宽（pt）
+ * @param {number} p.offset - 盒子内缩量（pt），double 外线传 0、内线传 2*bw/3
+ * @param {number} p.bt     - 顶边宽（pt）
+ * @param {number} p.bb     - 底边宽（pt）
+ * @param {number} p.bl     - 左边宽（pt）
+ * @param {number} p.br     - 右边宽（pt）
+ * @param {number[]} p.c    - 填充色 [r, g, b]（0–255）
+ */
 function fillOneSideLayer({
   doc,
   x,
@@ -334,6 +422,21 @@ function fillOneSideLayer({
 
 /**
  * 绘制 solid 单边。radius 全为 0 时等同于直角梯形。
+ *
+ * @param {Object} p
+ * @param {Object} p.doc - jsPDF 实例
+ * @param {number} p.x   - 边框盒左上角 x（pt）
+ * @param {number} p.y   - 边框盒左上角 y（pt）
+ * @param {number} p.w   - 边框盒宽度（pt）
+ * @param {number} p.h   - 边框盒高度（pt）
+ * @param {Object} p.r   - 圆角半径 { tl, tr, br, bl }（pt）
+ * @param {string} p.dir - 方向：'top' | 'bottom' | 'left' | 'right'
+ * @param {number} p.bw  - 当前边宽（pt）
+ * @param {number} p.bt  - 顶边宽（pt）
+ * @param {number} p.bb  - 底边宽（pt）
+ * @param {number} p.bl  - 左边宽（pt）
+ * @param {number} p.br  - 右边宽（pt）
+ * @param {number[]} p.c - 填充色 [r, g, b]（0–255）
  */
 function drawSolidBorder({ doc, x, y, w, h, r, dir, bw, bt, bb, bl, br, c }) {
   fillOneSideLayer({
