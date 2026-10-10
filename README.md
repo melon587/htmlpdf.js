@@ -4,7 +4,26 @@
 
 [English](./README.md) | [中文文档](./README.zh-CN.md)
 
-A lightweight HTML to PDF converter library based on jsPDF, supporting custom fonts, page breaks, repeat headers, pseudo-elements, and multi-page rendering with cross-page image/canvas cropping.
+**Write HTML, get PDF. No PDF knowledge required.**
+
+htmlpdfx.js is a pure front-end HTML-to-PDF library. You write HTML and CSS as you normally would — the library handles all the PDF internals. No server, no Puppeteer, no learning jsPDF APIs.
+
+```javascript
+import { htmlpdf } from 'htmlpdfx.js';
+const blob = await htmlpdf(document.getElementById('content'));
+```
+
+That's it. Your HTML becomes a PDF, styled exactly as it looks in the browser.
+
+---
+
+### Why not Puppeteer?
+
+Puppeteer requires a Node.js server and ships a full browser binary (~300 MB). htmlpdfx.js runs entirely in the browser — no backend, no deployment overhead, no extra infrastructure.
+
+### Why not jsPDF directly?
+
+jsPDF has its own layout API. You'd need to learn it, maintain a separate PDF template alongside your HTML, and manually keep them in sync. htmlpdfx.js reads your existing DOM — your HTML template _is_ the PDF template.
 
 ## ✨ Features
 
@@ -479,7 +498,7 @@ Returns a `Promise` that resolves to:
 
 - **Transforms**: CSS transforms (`rotate`, `scale`, `skew`, `matrix`) are not rendered
 - **Advanced CSS**: Animations, transitions, filters, shadows, backdrop-filter
-- **Complex borders**: Border images, advanced border styles (double, groove, ridge, inset, outset)
+- **Complex borders**: Border images, advanced border styles (groove, ridge, inset, outset)
 - **Gradients**: Radial gradients, conic gradients, repeating gradients
 
 ## 🎯 Browser Support
@@ -500,7 +519,7 @@ htmlpdfx.js **cannot run in Node.js, Deno, or any server-side environment**. It 
 - `getComputedStyle()` — for CSS properties
 - `Range.getClientRects()` — for multi-line text measurement
 
-If you need server-side HTML-to-PDF, consider [Puppeteer](https://pptr.dev/) or [Playwright](https://playwright.dev/).
+This library is intentionally browser-only — that is its core value proposition.
 
 ### CSS transforms
 

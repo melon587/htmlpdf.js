@@ -4,7 +4,26 @@
 
 [English](./README.md) | [中文文档](./README.zh-CN.md)
 
-基于 jsPDF 的轻量级 HTML 转 PDF 库，支持自定义字体、分页控制、表头重复、伪元素渲染和跨页图片/画布裁切的多页渲染。
+**写 HTML，得到 PDF。无需了解任何 PDF 知识。**
+
+htmlpdfx.js 是一个纯前端的 HTML 转 PDF 库。你只需像平时一样写 HTML 和 CSS，库负责处理所有 PDF 细节。不需要服务器，不需要 Puppeteer，不需要学习 jsPDF API。
+
+```javascript
+import { htmlpdf } from 'htmlpdfx.js';
+const blob = await htmlpdf(document.getElementById('content'));
+```
+
+就这些。你的 HTML 会变成 PDF，样式与浏览器中完全一致。
+
+---
+
+### 为什么不用 Puppeteer？
+
+Puppeteer 需要 Node.js 服务端，并携带完整浏览器二进制文件（约 300 MB）。htmlpdfx.js 完全运行在浏览器中——无需后端、无部署负担、无额外基础设施。
+
+### 为什么不直接用 jsPDF？
+
+jsPDF 有自己的布局 API，你需要专门学习它，还要维护一套独立的 PDF 模板与 HTML 并行，并手动保持同步。htmlpdfx.js 直接读取你现有的 DOM——你的 HTML 模板就是 PDF 模板。
 
 ## ✨ 特性
 
@@ -486,7 +505,7 @@ fonts: [
 
 - **高级布局**：变换（`rotate`、`scale`、`skew`）、浮动元素、绝对定位边缘情况
 - **高级 CSS**：动画、过渡、滤镜、阴影、backdrop-filter
-- **复杂边框**：边框图片、高级边框样式（double、groove、ridge、inset、outset）
+- **复杂边框**：边框图片、高级边框样式（groove、ridge、inset、outset）
 - **渐变**：径向渐变、锥形渐变、重复渐变
 
 ## 🎯 浏览器支持
@@ -507,7 +526,7 @@ htmlpdfx.js **无法在 Node.js、Deno 或任何服务端环境中运行**。它
 - `getComputedStyle()` — 读取 CSS 属性
 - `Range.getClientRects()` — 测量多行文本
 
-如需服务端 HTML 转 PDF，请考虑 [Puppeteer](https://pptr.dev/) 或 [Playwright](https://playwright.dev/)。
+这个库有意设计为仅限浏览器运行——这正是它的核心价值所在。
 
 ### CSS 变换
 
