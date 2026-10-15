@@ -423,6 +423,54 @@ function getMediaEl(origEl, measEl) {
 }
 
 /**
+ * 读取 INPUT / SELECT / TEXTAREA 表单元数据，供渲染层绘制当前填写状态。
+ * 必须从 origEl 读取 value/checked，克隆的 INPUT 在 clone 时 value 属性已冻结为初始值，
+ * 不反映用户运行时修改（实测：document-cloner 用 cloneNode(true)，checked/value attribute
+ * 与 property 在 clone 后可能不一致，统一从原始元素取最新 property）。
+ * 非表单标签或 origEl 为 null（伪元素）时返回 null。
+ *
+ * 返回值统一形状（tag 不同字段不同）：
+ *   INPUT  → { tag:'INPUT', type, value, placeholder, checked }
+ *   SELECT → { tag:'SELECT', value }
+ *   TEXTAREA → { tag:'TEXTAREA', value, placeholder }
+ *
+ * @param {string}       tag      - 元素 tagName
+ * @param {boolean}      isPseudo - 是否为物化伪元素
+ * @param {Element|null} origEl   - 原始 DOM 元素
+ * @returns {{ tag: string, type?: string, value: string, placeholder?: string, checked?: boolean } | null}
+ */
+function getFormMeta(tag, isPseudo, origEl) {
+  if (isPseudo || origEl === null) return null;
+
+  if (tag === 'INPUT') {
+    return {
+      tag: 'INPUT',
+      type: (origEl.type || 'text').toLowerCase(),
+      value: origEl.value ?? '',
+      placeholder: origEl.placeholder ?? '',
+      checked: origEl.checked ?? false,
+    };
+  } else if (tag === 'SELECT') {
+    const idx = origEl.selectedIndex;
+    const selectedText =
+      idx >= 0 && origEl.options[idx] ? origEl.options[idx].text : '';
+
+    return {
+      tag: 'SELECT',
+      value: selectedText,
+    };
+  } else if (tag === 'TEXTAREA') {
+    return {
+      tag: 'TEXTAREA',
+      value: origEl.value ?? '',
+      placeholder: origEl.placeholder ?? '',
+    };
+  }
+
+  return null;
+}
+
+/**
  * 解析元素节点，提取坐标、尺寸和样式。
  *
  * overflowClipAncestors 由调用方（traverseNode）传入——traverseNode 遍历时通过
@@ -475,6 +523,7 @@ function parseElement({
   const { cellRectMap } = tableCache;
 
   const rs = getCellRowSpan(tag, isPseudo, origEl);
+  const formMeta = getFormMeta(tag, isPseudo, origEl);
 
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
@@ -496,6 +545,7 @@ function parseElement({
     _origEl: origEl,
     collapseCell,
     overflowClipAncestors,
+    formMeta,
     style: {
       backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,
