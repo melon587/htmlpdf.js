@@ -464,6 +464,8 @@ function getFormMeta(tag, isPseudo, origEl) {
       tag: 'TEXTAREA',
       value: origEl.value ?? '',
       placeholder: origEl.placeholder ?? '',
+      scrollTop: origEl.scrollTop ?? 0,
+      scrollbarWidth: origEl.offsetWidth - origEl.clientWidth,
     };
   }
 
@@ -524,6 +526,7 @@ function parseElement({
 
   const rs = getCellRowSpan(tag, isPseudo, origEl);
   const formMeta = getFormMeta(tag, isPseudo, origEl);
+  const pdfFont = measEl.getAttribute('pdf-font') ?? null;
 
   return {
     type: isPseudo ? 'pseudo-element' : 'element',
@@ -546,6 +549,7 @@ function parseElement({
     collapseCell,
     overflowClipAncestors,
     formMeta,
+    pdfFont,
     style: {
       backgroundColor: style.backgroundColor,
       backgroundImage: style.backgroundImage,

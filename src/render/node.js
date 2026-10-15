@@ -17,7 +17,7 @@ import {
 import { drawBorder } from './border';
 import { drawImage } from './image';
 import { drawText } from './text';
-import { drawInputText } from './form';
+import { drawInputText, drawTextareaText } from './form';
 
 /**
  * 渲染背景和边框（element 和 pseudo-element 共用）
@@ -134,6 +134,10 @@ export function renderNode({
 
     if (adjustedNode.tag === 'INPUT') {
       drawInputText({ node: adjustedNode, ctx, sortedFontConfig: fonts });
+    }
+
+    if (adjustedNode.tag === 'TEXTAREA') {
+      drawTextareaText({ node: adjustedNode, ctx, sortedFontConfig: fonts });
     }
   } else if (adjustedNode.type === 'pseudo-element') {
     renderBackgroundAndBorder(commonParams);

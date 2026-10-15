@@ -4,3 +4,4 @@
  */
 
 export { drawInputText } from './input';
+export { drawTextareaText } from './textarea';

@@ -7,9 +7,7 @@ import { parsePx, parseColor } from '../../utils';
 import {
   getCombinedFontStyle,
   buildEffectiveFontConfig,
-  segmentTextByFont,
-  drawSegmentAligned,
-  drawMultiSegmentAligned,
+  drawTextLine,
 } from '../text';
 import { parsePaddingPx, applyNodeClip } from './utils';
 
@@ -126,28 +124,8 @@ export function drawInputText({ node, ctx, sortedFontConfig = [] }) {
         { pdfFont: node.pdfFont },
         sortedFontConfig,
       );
-      const segments = segmentTextByFont(text, effectiveFontConfig);
 
-      if (segments.length <= 1) {
-        drawSegmentAligned({
-          text,
-          fontFamily: segments[0]?.font?.fontFamily ?? null,
-          ctx,
-          x,
-          y,
-          fontStyle,
-          textAlign: 'left',
-        });
-      } else {
-        drawMultiSegmentAligned({
-          segments,
-          textAlign: 'left',
-          x,
-          y,
-          fontStyle,
-          ctx,
-        });
-      }
+      drawTextLine({ line: text, ctx, x, y, fontStyle, effectiveFontConfig });
 
       doc.restoreGraphicsState();
     }

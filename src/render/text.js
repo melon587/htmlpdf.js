@@ -475,6 +475,52 @@ function resolveDecorationX(x, totalWidth, textAlign) {
 }
 
 /**
+ * 绘制单行文本到 PDF（segment 分段后统一处理）
+ *
+ * 单段走 drawSegmentAligned，多段走 drawMultiSegmentAligned，
+ * 供表单元素（INPUT / TEXTAREA）逐行调用。
+ *
+ * @param {string} params.line                - 当前行文本
+ * @param {object} params.ctx                 - 渲染上下文
+ * @param {number} params.x                   - mm x 坐标
+ * @param {number} params.y                   - mm y 坐标
+ * @param {string} params.fontStyle           - 字体样式
+ * @param {Array}  params.effectiveFontConfig - 字体配置数组
+ * @returns {void}
+ */
+export function drawTextLine({
+  line,
+  ctx,
+  x,
+  y,
+  fontStyle,
+  effectiveFontConfig,
+}) {
+  const segments = segmentTextByFont(line, effectiveFontConfig);
+
+  if (segments.length <= 1) {
+    drawSegmentAligned({
+      text: line,
+      fontFamily: segments[0]?.font?.fontFamily ?? null,
+      ctx,
+      x,
+      y,
+      fontStyle,
+      textAlign: 'left',
+    });
+  } else {
+    drawMultiSegmentAligned({
+      segments,
+      textAlign: 'left',
+      x,
+      y,
+      fontStyle,
+      ctx,
+    });
+  }
+}
+
+/**
  * 绘制文本节点到 PDF（支持混合字体、LTR/RTL 混排）
  *
  * 渲染路径：
