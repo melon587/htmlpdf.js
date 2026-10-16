@@ -6,3 +6,5 @@
 export { drawInputText } from './input';
 export { drawTextareaText } from './textarea';
 export { drawSelectText } from './select';
+export { drawRadio } from './radio';
+export { drawCheckbox } from './checkbox';

@@ -17,7 +17,13 @@ import {
 import { drawBorder } from './border';
 import { drawImage } from './image';
 import { drawText } from './text';
-import { drawInputText, drawTextareaText, drawSelectText } from './form';
+import {
+  drawInputText,
+  drawTextareaText,
+  drawSelectText,
+  drawRadio,
+  drawCheckbox,
+} from './form';
 
 /**
  * 渲染背景和边框（element 和 pseudo-element 共用）
@@ -134,6 +140,8 @@ export function renderNode({
 
     if (adjustedNode.tag === 'INPUT') {
       drawInputText({ node: adjustedNode, ctx, sortedFontConfig: fonts });
+      drawRadio({ node: adjustedNode, ctx });
+      drawCheckbox({ node: adjustedNode, ctx });
     }
 
     if (adjustedNode.tag === 'TEXTAREA') {

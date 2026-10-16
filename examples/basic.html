@@ -2827,6 +2827,168 @@
           </div>
         </div>
       </div>
+      <!-- ===== Form Input 测试 ===== -->
+      <div
+        style="
+          margin-top: 40px;
+          padding: 16px;
+          background: #f0f5ff;
+          border: 1px solid #adc6ff;
+          border-radius: 4px;
+        "
+      >
+        <h3 style="color: #1677ff; font-size: 16px; margin-bottom: 16px">
+          Form Input Tests
+        </h3>
+
+        <div
+          style="
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+          "
+          pdf-font="noto-sans-sc"
+        >
+          <label style="width: 120px">Text input</label>
+          <input
+            type="text"
+            value="Hello World"
+            style="
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              padding: 5px 8px;
+              font-size: 14px;
+              width: 200px;
+            "
+          />
+        </div>
+
+        <div
+          style="
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+          "
+        >
+          <label style="width: 120px">Number input</label>
+          <input
+            type="number"
+            value="42"
+            style="
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              padding: 5px 8px;
+              font-size: 14px;
+              width: 200px;
+            "
+          />
+        </div>
+
+        <div
+          style="
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+          "
+          pdf-font="noto-sans-sc"
+        >
+          <label style="width: 120px">Checkbox</label>
+          <span>
+            <input
+              type="checkbox"
+              checked
+            />
+            已选中 &nbsp; <input type="checkbox" /> 未选中
+          </span>
+        </div>
+
+        <div
+          style="
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+          "
+          pdf-font="noto-sans-sc"
+        >
+          <label style="width: 120px">Radio</label>
+          <span>
+            <input
+              type="radio"
+              name="r1"
+              checked
+            />
+            选项A &nbsp;
+            <input
+              type="radio"
+              name="r1"
+            />
+            选项B
+          </span>
+        </div>
+
+        <div
+          style="
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+          "
+          pdf-font="noto-sans-sc"
+        >
+          <label style="width: 120px">Select</label>
+          <select
+            style="
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              padding: 5px 8px;
+              font-size: 14px;
+              width: 200px;
+            "
+          >
+            <option>北京</option>
+            <option selected>
+              上海上海上海上海上海上海上海上海上海上海上海上海上海上海上海
+            </option>
+            <option>广州</option>
+          </select>
+        </div>
+
+        <div
+          style="
+            margin-bottom: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 14px;
+          "
+        >
+          <label style="width: 120px; padding-top: 4px">Textarea</label>
+          <textarea
+            pdf-font="noto-sans-sc"
+            style="
+              border: 1px solid #ccc;
+              border-radius: 4px;
+              padding: 5px 8px;
+              font-size: 14px;
+              width: 200px;
+              height: 60px;
+            "
+          >
+这是一段备注内容这是一段备注内容这是一段备注内容这是一段备注内容这是一段备注内容这是一段备注内容
+</textarea
+          >
+        </div>
+      </div>
+      <!-- ===== Form Input 测试结束 ===== -->
     </div>
     <script src="../dist/htmlpdf.js"></script>
     <script>
