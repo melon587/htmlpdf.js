@@ -111,15 +111,13 @@ export async function htmlpdf(element, options = {}) {
   let nodes;
   try {
     nodes = parseNodes(element, cloneRoot);
-    await preloadImages(nodes); // 在 iframe 销毁前预加载图片
+    // preloadImages 与 injectFontsToJsPDF 无依赖，并发执行
+    // 字体 base64 已在 cloneDocument 内 fetch 并缓存，injectFontsToJsPDF 命中缓存仅做注册
+    await Promise.all([preloadImages(nodes), injectFontsToJsPDF(ctx, fonts)]);
   } finally {
     destroyDocument(iframe);
   }
-  tick('images', 0.4);
-
-  // 注入自定义字体到 jsPDF
-  await injectFontsToJsPDF(ctx, fonts);
-  tick('fonts', 0.5);
+  tick('images+fonts', 0.5);
 
   // ── tables 配置预处理（与分页无关，提前建立映射）────────────────────────────
   // 初始化 repeat-header 上下文（无 repeatHeader 配置时返回 null）

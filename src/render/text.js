@@ -326,6 +326,7 @@ export function measureSegmentWidths(segments, fontStyle, ctx) {
  * @param {string}  opts.fontStyle
  * @param {Object}  opts.ctx
  * @param {Object}  [opts.rtlOptions] - RTL 时传入；undefined 表示 LTR
+ * @returns {number} 文本总宽度（mm），供调用方复用（如 text-decoration）
  */
 export function drawMultiSegmentAligned({
   segments,
@@ -370,6 +371,8 @@ export function drawMultiSegmentAligned({
       curX += widths[i];
     }
   }
+
+  return totalWidth;
 }
 
 /**
@@ -556,6 +559,9 @@ export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
 
   const segments = segmentTextByFont(node.text, effectiveFontConfig);
 
+  // totalWidth 供 text-decoration 复用，避免重复测量
+  let totalWidth = 0;
+
   if (segments.length <= 1) {
     drawSegmentAligned({
       text: node.text,
@@ -567,8 +573,13 @@ export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
       textAlign,
       rtlOptions: isRTL ? rtlOptions : undefined,
     });
+    // 单段：仅在需要 decoration 时才测宽
+    if (style.textDecoration && style.textDecoration !== 'none') {
+      applySegmentFont(ctx, { font: segments[0]?.font ?? null }, fontStyle);
+      totalWidth = ctx.doc.getTextWidth(node.text);
+    }
   } else {
-    drawMultiSegmentAligned({
+    totalWidth = drawMultiSegmentAligned({
       segments,
       textAlign,
       x,
@@ -581,8 +592,6 @@ export function drawText({ node, ctx, clipTop, sortedFontConfig = [] }) {
 
   // ── text-decoration（下划线 / 删除线）────────────────────────────────────────
   if (style.textDecoration && style.textDecoration !== 'none') {
-    const widths = measureSegmentWidths(segments, fontStyle, ctx);
-    const totalWidth = widths.reduce((sum, w) => sum + w, 0);
     const decorX = resolveDecorationX(x, totalWidth, textAlign);
     drawTextDecoration({
       doc,

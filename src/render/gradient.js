@@ -1,7 +1,27 @@
 // gradient.js
 // linear-gradient CSS 解析 + Canvas 渲染工具
 
-import { canvasHasAlpha, canvasToDataUrl } from '../utils';
+import { parseColor, canvasToDataUrl } from '../utils';
+
+/**
+ * 静态判断色标数组是否含透明色，避免逐像素扫描 canvas
+ * 能解析的颜色检查 alpha < 1；解析失败（命名色等）保守返回 true
+ * @param {Array<{color: string}>} stops
+ * @returns {boolean}
+ */
+function stopsHaveAlpha(stops) {
+  for (const stop of stops) {
+    const { color } = stop;
+    if (!color || color === 'transparent') return true;
+
+    const parsed = parseColor(color);
+    if (parsed === null) return true; // 无法解析的颜色保守处理
+
+    if (parsed[3] !== undefined && parsed[3] < 1) return true;
+  }
+
+  return false;
+}
 
 // ─── linear-gradient 解析 ────────────────────────────────────────────────────
 
@@ -259,11 +279,12 @@ function renderGradientSlice({ gradient, natW, natH, srcY, srcH }) {
   for (const stop of stops) {
     grad.addColorStop(Math.max(0, Math.min(1, stop.pos)), stop.color);
   }
+  const hasAlpha = stopsHaveAlpha(stops);
+  const format = hasAlpha ? 'PNG' : 'JPEG';
+
   ctx2d.fillStyle = grad;
   ctx2d.fillRect(0, srcY, natW, srcH);
 
-  const hasAlpha = canvasHasAlpha(canvas);
-  const format = hasAlpha ? 'PNG' : 'JPEG';
   const dataUrl = canvasToDataUrl(canvas, hasAlpha);
 
   return { dataUrl, format };
@@ -407,6 +428,9 @@ function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
     ? expandRepeatingStops(gradient.stops, radius)
     : gradient.stops;
 
+  const hasAlpha = stopsHaveAlpha(stops);
+  const format = hasAlpha ? 'PNG' : 'JPEG';
+
   const grad = ctx2d.createRadialGradient(
     centerX,
     centerY,
@@ -423,8 +447,6 @@ function renderRadialGradientSlice({ gradient, natW, natH, srcY, srcH }) {
   ctx2d.fillStyle = grad;
   ctx2d.fillRect(0, srcY * scaleY, natW, srcH * scaleY);
 
-  const hasAlpha = canvasHasAlpha(canvas);
-  const format = hasAlpha ? 'PNG' : 'JPEG';
   const dataUrl = canvasToDataUrl(canvas, hasAlpha);
 
   return { dataUrl, format };

@@ -10,16 +10,22 @@
 
 import { canvasHasAlpha, canvasToDataUrl, parseBgImageUrl } from '../utils';
 
+/** 图片 URL → Promise 缓存（模块级，跨节点共享，同 URL 只 fetch 一次） */
+const imageCache = new Map();
+
 /**
  * 用 Image 加载 url → canvas → base64，同时记录原始尺寸
  * 自动检测透明通道：有透明像素用 PNG，否则用 JPEG（更小）
+ * 结果按 URL 缓存（存 Promise，并发请求同一 URL 也能命中）
  *
  * @param {string} url - 图片 URL
  * @param {number} timeout - 超时时间（毫秒），默认 30000ms
  * @returns {Promise<{src, format, w, h}|null>} 加载成功返回图片数据，失败/超时返回 null
  */
 function loadImageAsBase64(url, timeout = 30000) {
-  return new Promise((resolve) => {
+  if (imageCache.has(url)) return imageCache.get(url);
+
+  const promise = new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
 
@@ -64,6 +70,10 @@ function loadImageAsBase64(url, timeout = 30000) {
 
     img.src = url;
   });
+
+  imageCache.set(url, promise);
+
+  return promise;
 }
 
 /**
