@@ -44,4 +44,10 @@ features:
   - icon: 🗜️
     title: Compression
     details: Built-in jsPDF compression keeps file sizes small without sacrificing text quality.
+  - title: Before Output
+    details: Modify the completed jsPDF document before serialization with a synchronous or asynchronous callback.
+    link: /guide/before-output
+  - title: Ignore Elements
+    details: Exclude elements and their subtrees with htmlpdf-ignore. The original page stays unchanged while exported content reflows.
+    link: /guide/ignore-elements
 ---

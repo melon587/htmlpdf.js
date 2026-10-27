@@ -29,7 +29,7 @@ export default defineConfig({
       { text: 'API', link: '/api' },
       { text: 'Demo', link: '/demo' },
       {
-        text: 'v1.0.8',
+        text: 'v1.0.9',
         items: [
           {
             text: 'Changelog',
@@ -52,6 +52,8 @@ export default defineConfig({
             { text: 'Custom Fonts', link: '/guide/fonts' },
             { text: 'Page Breaks', link: '/guide/page-breaks' },
             { text: 'Header & Footer', link: '/guide/header-footer' },
+            { text: 'Before Output', link: '/guide/before-output' },
+            { text: 'Ignore Elements', link: '/guide/ignore-elements' },
             { text: 'Repeat Table Header', link: '/guide/repeat-header' },
             { text: 'Known Limitations', link: '/guide/limitations' },
           ],

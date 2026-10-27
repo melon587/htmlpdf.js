@@ -66,5 +66,7 @@ htmlpdfx.js relies on browser APIs that do not exist in Node.js or Deno:
 - [Custom Fonts](./fonts) — load TTF/OTF, mixed-language, per-character ranges
 - [Page Breaks](./page-breaks) — `page-break="before"` / `"avoid"`
 - [Header & Footer](./header-footer) — per-page render callbacks
+- [Before Output](./before-output) — modify the completed PDF before serialization
+- [Ignore Elements](./ignore-elements) — exclude elements with `htmlpdf-ignore`
 - [Repeat Table Header](./repeat-header) — header on every page
 - [API Reference](/api) — full options reference
