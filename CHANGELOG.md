@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2026-10-27
+
+### Features
+
+- Added form control rendering using current values and checked states from the original DOM: text-like inputs, textareas, selects, checkboxes, and radio buttons. Input and textarea placeholders are rendered when empty; password input values are masked. Textareas support line wrapping and the current vertical scroll position. Controls are drawn as static PDF content, not interactive PDF form fields.
+- Added `beforeOutput(doc, { totalPages, ctx })` to modify the completed jsPDF document after content, headers, and footers are rendered, before serialization. Supports synchronous and asynchronous callbacks; callback errors reject the export. Includes TypeScript declarations for the hook and rendering context.
+- Added `htmlpdf-ignore` to exclude an element and its entire subtree from the cloned document before layout measurement and pagination, without changing the original page. Remaining content reflows. Attribute presence determines exclusion, including `htmlpdf-ignore="false"`; an ignored export root or ancestor rejects the export.
+
+### Performance
+
+- Run image preloading and jsPDF font registration concurrently.
+- Cache image loading promises by URL to reuse requests and conversions across nodes, including concurrent requests.
+- Determine gradient transparency from color stops instead of scanning canvas pixels.
+- Reuse measured text segment widths for underline and strikethrough rendering.
+
+### Documentation and Testing
+
+- Updated English and Chinese READMEs and the documentation website with hook and ignore usage, API details, and navigation links.
+- Added 12 tests covering output hooks, asynchronous completion, error propagation, ignored subtrees, and original/clone alignment for canvas, forms, and pseudo-elements.
+- Updated the release script to publish explicitly to the public npm registry.
+
+### Migration Notes
+
+- `onProgress` now reports a combined `images+fonts` stage at `0.5` instead of separate `images` and `fonts` stages. Update callbacks that match these stage names.
+- In `beforeOutput`, `totalPages` is the pagination result. Adding or deleting pages does not repaginate the document or redraw headers and footers. Select the target page explicitly with `doc.setPage()` and treat context layout values as read-only.
+
+---
+
 ## [1.0.8] - 2026-10-09
 
 ### 🔧 Refactor
@@ -438,6 +466,8 @@ Built with:
 
 ---
 
+[1.0.9]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.9
+[1.0.8]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.8
 [1.0.7]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.7
 [1.0.6]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.6
 [1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5

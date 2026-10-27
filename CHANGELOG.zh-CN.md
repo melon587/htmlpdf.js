@@ -4,6 +4,34 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/spec/v2.0.0.html)。
 
+## [1.0.9] - 2026-10-27
+
+### 新功能
+
+- 新增表单控件渲染，从原始 DOM 读取当前值和选中状态，支持文本类 INPUT、TEXTAREA、SELECT、checkbox 和 radio。空 INPUT / TEXTAREA 支持 placeholder，密码输入值使用掩码显示；TEXTAREA 支持换行、自动折行及当前垂直滚动位置。控件绘制为静态 PDF 内容，不是可交互的 PDF 表单字段。
+- 新增 `beforeOutput(doc, { totalPages, ctx })`，在正文、页眉页脚绘制完成后、序列化输出前操作 jsPDF 实例。支持同步和异步回调，回调异常会让导出 reject；同步补充钩子和渲染上下文的 TypeScript 类型声明。
+- 新增 `htmlpdf-ignore` 属性，在布局测量和分页前从克隆文档移除元素及其整棵子树，原始页面不变，剩余内容重新布局。按属性是否存在判断，`htmlpdf-ignore="false"` 也会忽略；导出根元素或其祖先被忽略时，导出会 reject。
+
+### 性能优化
+
+- 图片预加载与 jsPDF 字体注册并发执行。
+- 按 URL 缓存图片加载 Promise，复用不同节点的请求与转换结果，并发请求同一 URL 也能命中缓存。
+- 从渐变色标判断透明度，替代逐像素扫描 canvas。
+- 下划线和删除线绘制复用文本分段的测宽结果，减少重复计算。
+
+### 文档与测试
+
+- 更新中英文 README 和文档网站，补充输出前钩子、忽略元素的用法、API 说明及导航入口。
+- 新增 12 个测试，覆盖输出钩子、异步等待、异常传播、忽略子树，以及 canvas、表单和伪元素的原始树 / 克隆树对齐。
+- 发版脚本显式指定公共 npm registry 发布。
+
+### 迁移说明
+
+- `onProgress` 将原来的 `images`、`fonts` 两个阶段合并为 `images+fonts`，进度值为 `0.5`。按阶段名称处理进度的业务代码需同步调整。
+- `beforeOutput` 的 `totalPages` 使用分页结果；增删页面不会重新分页或补画页眉页脚。绘制前请显式调用 `doc.setPage()`，上下文中的布局数据按只读使用。
+
+---
+
 ## [1.0.8] - 2026-10-09
 
 ### 🔧 重构
@@ -438,6 +466,8 @@ htmlpdf(element, {
 
 ---
 
+[1.0.9]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.9
+[1.0.8]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.8
 [1.0.7]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.7
 [1.0.6]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.6
 [1.0.5]: https://github.com/melon587/htmlpdf.js/releases/tag/v1.0.5
