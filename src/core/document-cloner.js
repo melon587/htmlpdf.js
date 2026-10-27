@@ -3,7 +3,7 @@
  * DOM 克隆和增强模块
  * cloneDocument(element, fonts)
  *   │
- *   ├─ 1. 标记 + 克隆              element.setAttribute → cloneNode(true)
+ *   ├─ 1. 标记 + 克隆 + 过滤       cloneNode(true) → 移除 htmlpdf-ignore 子树
  *   │   └─ 目的：在克隆文档中定位根元素
  *   │
  *   ├─ 2. 创建隐藏 iframe           iframe (position:fixed, left:-99999px)
@@ -147,10 +147,19 @@ function enhanceCloneRoot(root) {
 function initIframe(element) {
   const ownerDoc = element.ownerDocument;
 
+  if (element.closest('[htmlpdf-ignore]')) {
+    throw new Error('[htmlpdf] Export root or its ancestor is ignored');
+  }
+
   // Step 1: 先打标记再克隆，clone 里会带有该标记
   element.setAttribute(MARK_ATTR, '1');
   const docElClone = ownerDoc.documentElement.cloneNode(true);
   element.removeAttribute(MARK_ATTR); // 立即从原始 DOM 移除，不影响页面
+
+  // 写入 iframe 前过滤，后续布局和伪元素处理均基于移除后的结构
+  for (const el of docElClone.querySelectorAll('[htmlpdf-ignore]')) {
+    el.remove();
+  }
 
   // Step 2: 创建隐藏 iframe
   const iframe = ownerDoc.createElement('iframe');

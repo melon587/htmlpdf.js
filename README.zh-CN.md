@@ -270,6 +270,18 @@ const blob = await htmlpdf(element, {
 
 每份 PDF 在 `ctx.output()` 内调用一次，支持同步和异步回调，异步操作完成后才输出。回调异常会让 `htmlpdf()` reject，返回值不参与输出。`totalPages` 直接使用分页结果的总页数；绘制前请显式 `setPage()`。增删页面不会重新分页或补画页眉页脚，修改后的页数通过 `doc.getNumberOfPages()` 获取。`ctx` 中的布局数据按只读使用。
 
+### 忽略元素
+
+添加 `htmlpdf-ignore`，导出时排除元素及其整棵子树：
+
+```html
+<div htmlpdf-ignore>页面正常显示，但不导出到 PDF</div>
+```
+
+忽略元素只从克隆文档移除，并在之后重新测量布局和分页，原始页面不变。元素自身不保留占位，剩余内容由浏览器重新布局；容器的固定宽高及其他 CSS 约束仍然生效。
+
+按属性是否存在判断，`htmlpdf-ignore="false"` 也会忽略，取消忽略需要移除属性。导出根元素或其祖先被忽略时，`htmlpdf()` 会 reject。不提供 `ignoreElements` 回调或其他属性别名。
+
 ### 分页控制
 
 ```html

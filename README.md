@@ -264,6 +264,18 @@ const blob = await htmlpdf(element, {
 
 The callback runs once during `ctx.output()`. Synchronous and asynchronous callbacks are supported; errors reject `htmlpdf()` and return values are ignored. `totalPages` is the page count from pagination. Select the target page explicitly. Adding or deleting pages does not rerun pagination or header/footer rendering; use `doc.getNumberOfPages()` for the updated count. Treat `ctx` layout values as read-only.
 
+### Ignore Elements
+
+Add `htmlpdf-ignore` to exclude an element and its entire subtree from the PDF:
+
+```html
+<div htmlpdf-ignore>Visible in the page, excluded from the PDF</div>
+```
+
+Ignored elements are removed only from the cloned document before layout measurement. They do not reserve their own layout space; the browser lays out the remaining content again. The original page is unchanged. Fixed container dimensions and other CSS constraints still apply.
+
+Only attribute presence matters: `htmlpdf-ignore="false"` also excludes the element. Remove the attribute to include it again. An ignored export root or ancestor causes `htmlpdf()` to reject. No `ignoreElements` callback or alternative attribute names are supported.
+
 ### Page Breaks
 
 ```html

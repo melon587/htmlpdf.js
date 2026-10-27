@@ -33,6 +33,7 @@
  * traverseNode() 用 origIndex 同步推进 origChildren。
  * document-cloner.js 注入的伪元素 span 带有 data-pseudo 属性，traverseNode() 遇到时
  * 不推进 origIndex。
+ * 克隆阶段移除 htmlpdf-ignore 子树，advanceOrig() 同步跳过原始树的忽略元素。
  * 若将来在 document-cloner.js 中新增其他注入操作，必须同样用 data-* 属性标记，
  * 否则会导致 origIndex 错位，产生 silent bug。
  *
@@ -852,12 +853,21 @@ function traverseNode(origEl, measEl, ctx) {
   // 跟踪原始子节点位置（跳过 iframe 中添加的伪元素 span）
   let origIndex = 0;
 
-  // 推进 origIndex 直到遇到目标 nodeType
+  /**
+   * 跳过克隆时移除的忽略元素，推进到目标节点类型。
+   * @param {number} nodeType - 目标节点类型
+   * @returns {void}
+   */
   function advanceOrig(nodeType) {
-    while (
-      origIndex < origChildren.length &&
-      origChildren[origIndex].nodeType !== nodeType
-    ) {
+    while (origIndex < origChildren.length) {
+      const child = origChildren[origIndex];
+      const isIgnored =
+        child.nodeType === Node.ELEMENT_NODE &&
+        child.hasAttribute('htmlpdf-ignore');
+      if (child.nodeType === nodeType && isIgnored === false) {
+        break;
+      }
+
       origIndex += 1;
     }
   }
