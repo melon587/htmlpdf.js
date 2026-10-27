@@ -244,6 +244,26 @@ const blob = await htmlpdf(element, {
 });
 ```
 
+### Before Output
+
+Use `beforeOutput` to modify the completed jsPDF document after all content, headers, and footers have been rendered, but before serialization:
+
+```javascript
+const blob = await htmlpdf(element, {
+  beforeOutput: async (doc, { totalPages, ctx }) => {
+    doc.setProperties({ title: 'Quotation' });
+    for (let page = 1; page <= totalPages; page += 1) {
+      doc.setPage(page);
+      doc.setFont('helvetica');
+      doc.setFontSize(10);
+      doc.text('Reviewed', ctx.pageWidth - 10, 10, { align: 'right' });
+    }
+  },
+});
+```
+
+The callback runs once during `ctx.output()`. Synchronous and asynchronous callbacks are supported; errors reject `htmlpdf()` and return values are ignored. `totalPages` is the page count from pagination. Select the target page explicitly. Adding or deleting pages does not rerun pagination or header/footer rendering; use `doc.getNumberOfPages()` for the updated count. Treat `ctx` layout values as read-only.
+
 ### Page Breaks
 
 ```html
@@ -355,6 +375,7 @@ Converts an HTML element to PDF.
 | `tables` | `Array` | `[]` | Table configurations, e.g. `[{ selector: '#t1', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]` |
 | `debug` | `boolean` | `false` | Print per-stage timing logs to the console |
 | `onProgress` | `Function` | - | Progress callback `({ stage, progress: 0~1 }) => void`. Stages: `'clone'`, `'images'`, `'fonts'`, `'paginate'`, `'render'`, `'output'` |
+| `beforeOutput` | `Function` | - | Output hook `(doc, { totalPages, ctx }) => void \| Promise<void>`, called once after rendering |
 
 #### Font Configuration
 

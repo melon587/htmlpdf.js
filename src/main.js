@@ -16,7 +16,7 @@
  * ├─ 9. renderNode()                逐 placement 渲染节点
  * ├─ 10. drawSpillClosingLines()    逐页绘制出口闭合线
  * ├─ 11. renderHeaderFooter()       渲染页眉页脚
- * └─ 12. ctx.output()               输出 Blob/DataURL/ArrayBuffer
+ * └─ 12. ctx.output()               执行 beforeOutput 并输出 PDF 数据
  */
 
 import {
@@ -92,6 +92,7 @@ function ensurePage(doc, targetPage, currentPage) {
  * @param {Array}  [options.tables] - 表格配置数组 [{ selector, repeatHeader, pageBreakBorder }]
  * @param {boolean} [options.debug=false] - 输出分段计时日志
  * @param {Function} [options.onProgress] - ({ stage, progress: 0~1 }) => void
+ * @param {Function} [options.beforeOutput] - (doc, { totalPages, ctx }) => void | Promise<void>
  * @returns {Promise<Blob|string|ArrayBuffer>}
  */
 export async function htmlpdf(element, options = {}) {
@@ -185,7 +186,7 @@ export async function htmlpdf(element, options = {}) {
 
   tick('render', 0.9);
 
-  const result = ctx.output(output);
+  const result = await ctx.output(output, totalPages);
 
   tick('output', 1.0);
 

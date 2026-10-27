@@ -250,6 +250,26 @@ const blob = await htmlpdf(element, {
 });
 ```
 
+### 输出前钩子
+
+通过 `beforeOutput`，在正文、页眉页脚全部绘制完成后，输出 PDF 数据前直接操作 jsPDF 实例：
+
+```javascript
+const blob = await htmlpdf(element, {
+  beforeOutput: async (doc, { totalPages, ctx }) => {
+    doc.setProperties({ title: '报价单' });
+    for (let page = 1; page <= totalPages; page += 1) {
+      doc.setPage(page);
+      doc.setFont('helvetica');
+      doc.setFontSize(10);
+      doc.text('Reviewed', ctx.pageWidth - 10, 10, { align: 'right' });
+    }
+  },
+});
+```
+
+每份 PDF 在 `ctx.output()` 内调用一次，支持同步和异步回调，异步操作完成后才输出。回调异常会让 `htmlpdf()` reject，返回值不参与输出。`totalPages` 直接使用分页结果的总页数；绘制前请显式 `setPage()`。增删页面不会重新分页或补画页眉页脚，修改后的页数通过 `doc.getNumberOfPages()` 获取。`ctx` 中的布局数据按只读使用。
+
 ### 分页控制
 
 ```html
@@ -361,6 +381,7 @@ await htmlpdf(element);
 | `tables` | `Array` | `[]` | 表格配置，例如 `[{ selector: '#t1', repeatHeader: 'thead', pageBreakBorder: '1px solid #ccc' }]` |
 | `debug` | `boolean` | `false` | 在控制台打印每个阶段的计时日志 |
 | `onProgress` | `Function` | - | 进度回调 `({ stage, progress: 0~1 }) => void`。阶段值：`'clone'`、`'images'`、`'fonts'`、`'paginate'`、`'render'`、`'output'` |
+| `beforeOutput` | `Function` | - | 输出前钩子 `(doc, { totalPages, ctx }) => void \| Promise<void>`，全部渲染完成后调用一次 |
 
 #### 字体配置
 

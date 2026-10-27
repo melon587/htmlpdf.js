@@ -3,6 +3,8 @@
  * Type declarations for htmlpdf()
  */
 
+import type { jsPDF } from 'jspdf';
+
 // ---------------------------------------------------------------------------
 // Font configuration
 // ---------------------------------------------------------------------------
@@ -160,6 +162,37 @@ export interface ProgressEvent {
 
 export type OutputType = 'blob' | 'dataurl' | 'arraybuffer';
 
+/** PDF rendering context. Dimensions are in mm unless named otherwise. */
+export interface PdfContext {
+  doc: jsPDF;
+  pageWidth: number;
+  pageHeight: number;
+  marginMM: number;
+  contentWidth: number;
+  contentHeight: number;
+  contentHeightPx: number;
+  headerHeight: number;
+  footerHeight: number;
+  scale: number;
+  toMM: (px: number) => number;
+  toPdfX: (x: number) => number;
+  toPdfY: (y: number) => number;
+  toPdfYmm: (ymm: number) => number;
+  toPt: (px: number) => number;
+  output: (
+    outputFormat: OutputType,
+    totalPages: number,
+  ) => Promise<Blob | string | ArrayBuffer>;
+}
+
+/** Information available after rendering and before PDF serialization. */
+export interface BeforeOutputInfo {
+  /** Total page count from pagination; not updated by document edits. */
+  totalPages: number;
+  /** Treat layout values as read-only; they are not recalculated after edits. */
+  ctx: Readonly<PdfContext>;
+}
+
 /** Resolves to `Blob` when `output` is `'blob'` (default). */
 export function htmlpdf(
   element: HTMLElement,
@@ -253,4 +286,12 @@ export interface HtmlpdfOptions {
    * `'paginate'` → `'render'` → `'output'`
    */
   onProgress?: (event: ProgressEvent) => void;
+
+  /**
+   * Invoked once after all rendering, including headers and footers, before output.
+   * Modify the supplied jsPDF instance directly. Async callbacks are awaited;
+   * errors reject htmlpdf(). Return values are ignored. Select pages explicitly.
+   * Adding/removing pages does not trigger pagination or header/footer rendering.
+   */
+  beforeOutput?: (doc: jsPDF, info: BeforeOutputInfo) => void | Promise<void>;
 }

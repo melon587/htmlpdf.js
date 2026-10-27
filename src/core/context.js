@@ -16,6 +16,7 @@ const PX_TO_MM = 25.4 / 96;
  * @param {boolean} [options.compress=true] - 是否启用 PDF 压缩
  * @param {Object} [options.header] - 页眉配置 { height: mm, render: fn }
  * @param {Object} [options.footer] - 页脚配置 { height: mm, render: fn }
+ * @param {Function} [options.beforeOutput] - 输出前回调
  * @returns {object} 渲染上下文对象
  */
 export function initContext(rootElement, options = {}) {
@@ -26,6 +27,7 @@ export function initContext(rootElement, options = {}) {
     compress = true,
     header,
     footer,
+    beforeOutput,
   } = options;
 
   const headerHeight = header?.height ?? 0;
@@ -104,17 +106,22 @@ export function initContext(rootElement, options = {}) {
   }
 
   /**
-   * 将 PDF 输出为指定格式
+   * 等待输出前回调完成，将 PDF 输出为指定格式
    * @param {string} outputFormat - 输出格式（'blob' | 'dataurl' | 'arraybuffer'）
-   * @returns {Blob|string|ArrayBuffer} 对应格式的 PDF 数据
+   * @param {number} totalPages - 分页结果的总页数
+   * @returns {Promise<Blob|string|ArrayBuffer>} 对应格式的 PDF 数据
    */
-  function output(outputFormat) {
+  async function output(outputFormat, totalPages) {
+    if (beforeOutput) {
+      await beforeOutput(doc, { totalPages, ctx });
+    }
+
     const outputType = getOutputType(outputFormat);
 
     return doc.output(outputType);
   }
 
-  return {
+  const ctx = {
     doc,
     pageWidth,
     pageHeight,
@@ -132,4 +139,6 @@ export function initContext(rootElement, options = {}) {
     toPt,
     output,
   };
+
+  return ctx;
 }

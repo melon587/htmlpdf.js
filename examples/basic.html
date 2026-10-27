@@ -3190,6 +3190,13 @@
                   );
                 },
               },
+              beforeOutput: (pdf, { totalPages, ctx }) => {
+                console.log(
+                  pdf,
+                  { totalPages, ctx },
+                  'you can do something before output',
+                );
+              },
             },
           );
 
