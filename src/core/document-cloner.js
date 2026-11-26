@@ -15,9 +15,9 @@
  *   ├─ 4. 注入字体样式              injectFontsToDocument(iframeDoc, fonts)
  *   │   └─ 目的：确保 PDF 和浏览器使用相同字体
  *   │
- *   ├─ 5. 增强克隆 DOM              enhanceCloneRoot(cloneRoot)
+ *   ├─ 5. 增强克隆 DOM              enhanceCloneRoot(cloneRoot, fonts)
  *   │   ├─ TreeWalker 一次遍历完成（优化：减少 50% 遍历开销）
- *   │   ├─ 任务 1: 传播 pdf-font 属性（支持继承和覆盖）
+ *   │   ├─ 任务 1: 传播 pdf-font 属性并同步测量字体（支持继承和覆盖）
  *   │   ├─ 任务 2: 物化 ::before 伪元素
  *   │   │   ├─ getComputedStyle(el, '::before')
  *   │   │   ├─ 创建 <span data-pseudo="before">
@@ -34,6 +34,7 @@
  *   └─ 8. 等待图片加载              waitForImages(iframeDoc)
  */
 import { decodeCSSContent, copyPseudoStyles } from '../utils';
+import { buildEffectiveFontConfig } from '../render/text.js';
 import { injectFontsToDocument } from './font-loader.js';
 import { waitForLayout, waitForImages, waitForStyleSheets } from './wait.js';
 
@@ -50,6 +51,37 @@ function propagatePdfFontToElement(el) {
 
   if (parentHasFont && !elHasFont) {
     el.setAttribute('pdf-font', el.parentElement.getAttribute('pdf-font'));
+  }
+}
+
+/**
+ * 将克隆元素的 pdf-font 同步到测量样式，复用 PDF 字体选择优先级。
+ * @param {Element} el - 克隆元素
+ * @param {Array} fonts - 字体配置数组
+ * @returns {void}
+ */
+function applyPdfFontStyle(el, fonts) {
+  const pdfFont = el.getAttribute('pdf-font');
+  if (pdfFont) {
+    const effectiveFonts = buildEffectiveFontConfig({ pdfFont }, fonts);
+    // 未匹配到声明字体时保留原有 CSS，与既有属性解析的降级行为一致。
+    if (effectiveFonts !== fonts) {
+      const families = [
+        ...new Set(
+          effectiveFonts
+            .filter(({ charRanges, isDefault }) => charRanges || isDefault)
+            .map(({ fontFamily }) => fontFamily)
+            .filter(Boolean),
+        ),
+      ];
+      if (families.length > 0) {
+        el.style.setProperty(
+          'font-family',
+          families.map((family) => JSON.stringify(family)).join(', '),
+          'important',
+        );
+      }
+    }
   }
 }
 
@@ -90,23 +122,26 @@ function materializePseudoElement(el, doc, pseudo) {
 }
 
 /**
- * 增强克隆的 DOM：pdf-font 传播 + 伪元素物化
+ * 增强克隆的 DOM：pdf-font 传播、测量字体同步与伪元素物化
  * 1. 传播 pdf-font 时，父元素已经处理过了，只需从直接父元素复制
  * 2. 物化伪元素时，父元素已经有 pdf-font 属性，子 span 可以直接继承
  * 3. 禁用原来的伪元素
  * @param {Element} root - 克隆文档的根元素
+ * @param {Array} fonts - 字体配置数组
+ * @returns {void}
  */
-function enhanceCloneRoot(root) {
+function enhanceCloneRoot(root, fonts) {
   const doc = root.ownerDocument;
   const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
 
   let hasProcessedBefore = false;
   let hasProcessedAfter = false;
 
-  let el;
-  while ((el = walker.nextNode())) {
-    // 任务 1: 传播 pdf-font 属性
+  let el = root;
+  while (el) {
+    // 任务 1: 传播 pdf-font 属性并同步样式；物化的 span 也会被遍历。
     propagatePdfFontToElement(el);
+    applyPdfFontStyle(el, fonts);
 
     // 任务 2: 物化 ::before 伪元素
     if (materializePseudoElement(el, doc, 'before')) {
@@ -117,6 +152,8 @@ function enhanceCloneRoot(root) {
     if (materializePseudoElement(el, doc, 'after')) {
       hasProcessedAfter = true;
     }
+
+    el = walker.nextNode();
   }
 
   // 注入 CSS 规则禁用原始伪元素（避免物化的 span 和原始伪元素重复显示）
@@ -243,7 +280,7 @@ export async function cloneDocument(element, fonts = []) {
     // 找到克隆根元素，增强（pdf-font 传播 + 伪元素物化）
     const cloneRoot = iframeDoc.querySelector(`[${MARK_ATTR}]`);
     if (cloneRoot) {
-      enhanceCloneRoot(cloneRoot);
+      enhanceCloneRoot(cloneRoot, fonts);
     } else {
       throw new Error(
         '[htmlpdf] Could not locate root element in cloned document',

@@ -25,7 +25,7 @@ function createNode(tag, children = [], attributes = {}) {
     nodeType: tag === '#text' ? 3 : 1,
     textContent: tag === '#text' ? 'kept text' : '',
     childNodes: [],
-    style: {},
+    style: { setProperty: vi.fn() },
     hasAttribute: (name) => Object.hasOwn(nodeAttributes, name),
     getAttribute: (name) => nodeAttributes[name] ?? null,
     setAttribute: (name, value) => {
@@ -93,7 +93,7 @@ function createNode(tag, children = [], attributes = {}) {
 }
 
 /**
- * 安装克隆流程需要的文档接口，跳过样式增强，不模拟浏览器排版。
+ * 安装克隆流程需要的文档接口，不模拟浏览器排版。
  * @param {object} root - 导出根节点
  * @returns {object} 原始文档
  */
@@ -111,7 +111,33 @@ function createDocument(root) {
     open: () => {},
     write: () => {},
     close: () => {},
-    createTreeWalker: () => ({ nextNode: () => null }),
+    createTreeWalker: (rootNode) => {
+      let current = rootNode;
+
+      return {
+        nextNode: () => {
+          if (current.children.length > 0) {
+            current = current.children[0];
+
+            return current;
+          }
+
+          while (current !== rootNode) {
+            const siblings = current.parentElement.children;
+            const next = siblings[siblings.indexOf(current) + 1];
+            if (next) {
+              current = next;
+
+              return current;
+            }
+
+            current = current.parentElement;
+          }
+
+          return null;
+        },
+      };
+    },
     createRange: () => ({
       setStart: () => {},
       setEnd: () => {},
@@ -220,5 +246,119 @@ describe('htmlpdf-ignore', () => {
     expect(nodes[3]._origEl).toBe(root);
     expect(nodes[4]._origEl).toBe(input);
     expect(nodes[4].formMeta.value).toBe('current input');
+  });
+});
+
+describe('pdf-font measurement style', () => {
+  it('syncs root and inherited fonts, respecting overrides without touching originals', async () => {
+    vi.stubGlobal('NodeFilter', { SHOW_ELEMENT: 1 });
+    const child = createNode('SPAN', [createNode('SPAN')]);
+    const override = createNode('INPUT', [], { 'pdf-font': 'Custom' });
+    const root = createNode('DIV', [child, override], { 'pdf-font': 'roboto' });
+    createDocument(root);
+    const { iframe, cloneRoot } = await cloneDocument(root, [
+      { fontFamily: 'Roboto', isDefault: true },
+      { fontFamily: 'Roboto', fontWeight: 700 },
+      { fontFamily: 'Custom' },
+    ]);
+    for (const el of [
+      cloneRoot,
+      cloneRoot.children[0],
+      cloneRoot.children[0].children[0],
+    ]) {
+      expect(el.getAttribute('pdf-font')).toBe('roboto');
+      expect(el.style.setProperty).toHaveBeenCalledWith(
+        'font-family',
+        '"Roboto"',
+        'important',
+      );
+      expect(el.style.setProperty).toHaveBeenCalledTimes(1);
+    }
+    expect(cloneRoot.children[1].style.setProperty).toHaveBeenCalledWith(
+      'font-family',
+      '"Custom", "Roboto"',
+      'important',
+    );
+    for (const el of [root, child, child.children[0], override]) {
+      expect(el.style.setProperty).not.toHaveBeenCalled();
+    }
+    expect(child.getAttribute('pdf-font')).toBeNull();
+    destroyDocument(iframe);
+  });
+
+  it('uses existing mixed-font priority instead of the attribute declaration order', async () => {
+    vi.stubGlobal('NodeFilter', { SHOW_ELEMENT: 1 });
+    const root = createNode('DIV', [], { 'pdf-font': 'Roboto,CJK' });
+    createDocument(root);
+    const { iframe, cloneRoot } = await cloneDocument(root, [
+      { fontFamily: 'Roboto', isDefault: true },
+      { fontFamily: 'CJK', charRanges: [[0x4e00, 0x9fff]] },
+    ]);
+    expect(cloneRoot.style.setProperty).toHaveBeenCalledWith(
+      'font-family',
+      '"CJK", "Roboto"',
+      'important',
+    );
+    destroyDocument(iframe);
+  });
+
+  it.each([null, '', 'Unknown'])(
+    'preserves CSS for absent or unresolved pdf-font (%s)',
+    async (pdfFont) => {
+      vi.stubGlobal('NodeFilter', { SHOW_ELEMENT: 1 });
+      const root = createNode(
+        'DIV',
+        [],
+        pdfFont === null ? {} : { 'pdf-font': pdfFont },
+      );
+      createDocument(root);
+      const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const { iframe, cloneRoot } = await cloneDocument(root, [
+        { fontFamily: 'Roboto', isDefault: true },
+      ]);
+      expect(cloneRoot.style.setProperty).not.toHaveBeenCalled();
+      destroyDocument(iframe);
+      warning.mockRestore();
+    },
+  );
+
+  it('syncs materialized pseudo fonts after copying their original CSS', async () => {
+    vi.stubGlobal('NodeFilter', { SHOW_ELEMENT: 1 });
+    const root = createNode('DIV', [], { 'pdf-font': 'Roboto' });
+    const ownerDoc = createDocument(root);
+    const createElement = ownerDoc.createElement;
+    ownerDoc.createElement = (tag) => {
+      const el = createElement(tag);
+      if (tag === 'iframe') {
+        el.contentDocument.defaultView.getComputedStyle = (node, pseudo) => ({
+          content:
+            node.tagName === 'DIV' && pseudo === '::before'
+              ? '"amount"'
+              : 'none',
+          fontFamily: 'Times New Roman',
+          fontSize: '12px',
+          fontWeight: '700',
+          fontStyle: 'italic',
+        });
+      }
+
+      return el;
+    };
+    const { iframe, cloneRoot } = await cloneDocument(root, [
+      { fontFamily: 'Roboto', isDefault: true },
+    ]);
+    const span = cloneRoot.children[0];
+    expect(span.getAttribute('data-pseudo')).toBe('before');
+    expect(span.getAttribute('pdf-font')).toBe('Roboto');
+    expect(span.style.setProperty).toHaveBeenCalledWith(
+      'font-family',
+      '"Roboto"',
+      'important',
+    );
+    expect(span.style.fontSize).toBe('12px');
+    expect(span.style.fontWeight).toBe('700');
+    expect(span.style.fontStyle).toBe('italic');
+    expect(root.children).toHaveLength(0);
+    destroyDocument(iframe);
   });
 });
