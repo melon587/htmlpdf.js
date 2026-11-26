@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.10] - 2026-11-26
+
+### Fixed
+
+- Apply the effective `pdf-font` family list to the hidden iframe before measuring layout, including the export root, descendants with inherited or overridden settings, and materialized pseudo-elements. This reduces clipping and spacing differences caused by measuring with a browser fallback font and rendering with a different PDF font. The original page's font styles are unchanged.
+- Added regression tests for font inheritance, overrides, mixed-font ordering, unresolved font names, and pseudo-elements.
+
+---
+
 ## [1.0.9] - 2026-10-27
 
 ### Features

@@ -82,6 +82,8 @@ Use the `pdf-font` attribute to specify which font(s) to use for a specific elem
 
 > **Prerequisite**: The font name used in `pdf-font` must already be registered in the global `fonts` config. If it is not found, the font will be skipped and a warning will be printed to the console.
 
+When `pdf-font` resolves to a configured font, the export also applies the effective font-family list to that element in the hidden iframe used for layout measurement. The setting is inherited by descendants unless overridden, and also applies to materialized pseudo-elements. The original page's font styles are not changed, so the page and PDF can use different fonts. In mixed text, the browser uses the injected `@font-face` rules and their `unicode-range` values (from `charRanges`) to select fonts. The font files must load and cover the relevant characters.
+
 **Basic usage — assign a single font to an element:**
 
 ```javascript

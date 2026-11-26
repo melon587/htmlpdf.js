@@ -29,7 +29,7 @@ export default defineConfig({
       { text: 'API', link: '/api' },
       { text: 'Demo', link: '/demo' },
       {
-        text: 'v1.0.9',
+        text: 'v1.0.10',
         items: [
           {
             text: 'Changelog',
